@@ -12,6 +12,7 @@ type VisitorEvent = {
   name: string;
   location?: string | null;
   camera_source?: string | null;
+  camera_id?: string | null;
   line_position?: number | null;
   line_orientation?: string | null;
   reverse_direction?: boolean | null;
@@ -24,6 +25,8 @@ type VisitorEvent = {
   visitor_count?: number;
   created_at?: string;
 };
+
+type CCTVCamera = { id: string; name: string; rtsp_url: string; status?: string };
 
 const statusStyles: Record<string, { label: string; badge: string; dot: string }> = {
   running: { label: "Running", badge: "bg-emerald-50 text-emerald-700 ring-emerald-600/10", dot: "bg-emerald-500" },
@@ -39,6 +42,8 @@ export default function EventsPage() {
   const [name, setName] = useState("");
   const [location, setLocation] = useState("");
   const [cameraSource, setCameraSource] = useState("");
+  const [cameras, setCameras] = useState<CCTVCamera[]>([]);
+  const [cameraId, setCameraId] = useState("");
   const [linePosition, setLinePosition] = useState(50);
   const [lineOrientation, setLineOrientation] = useState("horizontal");
   const [reverseDirection, setReverseDirection] = useState(false);
@@ -53,6 +58,17 @@ export default function EventsPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [editingEventId, setEditingEventId] = useState<string | null>(null);
+
+  const loadCameras = useCallback(async () => {
+    try {
+      const user = JSON.parse(localStorage.getItem("user_info") || "null");
+      const companyId = user?.account_type === "personal" ? user?.id : user?.company_id;
+      if (!companyId) return;
+      const response = await fetch(`${(process.env.NEXT_PUBLIC_SERVICE_RECOGNIZE_CCTV || "")}/api/v1/cctv/cameras/${encodeURIComponent(companyId)}`, { cache: "no-store" });
+      const payload = await response.json();
+      if (response.ok) setCameras(payload?.result || []);
+    } catch { setCameras([]); }
+  }, []);
 
   useEffect(() => {
     if (!isCreateModalOpen) return;
@@ -95,7 +111,8 @@ export default function EventsPage() {
 
   useEffect(() => {
     fetchEvents();
-  }, [fetchEvents]);
+    loadCameras();
+  }, [fetchEvents, loadCameras]);
 
   const handleCreate = async (e: FormEvent) => {
     e.preventDefault();
@@ -117,7 +134,7 @@ export default function EventsPage() {
       const response = await fetch(editingEventId ? `${API_BASE}/${encodeURIComponent(editingEventId)}${query}` : API_BASE, {
         method: editingEventId ? "PUT" : "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ location: location.trim() || null, camera_source: cameraSource.trim() || null, line_position: linePosition / 100, line_orientation: lineOrientation, reverse_direction: reverseDirection, name, capacity: capacity ? parseInt(capacity, 10) : null, event_date: eventDate || undefined, event_start: eventStart, event_end: eventEnd, auto_run: autoRun, company_id }),
+        body: JSON.stringify({ location: location.trim() || null, camera_id: cameraId || null, camera_source: cameraSource.trim() || null, line_position: linePosition / 100, line_orientation: lineOrientation, reverse_direction: reverseDirection, name, capacity: capacity ? parseInt(capacity, 10) : null, event_date: eventDate || undefined, event_start: eventStart, event_end: eventEnd, auto_run: autoRun, company_id }),
       });
       if (!response.ok) {
         const payload = await response.json().catch(() => null);
@@ -142,7 +159,7 @@ export default function EventsPage() {
   };
 
   const openCreateModal = () => {
-    setLocation(""); setCameraSource(""); setLinePosition(50);
+    setLocation(""); setCameraSource(""); setCameraId(""); setLinePosition(50);
     setLineOrientation("horizontal"); setReverseDirection(false); setFormError("");
     setName("");
     setEventDate(new Date().toLocaleDateString("en-CA"));
@@ -155,7 +172,7 @@ export default function EventsPage() {
   };
 
   const openEditModal = (event: VisitorEvent) => {
-    setLocation(event.location || ""); setCameraSource(event.camera_source ?? "");
+    setLocation(event.location || ""); setCameraSource(event.camera_source ?? ""); setCameraId(event.camera_id ?? "");
     setLinePosition(Math.round((event.line_position ?? 0.5) * 100));
     setLineOrientation(event.line_orientation ?? "horizontal");
     setReverseDirection(event.reverse_direction ?? false); setFormError("");
@@ -421,7 +438,13 @@ export default function EventsPage() {
                 </label>
                 <section className="space-y-4 rounded-xl border border-slate-200 bg-slate-50/60 p-4">
                   <div><h3 className="text-sm font-semibold">Kamera & Garis Hitung</h3><p className="mt-1 text-xs text-slate-500">Konfigurasi khusus untuk event ini.</p></div>
-                  <label className="block text-sm font-medium">Sumber Kamera<input value={cameraSource} onChange={(e) => setCameraSource(e.target.value)} placeholder="0, rtsp://host/stream, atau path video" className={fieldClass} /><span className="mt-1 block text-xs font-normal text-slate-500">Kosongkan untuk memakai kamera company.</span></label>
+                  <label className="block text-sm font-medium">Kamera CCTV
+                    <select value={cameraId} onChange={(e) => { const selected = cameras.find((camera) => camera.id === e.target.value); setCameraId(e.target.value); setCameraSource(selected?.rtsp_url || ""); }} className={fieldClass}>
+                      <option value="">Pilih kamera CCTV</option>
+                      {cameras.map((camera) => <option key={camera.id} value={camera.id}>{camera.name}</option>)}
+                    </select>
+                    <span className="mt-1 block text-xs font-normal text-slate-500">Daftar kamera diambil dari master CCTV company.</span>
+                  </label>
                   <label className="block text-sm font-medium">Orientasi Garis<select value={lineOrientation} onChange={(e) => setLineOrientation(e.target.value)} className={fieldClass}><option value="horizontal">Horizontal</option><option value="vertical">Vertikal</option></select></label>
                   <label className="block text-sm font-medium">Posisi Garis · {linePosition}%<input type="range" min="10" max="90" value={linePosition} onChange={(e) => setLinePosition(Number(e.target.value))} className="mt-3 block w-full accent-indigo-600" /></label>
                   <label className="flex items-center gap-3 text-sm"><input type="checkbox" checked={reverseDirection} onChange={(e) => setReverseDirection(e.target.checked)} className="accent-indigo-600" />Balik arah masuk/keluar</label>

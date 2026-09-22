@@ -11,7 +11,8 @@ const navigation = [
     { href: "/events", label: "Manajemen Event", icon: Calendar }
   ] },
   { group: "Absen CCTV", links: [
-    { href: "/recognize_cctv", label: "Monitoring Absensi", icon: Camera }
+    { href: "/recognize_cctv", label: "Monitoring Absensi", icon: Camera },
+    { href: "/master-cctv", label: "Master CCTV", icon: ScanFace }
   ] },
   { group: "Sistem", links: [{ href: "/settings", label: "Pengaturan", icon: Settings2 }] }
 ];
