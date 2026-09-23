@@ -1,8 +1,8 @@
 "use client";
 import { useRef, useEffect, useState, type ReactNode } from "react";
 import Link from "next/link";
-import Image from "next/image";
-import { dashboardProfileRequest, defaultDashboardProfile, type DashboardProfile } from "./dashboard-profile";
+import { BrandLogo } from "./ui/brand-logo";
+import { clearDashboardProfileCache, dashboardProfileRequest, defaultDashboardProfile, type DashboardProfile } from "./dashboard-profile";
 import { usePathname, useRouter } from "next/navigation";
 import {
   Cctv,
@@ -90,6 +90,7 @@ export default function AdminShell({ children }: { children: ReactNode }) {
     return () => window.removeEventListener("profile-changed", syncProfile);
   }, [pathname, router]);
   function logout() {
+    clearDashboardProfileCache();
     setBrand(defaultDashboardProfile);
     localStorage.removeItem("auth_token");
     localStorage.removeItem("user_info");
@@ -114,12 +115,13 @@ export default function AdminShell({ children }: { children: ReactNode }) {
           .find((link) => link.href === pathname)?.label || "Monitoring";
   const renderNavigation = () =>
     navigation.map((group) => (
-      <div className="nav-group" key={group.group}>
-        <p>{group.group}</p>
+      <div className="mb-[26px]" key={group.group}>
+        <p className="mx-3 mb-[5px] text-[10px] tracking-[1px] text-[#cbd8f0] uppercase">{group.group}</p>
         {group.links.map(({ href, label, icon: Icon }) => (
           <Link
             key={href}
             href={href}
+            className="mt-1 flex min-h-[45px] items-center gap-3 rounded-lg px-3 py-2.5 font-semibold text-white hover:bg-[#ffffff15] aria-[current]:bg-white aria-[current]:text-navy"
             aria-current={
               pathname === href || (href === "/events" && eventDetail)
                 ? "page"
@@ -136,50 +138,44 @@ export default function AdminShell({ children }: { children: ReactNode }) {
       </div>
     ));
   return (
-    <div className="admin-app">
-      <a href="#page-content" className="skip-link">
+    <div className="min-h-dvh bg-white scheme-light lg:pl-64">
+      <a href="#page-content" className="fixed -top-[100px] left-4 z-100 bg-white p-3 text-navy focus:top-2.5">
         Lewati ke konten
       </a>
-      <aside className="admin-sidebar">
-        <Link href="/" className="admin-brand">
-          {brand.logo ? (
-            <Image unoptimized src={brand.logo} alt="" width={32} height={40} />
-          ) : (
-            <span className="dashboard-initial sidebar-initial" aria-hidden="true">
-              {brand.name.trim().charAt(0).toUpperCase() || "D"}
-            </span>
-          )}
-          <span>
-            <strong>{brand.name}</strong>
-            <small>Dashboard Monitoring</small>
+      <aside className="hidden lg:fixed lg:inset-y-0 lg:left-0 lg:z-40 lg:flex lg:w-64 lg:flex-col lg:bg-navy lg:text-white">
+        <Link href="/" className="flex min-h-[93px] items-center gap-3 border-b border-[#ffffff12] p-6">
+          <BrandLogo name={brand.name} src={brand.logo} size="sidebar" />
+          <span className="min-w-0">
+            <strong className="block text-base [overflow-wrap:anywhere]">{brand.name}</strong>
+            <small className="mt-1 block text-xs/normal text-[#e0e9fc]">Dashboard Monitoring</small>
           </span>
         </Link>
-        <nav aria-label="Navigasi utama">{renderNavigation()}</nav>
-        <div className="sidebar-user">
+        <nav className="flex-1 overflow-y-auto px-4 py-[26px]" aria-label="Navigasi utama">{renderNavigation()}</nav>
+        <div className="flex items-center gap-2.5 p-4">
           <Link
             href="/settings?tab=profile"
-            className="user-initial"
+            className="grid size-8 place-items-center rounded-full border-2 border-white"
             aria-label="Profil pengguna"
           >
             {name.charAt(0).toUpperCase()}
           </Link>
-          <Link href="/settings?tab=profile" className="user-name">
-            <strong>{name}</strong>
-            <small>Administrator</small>
+          <Link href="/settings?tab=profile" className="min-w-0 flex-1">
+            <strong className="block truncate text-xs/normal">{name}</strong>
+            <small className="mt-0.5 block text-[10px]">Administrator</small>
           </Link>
           <button
             onClick={logout}
-            className="logout-button"
+            className="grid size-8 place-items-center rounded-lg bg-white text-[#f23852]"
             aria-label="Keluar"
           >
             <LogOut size={16} />
           </button>
         </div>
       </aside>
-      <header className="admin-header">
+      <header className="flex h-[72px] items-center gap-5 border-b border-line bg-white px-5 max-[600px]:h-auto max-[600px]:min-h-16 max-[600px]:gap-3 max-[600px]:px-4 max-[600px]:py-2.5 lg:px-8">
         <details
           ref={menu}
-          className="mobile-menu"
+          className="relative lg:hidden"
           onKeyDown={(e) => {
             if (e.key === "Escape" && menu.current) {
               menu.current.open = false;
@@ -187,16 +183,16 @@ export default function AdminShell({ children }: { children: ReactNode }) {
             }
           }}
         >
-          <summary>
+          <summary className="flex min-h-11 list-none items-center gap-1.5 [&::-webkit-details-marker]:hidden">
             <Menu size={20} /> Menu
           </summary>
-          <nav aria-label="Navigasi mobile">
+          <nav className="absolute top-[50px] left-0 z-45 w-60 rounded-[10px] bg-navy px-4 py-5 text-white shadow-[0_8px_24px_#0003] [&>a]:block [&>a]:p-3 [&>button]:block [&>button]:p-3" aria-label="Navigasi mobile">
             {renderNavigation()}
             <Link href="/settings?tab=profile">Profil pengguna</Link>
             <button onClick={logout}>Keluar</button>
           </nav>
         </details>
-        <nav aria-label="Breadcrumb" className="breadcrumbs">
+        <nav aria-label="Breadcrumb" className="flex flex-wrap items-center gap-2.5 text-sm/normal max-[600px]:gap-1 max-[600px]:text-xs/normal [&_a]:text-[#737373] [&_svg]:text-[#737373] [&_span]:font-semibold [&_span]:text-navy">
           <Link href="/">Workspace</Link>
           <ChevronRight size={16} />
           {eventDetail && (
@@ -208,7 +204,7 @@ export default function AdminShell({ children }: { children: ReactNode }) {
           <span aria-current="page">{title}</span>
         </nav>
       </header>
-      <div id="page-content" tabIndex={-1}>
+      <div id="page-content" tabIndex={-1} className="min-w-0 outline-none">
         {children}
       </div>
     </div>

@@ -1,4 +1,5 @@
 "use client";
+import { Button } from "./ui/button";
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Camera, Loader2, Square } from "lucide-react";
@@ -188,7 +189,7 @@ export default function CameraTestPreview({
   return (
     <div
       data-compact={compact}
-      className="camera-preview relative flex w-full flex-col overflow-hidden rounded-xl border border-dashed border-[#0c2e73] bg-[#edf1f7]"
+      className="group/preview relative flex w-full flex-col overflow-hidden rounded-xl border border-dashed border-navy bg-[#edf1f7] max-[600px]:[&_button]:min-h-11"
     >
       {/* Top Overlay for Errors */}
       {error && (
@@ -201,7 +202,7 @@ export default function CameraTestPreview({
       )}
 
       {/* Video Area */}
-      <div className="preview-picture relative flex aspect-video w-full items-center justify-center overflow-hidden">
+      <div className="relative flex aspect-video w-full items-center justify-center overflow-hidden group-data-[compact=true]/preview:h-[140px] group-data-[compact=true]/preview:aspect-auto">
         <canvas
           ref={canvas}
           aria-label="Video live kamera event"
@@ -276,11 +277,11 @@ export default function CameraTestPreview({
       {/* Control Bar (Bottom) */}
       <div className="flex items-center justify-between border-t border-slate-200 bg-white px-4 py-3">
         <div className="flex flex-1 items-center gap-4">
-          <button
+          <Button
             type="button"
             onClick={streaming ? stopPreview : testCamera}
             disabled={testing && !streaming}
-            className={`btn text-xs ${streaming ? "text-red-700" : "btn-outline"}`}
+            variant={streaming ? "default" : "outline"}
           >
             {testing ? (
               <Loader2 size={14} className="animate-spin" />
@@ -290,7 +291,7 @@ export default function CameraTestPreview({
               <Camera size={14} />
             )}
             {streaming ? "Hentikan" : "Nyalakan Kamera"}
-          </button>
+          </Button>
 
           {preview && !hideLineUI && (
             <span className="hidden text-[10px] text-slate-400 sm:inline-block">

@@ -1,6 +1,8 @@
 "use client";
 import { useEffect, useId, useRef, type ReactNode } from "react";
 import { X } from "lucide-react";
+import { Button } from "./ui/button";
+import { cx } from "./ui/styles";
 export default function Modal({
   title,
   onClose,
@@ -31,7 +33,7 @@ export default function Modal({
   return (
     <dialog
       ref={ref}
-      className={`modal ${size ? `modal-${size}` : ""}`}
+      className={cx("m-auto max-h-[calc(100dvh-40px)] rounded-2xl border-0 bg-white p-0 text-foreground shadow-[0_4px_10px_#0002] backdrop:bg-[#0005]", size === "small" ? "w-[min(470px,calc(100vw-32px))]" : size === "medium" ? "w-[min(854px,calc(100vw-32px))]" : "w-[min(1000px,calc(100vw-32px))]")}
       aria-labelledby={titleId}
       onCancel={(event) => {
         event.preventDefault();
@@ -50,17 +52,18 @@ export default function Modal({
         }
       }}
     >
-      <header className="modal-header">
-        <h2 id={titleId}>{title}</h2>
-        <button
-          className="btn icon-btn border-0"
+      <header className="flex items-center justify-between gap-4 border-b border-[#e5e5e5] px-6 py-5 max-[600px]:p-4">
+        <h2 id={titleId} className="text-[18px] font-semibold text-[#383838]">{title}</h2>
+        <Button
+          icon
+          className="border-0! text-[#929cad]!"
           type="button"
           aria-label="Tutup dialog"
           onClick={onClose}
           disabled={busy}
         >
           <X size={20} />
-        </button>
+        </Button>
       </header>
       {children}
     </dialog>

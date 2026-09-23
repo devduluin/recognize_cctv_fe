@@ -8,7 +8,11 @@ import {
   Mars,
   Venus,
 } from "lucide-react";
-import Link from "next/link";
+import { Button, ButtonLink } from "./ui/button";
+import { Field, Input, Select } from "./ui/field";
+import { PageHeading, ScrollArea, Toolbar } from "./ui/layout";
+import { StatCard } from "./ui/stat-card";
+import { cx, ui } from "./ui/styles";
 const API_BASE =
   (process.env.NEXT_PUBLIC_SERVICE_RECOGNIZE_CCTV || "") +
   "/api/v1/event_visitor";
@@ -77,12 +81,12 @@ export function VisitorChart({
     .join(" ");
   const selected = hours.find((hour) => hour.hour === selectedHour);
   return (
-    <div className="chart-panel">
-      <div className="chart-scroll">
+    <div className={ui.chartPanel}>
+      <div className="overflow-x-auto px-6 pt-[22px] pb-4 max-[600px]:p-4">
         <svg
           viewBox="0 0 1065 340"
           preserveAspectRatio="none"
-          className="visitor-chart"
+          className="block h-[350px] w-full min-w-[560px]"
           role="group"
           aria-label="Grafik pengunjung masuk per jam"
         >
@@ -161,8 +165,8 @@ export function VisitorChart({
           ))}
         </svg>
       </div>
-      <p className="chart-legend" aria-live="polite">
-        <span />
+      <p className="flex items-center justify-center gap-1.5 pb-5 text-xs/normal text-[#555]" aria-live="polite">
+        <span className="mr-1 size-2 rounded-full bg-navy outline-4 outline-[#c4cfe4]" />
         {selected
           ? `${selected.label}: ${selected.in_count.toLocaleString("id-ID")} orang masuk`
           : date}
@@ -170,13 +174,11 @@ export function VisitorChart({
       {table && (
         <>
           <h3>Rincian Per Jam</h3>
-          <div
-            className="hour-table-scroll"
-            role="region"
+          <ScrollArea
+            className="max-h-[360px]"
             aria-label="Rincian pengunjung per jam"
-            tabIndex={0}
           >
-            <table className="hour-table">
+            <table className="w-full text-left text-sm/normal [&_th]:sticky [&_th]:top-0 [&_th]:z-1 [&_th]:bg-[#f4f6f9] [&_th]:px-5 [&_th]:py-3.5 [&_th]:text-muted [&_td]:border-b [&_td]:border-[#f0f3f8] [&_td]:px-5 [&_td]:py-[9px] [&_th:last-child]:text-right [&_td:last-child]:text-right">
               <thead>
                 <tr>
                   <th scope="col">Jam ({timezone})</th>
@@ -194,7 +196,7 @@ export function VisitorChart({
                 ))}
               </tbody>
             </table>
-          </div>
+          </ScrollArea>
         </>
       )}
     </div>
@@ -283,10 +285,10 @@ export default function HourlyVisitorStatistics({
   }, [date, effectiveCompanyId, activeEventId, key, refresh]);
   const current = data?.key === key ? data.value : null;
   const filters = (suffix: string) => (
-    <div className="toolbar">
-      <button
+    <Toolbar>
+      <Button
         type="button"
-        className="btn icon-btn"
+        icon
         aria-label={`Muat ulang ${suffix === "top" ? "statistik" : "distribusi"}`}
         disabled={loading && !!effectiveCompanyId}
         onClick={() => setRefresh((value) => value + 1)}
@@ -295,12 +297,11 @@ export default function HourlyVisitorStatistics({
           size={17}
           className={loading && effectiveCompanyId ? "animate-spin" : ""}
         />
-      </button>
+      </Button>
       {!eventId && (
-        <label className="field">
+        <Field>
           Event
-          <select
-            className="input"
+          <Select
             aria-label={`Filter event ${suffix}`}
             value={selectedEventId}
             onChange={(e) => setSelectedEventId(e.target.value)}
@@ -311,13 +312,12 @@ export default function HourlyVisitorStatistics({
                 {event.name}
               </option>
             ))}
-          </select>
-        </label>
+          </Select>
+        </Field>
       )}
-      <label className="field">
+      <Field>
         Tanggal
-        <input
-          className="input"
+        <Input
           type="date"
           required
           value={date}
@@ -325,14 +325,14 @@ export default function HourlyVisitorStatistics({
             if (e.target.value) setDate(e.target.value);
           }}
         />
-      </label>
+      </Field>
       {suffix === "top" && !eventId && (
-        <Link className="btn btn-primary" href="/events?create=1">
+        <ButtonLink variant="primary" href="/events?create=1">
           <Plus size={16} />
           Buat Event
-        </Link>
+        </ButtonLink>
       )}
-    </div>
+    </Toolbar>
   );
   const metrics = [
     {
@@ -358,22 +358,22 @@ export default function HourlyVisitorStatistics({
   ];
   return (
     <section aria-labelledby={`${id}-title`}>
-      <div className="page-heading">
+      <PageHeading>
         <div>
-          {!eventId && <p className="eyebrow">OVERVIEW</p>}
+          {!eventId && <p className={ui.eyebrow}>OVERVIEW</p>}
           <h2 id={`${id}-title`}>
             {eventId ? "Statistik Pengunjung" : "Pengunjung Masuk per Jam"}
           </h2>
-          <p className="page-description">
+          <p className={ui.pageDescription}>
             {eventId
               ? "Terhitung selama event berlangsung pada tanggal pilihan."
               : "Jumlah event masuk yang tercatat pada tanggal pilihan."}
           </p>
         </div>
         {!eventId && filters("top")}
-      </div>
+      </PageHeading>
       {error && (
-        <p role="alert" className="error-message">
+        <p role="alert" className={ui.error}>
           {error} {current && "Menampilkan data terakhir."}{" "}
           <button
             onClick={() => setRefresh((value) => value + 1)}
@@ -383,21 +383,15 @@ export default function HourlyVisitorStatistics({
           </button>
         </p>
       )}
-      <div className="stat-grid">
+      <div className={ui.statGrid}>
         {metrics.map(({ label, value, icon: Icon }) => (
-          <div className="stat-card" key={label}>
-            <Icon />
-            <div>
-              <p>{label}</p>
-              <strong>{value}</strong>
-            </div>
-          </div>
+          <StatCard key={label} label={label} value={value} icon={Icon} />
         ))}
       </div>
-      <div className="section-heading">
+      <div className={ui.sectionHeading}>
         <div>
           <h2>Distribusi Pengunjung</h2>
-          <p className="page-description">
+          <p className={ui.pageDescription}>
             Lihat jumlah pengunjung yang masuk setiap jamnya.
           </p>
         </div>
@@ -407,7 +401,7 @@ export default function HourlyVisitorStatistics({
         {current ? (
           <>
             {current.total_in === 0 && (
-              <p className="panel-description mb-3">
+              <p className={cx(ui.panelDescription, "mb-3")}>
                 Belum ada pengunjung masuk pada tanggal ini.
               </p>
             )}
@@ -418,7 +412,7 @@ export default function HourlyVisitorStatistics({
             />
           </>
         ) : (
-          <div role="status" className="chart-panel empty-state">
+          <div role="status" className={cx(ui.chartPanel, ui.emptyState)}>
             {!effectiveCompanyId
               ? "Workspace belum tersedia. Lengkapi pengaturan akun Anda."
               : error

@@ -1,4 +1,7 @@
 "use client";
+import { Button } from "./ui/button";
+import { StatCard } from "./ui/stat-card";
+import { ui } from "./ui/styles";
 import { useEffect, useState } from "react";
 import {
   LogIn,
@@ -113,9 +116,10 @@ export default function EventSummary({
   );
   return (
     <Modal title="Rangkuman Event" onClose={onClose} size="medium">
-      <div className="modal-body">
+      <div className={ui.modalBody}>
         <div
-          className="settings-tabs mt-0"
+          className={ui.tabs}
+          data-slot="tabs"
           role="tablist"
           aria-label="Rangkuman event"
         >
@@ -135,7 +139,7 @@ export default function EventSummary({
           </button>
         </div>
         {error ? (
-          <p role="alert" className="error-message">
+          <p role="alert" className={ui.error}>
             {error}{" "}
             <button
               className="underline"
@@ -145,14 +149,14 @@ export default function EventSummary({
             </button>
           </p>
         ) : loading ? (
-          <p role="status" className="empty-state">
+          <p role="status" className={ui.emptyState}>
             Memuat rangkuman…
           </p>
         ) : (
           data &&
           totals &&
           (tab === "profile" ? (
-            <div className="stat-grid summary-grid">
+            <div className={ui.summaryGrid}>
               {[
                 {
                   label: "Total masuk",
@@ -185,31 +189,25 @@ export default function EventSummary({
                   icon: ClockArrowUp,
                 },
               ].map(({ label, value, icon: Icon }) => (
-                <div className="stat-card" key={label}>
-                  <Icon />
-                  <div>
-                    <p>{label}</p>
-                    <strong>{value}</strong>
-                  </div>
-                </div>
+                <StatCard key={label} label={label} value={value} icon={Icon} />
               ))}
             </div>
           ) : (
             <>
-              <div className="section-heading">
+              <div className={ui.sectionHeading}>
                 <div>
                   <h2>Distribusi Pengunjung</h2>
-                  <p className="page-description">
+                  <p className={ui.pageDescription}>
                     Akumulasi per jam pada tanggal masing-masing event.
                   </p>
                 </div>
-                <button
-                  className="btn icon-btn"
+                <Button
+                  icon
                   aria-label="Muat ulang rangkuman"
                   onClick={() => setRefresh((value) => value + 1)}
                 >
                   <RefreshCw size={16} />
-                </button>
+                </Button>
               </div>
               <VisitorChart
                 hours={data.hours}
@@ -220,10 +218,10 @@ export default function EventSummary({
           ))
         )}
       </div>
-      <footer className="modal-footer">
-        <button className="btn" onClick={onClose}>
+      <footer className={ui.modalFooter}>
+        <Button onClick={onClose}>
           Kembali
-        </button>
+        </Button>
       </footer>
     </Modal>
   );

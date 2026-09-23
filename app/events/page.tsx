@@ -1,4 +1,9 @@
 "use client";
+import { Button } from "../../components/ui/button";
+import { Field, Input, Select } from "../../components/ui/field";
+import { Page, PageHeading, Toolbar } from "../../components/ui/layout";
+import { DataTable, StatusBadge, TableContainer } from "../../components/ui/data-table";
+import { cx, ui } from "../../components/ui/styles";
 import {
   useState,
   useEffect,
@@ -235,59 +240,58 @@ export default function EventsPage() {
     selected.includes(event.id),
   );
   return (
-    <main className="page">
-      <div className="page-heading">
+    <Page>
+      <PageHeading>
         <div>
-          <p className="eyebrow">EVENT</p>
+          <p className={ui.eyebrow}>EVENT</p>
           <h1>Daftar Event</h1>
-          <p className="page-description">
+          <p className={ui.pageDescription}>
             Jumlah event masuk yang tercatat pada tanggal pilihan.
           </p>
         </div>
-        <div className="toolbar">
-          <label className="field">
+        <Toolbar>
+          <Field>
             Cari Event
             <span className="relative">
               <Search
                 size={15}
                 className="absolute left-3 top-3 text-neutral-500"
               />
-              <input
+              <Input
                 type="search"
-                className="input pl-9 sm:w-[290px]"
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
               />
             </span>
-          </label>
-          <button
-            className="btn btn-outline"
+          </Field>
+          <Button
+            variant="outline"
             disabled={!summarySelection.length}
             onClick={() => setSummaryEvents(summarySelection)}
           >
             Rangkum Event
-          </button>
-          <button className="btn btn-primary" onClick={() => open()}>
+          </Button>
+          <Button variant="primary" onClick={() => open()}>
             <Plus size={16} />
             Buat Event
-          </button>
-        </div>
-      </div>
+          </Button>
+        </Toolbar>
+      </PageHeading>
       {error && (
-        <p role="alert" className="error-message">
+        <p role="alert" className={ui.error}>
           {error}{" "}
           <button className="underline" onClick={load}>
             Coba lagi
           </button>
         </p>
       )}
-      <div className="data-table-wrap">
+      <TableContainer>
         {loading ? (
-          <p role="status" className="empty-state">
+          <p role="status" className={ui.emptyState}>
             Memuat data…
           </p>
         ) : !visibleEvents.length ? (
-          <div className="empty-state">
+          <div className={ui.emptyState}>
             <strong>
               {events.length ? "Event tidak ditemukan" : "Belum ada event"}
             </strong>
@@ -298,7 +302,7 @@ export default function EventsPage() {
             </p>
           </div>
         ) : (
-          <table className="data-table">
+          <DataTable>
             <thead>
               <tr>
                 <th className="w-12">
@@ -399,16 +403,15 @@ export default function EventsPage() {
                   </td>
                   <td>{event.visitor_count ?? 0}</td>
                   <td>
-                    <span
-                      className="status-badge"
+                    <StatusBadge
                       data-running={event.status === "running"}
                     >
                       {event.status || "not started"}
-                    </span>
+                    </StatusBadge>
                   </td>
                   <td>
                     <details
-                      className="row-menu"
+                      className={ui.rowMenu}
                       onKeyDown={(e) => {
                         if (e.key === "Escape") e.currentTarget.open = false;
                       }}
@@ -416,7 +419,7 @@ export default function EventsPage() {
                       <summary aria-label={`Aksi ${event.name}`}>
                         <MoreHorizontal size={18} />
                       </summary>
-                      <div className="row-menu-content">
+                      <div className={ui.rowMenuContent}>
                         <Link href={`/events/${event.id}`}>Detail Event</Link>
                         <button
                           onClick={(e) => {
@@ -440,9 +443,9 @@ export default function EventsPage() {
                 </tr>
               ))}
             </tbody>
-          </table>
+          </DataTable>
         )}
-      </div>
+      </TableContainer>
       {isOpen && (
         <Modal
           title={editingId ? "Edit Event" : "Buat Event Baru"}
@@ -451,82 +454,75 @@ export default function EventsPage() {
         >
           <form onSubmit={save}>
             <fieldset disabled={busy}>
-              <div className="modal-body">
+              <div className={ui.modalBody}>
                 {formError && (
-                  <p role="alert" className="error-message">
+                  <p role="alert" className={ui.error}>
                     {formError}
                   </p>
                 )}
-                <div className="form-grid">
-                  <label className="field">
+                <div className={ui.formGrid}>
+                  <Field>
                     Nama Event
-                    <input
+                    <Input
                       autoFocus
                       required
-                      className="input"
                       placeholder="Masukkan nama event"
                       value={form.name}
                       onChange={(e) => update("name", e.target.value)}
                     />
-                  </label>
-                  <label className="field">
+                  </Field>
+                  <Field>
                     Kapasitas Event (Opsional)
-                    <input
-                      className="input"
+                    <Input
                       type="number"
                       min="1"
                       placeholder="Masukkan jumlah kapasitas"
                       value={form.capacity}
                       onChange={(e) => update("capacity", e.target.value)}
                     />
-                  </label>
-                  <label className="field">
+                  </Field>
+                  <Field>
                     Lokasi Event
-                    <input
-                      className="input"
+                    <Input
                       placeholder="Masukkan lokasi event"
                       value={form.location}
                       onChange={(e) => update("location", e.target.value)}
                     />
-                  </label>
-                  <label className="field">
+                  </Field>
+                  <Field>
                     Tanggal
-                    <input
+                    <Input
                       type="date"
-                      className="input"
                       required
                       value={form.eventDate}
                       onChange={(e) => update("eventDate", e.target.value)}
                     />
-                  </label>
-                  <label className="field">
+                  </Field>
+                  <Field>
                     Mulai
-                    <input
+                    <Input
                       type="time"
-                      className="input"
                       required
                       value={form.eventStart}
                       onChange={(e) => update("eventStart", e.target.value)}
                     />
-                  </label>
-                  <label className="field">
+                  </Field>
+                  <Field>
                     Selesai
-                    <input
+                    <Input
                       type="time"
-                      className="input"
                       required
                       value={form.eventEnd}
                       onChange={(e) => update("eventEnd", e.target.value)}
                     />
-                  </label>
+                  </Field>
                 </div>
               </div>
-              <div className="form-section space-y-4">
+              <div className={cx(ui.formSection, "space-y-4")}>
                 <h3>Kamera & Garis Hitung</h3>
-                <label className="field">
+                <Field>
                   Sumber Kamera
-                  <input
-                    className="input"
+                  <Input
                     placeholder="0, rtsp://host/stream, atau path video"
                     value={form.cameraSource}
                     onChange={(e) => update("cameraSource", e.target.value)}
@@ -534,7 +530,7 @@ export default function EventsPage() {
                   <small className="text-neutral-500">
                     Kosongkan untuk memakai kamera company.
                   </small>
-                </label>
+                </Field>
                 {cameras.length > 0 && (
                   <details>
                     <summary className="py-1 text-sm">
@@ -571,18 +567,17 @@ export default function EventsPage() {
                     </div>
                   </details>
                 )}
-                <label className="field">
+                <Field>
                   Orientasi Garis
-                  <select
-                    className="input"
+                  <Select
                     value={form.lineOrientation}
                     onChange={(e) => update("lineOrientation", e.target.value)}
                   >
                     <option value="horizontal">Horizontal</option>
                     <option value="vertical">Vertikal</option>
-                  </select>
-                </label>
-                <label className="field">
+                  </Select>
+                </Field>
+                <Field>
                   Posisi Garis ({form.linePosition}%)
                   <input
                     type="range"
@@ -593,7 +588,7 @@ export default function EventsPage() {
                       update("linePosition", Number(e.target.value))
                     }
                   />
-                </label>
+                </Field>
                 <div className="flex flex-wrap gap-6">
                   <label className="flex items-center gap-2">
                     <input
@@ -615,21 +610,21 @@ export default function EventsPage() {
                   </label>
                 </div>
               </div>
-              <div className="form-section grid items-center gap-5 sm:grid-cols-2">
+              <div className={cx(ui.formSection, "grid items-center gap-5 sm:grid-cols-2")}>
                 <div>
                   <h3>Preview Kamera</h3>
-                  <p className="panel-description">
+                  <p className={ui.panelDescription}>
                     Video live untuk mengatur garis hitung sebelum event
                     dimulai.
                   </p>
                   {form.cameraIds.length > 1 && (
-                    <button
-                      className="btn mt-4"
+                    <Button
+                      className="mt-4"
                       type="button"
                       onClick={() => setPreview(true)}
                     >
                       Test semua kamera ({form.cameraIds.length})
-                    </button>
+                    </Button>
                   )}
                 </div>
                 <CameraTestPreview
@@ -641,29 +636,28 @@ export default function EventsPage() {
                 />
               </div>
             </fieldset>
-            <footer className="modal-footer">
-              <button
-                className="btn"
+            <footer className={ui.modalFooter}>
+              <Button
                 type="button"
                 onClick={() => setIsOpen(false)}
                 disabled={busy}
               >
                 Cancel
-              </button>
-              <button
-                className="btn btn-primary"
+              </Button>
+              <Button
+                variant="primary"
                 type="submit"
                 disabled={busy || !form.name.trim()}
               >
                 {busy ? "Menyimpan…" : "Simpan Event"}
-              </button>
+              </Button>
             </footer>
           </form>
         </Modal>
       )}
       {preview && (
         <Modal title="Test Kamera" onClose={() => setPreview(false)}>
-          <div className="modal-body grid gap-4 sm:grid-cols-2">
+          <div className={cx(ui.modalBody, "grid gap-4 sm:grid-cols-2")}>
             {cameras
               .filter((camera) => form.cameraIds.includes(camera.id))
               .map((camera) => (
@@ -679,10 +673,10 @@ export default function EventsPage() {
                 </div>
               ))}
           </div>
-          <footer className="modal-footer">
-            <button className="btn" onClick={() => setPreview(false)}>
+          <footer className={ui.modalFooter}>
+            <Button onClick={() => setPreview(false)}>
               Kembali
-            </button>
+            </Button>
           </footer>
         </Modal>
       )}
@@ -692,6 +686,6 @@ export default function EventsPage() {
           onClose={() => setSummaryEvents(null)}
         />
       )}
-    </main>
+    </Page>
   );
 }

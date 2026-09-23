@@ -1,7 +1,10 @@
 "use client";
+import { Button, ButtonLink, buttonStyles } from "../../components/ui/button";
+import { Field, Select } from "../../components/ui/field";
+import { InfoRow, Page, PageHeading, Panel, Toolbar } from "../../components/ui/layout";
+import { ui } from "../../components/ui/styles";
 /* eslint-disable @next/next/no-img-element -- MJPEG streams must use a native image element. */
 import { useState, useEffect, useRef, useCallback } from "react";
-import Link from "next/link";
 import {
   Download,
   Maximize,
@@ -195,33 +198,33 @@ export default function EventVisitorPage({
   ];
   const genderTotal = demographics.reduce((sum, item) => sum + item.count, 0);
   const row = (label: string, content: string) => (
-    <div className="info-row" key={label}>
+    <InfoRow key={label}>
       <span>{label}</span>
       <span>{content}</span>
-    </div>
+    </InfoRow>
   );
   return (
-    <main className="page space-y-6">
-      <div className="page-heading">
+    <Page className="space-y-6">
+      <PageHeading>
         <div>
-          <p className="eyebrow">MANAJEMEN EVENT</p>
+          <p className={ui.eyebrow}>MANAJEMEN EVENT</p>
           <h1>{fixedEventId ? "Detail Event" : "Monitor Pengunjung"}</h1>
-          <p className="page-description">
+          <p className={ui.pageDescription}>
             Pantau arus masuk, keluar, dan aktivitas pengunjung secara langsung.
           </p>
         </div>
         {fixedEventId && (
           <details
-            className="row-menu"
+            className={ui.rowMenu}
             onKeyDown={(e) => {
               if (e.key === "Escape") e.currentTarget.open = false;
             }}
           >
-            <summary className="btn btn-outline !w-auto !h-auto">
+            <summary data-slot="button" className={buttonStyles({ variant: "outline", className: "w-auto! h-auto!" })}>
               <Download size={16} />
               Download Report
             </summary>
-            <div className="row-menu-content">
+            <div className={ui.rowMenuContent}>
               {["pdf", "excel", "csv"].map((format) => (
                 <a
                   key={format}
@@ -236,13 +239,13 @@ export default function EventVisitorPage({
             </div>
           </details>
         )}
-      </div>
+      </PageHeading>
       {!fixedEventId && (
-        <div className="toolbar">
-          <label className="field">
+        <Toolbar>
+          <Field>
             Pilih Event
-            <select
-              className="input !w-auto"
+            <Select
+              className="w-auto!"
               value={selectedEventId}
               disabled={running}
               onChange={(e) => {
@@ -256,15 +259,15 @@ export default function EventVisitorPage({
                   {event.name}
                 </option>
               ))}
-            </select>
-          </label>
-          <Link className="btn" href="/events?create=1">
+            </Select>
+          </Field>
+          <ButtonLink href="/events?create=1">
             Buat Event Baru
-          </Link>
-        </div>
+          </ButtonLink>
+        </Toolbar>
       )}
       {(connectionError || actionError || status?.last_error) && (
-        <p role="alert" className="error-message">
+        <p role="alert" className={ui.error}>
           {connectionError || actionError || status?.last_error}{" "}
           <button className="underline" onClick={() => refreshStatus()}>
             Muat ulang
@@ -272,14 +275,14 @@ export default function EventVisitorPage({
         </p>
       )}
       {currentEvent?.capacity && inside > currentEvent.capacity ? (
-        <p role="alert" className="error-message">
+        <p role="alert" className={ui.error}>
           Jumlah pengunjung ({inside}) melebihi kapasitas event (
           {currentEvent.capacity}).
         </p>
       ) : null}
-      <div className="detail-grid">
-        <div className="detail-stack">
-          <section className="panel">
+      <div className="grid items-start gap-6 min-[900px]:grid-cols-2 [&_[data-slot=panel]]:rounded-xl [&_[data-slot=panel]]:p-4 [&_[data-slot=panel]]:shadow-none [&_h2]:mb-2">
+        <div className="grid gap-6">
+          <Panel>
             <h2>Informasi Event</h2>
             {row(
               "Tanggal Event",
@@ -305,8 +308,8 @@ export default function EventVisitorPage({
                 ? `${currentEvent.capacity} Orang`
                 : "Tidak dibatasi",
             )}
-          </section>
-          <section className="panel">
+          </Panel>
+          <Panel>
             <h2>Aktivitas Sesi</h2>
             {row(
               "Visitor Terakhir",
@@ -317,12 +320,12 @@ export default function EventVisitorPage({
                 : "Belum ada aktivitas",
             )}
             {row("Session ID", status?.session_id || "-")}
-          </section>
+          </Panel>
         </div>
-        <section className="panel detail-camera">
-          <h2>Live Camera</h2>
-          <div ref={stage} className="camera-stage">
-            <div className="camera-picture">
+        <Panel className="p-0!">
+          <h2 className="px-4 pt-3">Live Camera</h2>
+          <div ref={stage} className="group/camera relative overflow-hidden rounded-xl bg-[#edf1f7] [&:fullscreen]:flex [&:fullscreen]:items-center [&:fullscreen]:rounded-none [&:fullscreen]:bg-[#101c30]">
+            <div className="grid aspect-video w-full place-items-center group-[:fullscreen]/camera:aspect-auto group-[:fullscreen]/camera:h-full [&_img]:size-full [&_img]:object-contain">
               {running && !connectionError && !streamError ? (
                 <img
                   key={streamKey}
@@ -331,7 +334,7 @@ export default function EventVisitorPage({
                   onError={() => setStreamError(true)}
                 />
               ) : (
-                <div className="empty-state">
+                <div className={ui.emptyState}>
                   <Video size={36} className="mx-auto mb-3 text-[#0c2e73]" />
                   <p>
                     {streamError
@@ -341,8 +344,8 @@ export default function EventVisitorPage({
                         : "Monitoring belum berjalan"}
                   </p>
                   {streamError && (
-                    <button
-                      className="btn mt-3"
+                    <Button
+                      className="mt-3"
                       onClick={() => {
                         setStreamError(false);
                         setStreamKey((key) => key + 1);
@@ -350,7 +353,7 @@ export default function EventVisitorPage({
                     >
                       <RefreshCw size={15} />
                       Muat ulang video
-                    </button>
+                    </Button>
                   )}
                 </div>
               )}
@@ -359,8 +362,8 @@ export default function EventVisitorPage({
                   ? "LIVE"
                   : "STAND BY"}
               </span>
-              <button
-                className="btn absolute right-4 top-4 !min-h-6 !rounded !px-2 !py-1 !text-xs"
+              <Button
+                className="absolute top-4 right-4 min-h-6! rounded! px-2! py-1! text-xs!"
                 onClick={async () => {
                   try {
                     if (document.fullscreenElement)
@@ -375,11 +378,11 @@ export default function EventVisitorPage({
               >
                 <Maximize size={14} />
                 Full Screen
-              </button>
+              </Button>
             </div>
-            <div className="camera-controls">
-              <button
-                className="btn play"
+            <div className="grid grid-cols-3 gap-2.5 bg-[#f4f6f9] px-[18px] py-3 group-[:fullscreen]/camera:absolute group-[:fullscreen]/camera:inset-x-5 group-[:fullscreen]/camera:bottom-5 group-[:fullscreen]/camera:bg-transparent [&_button]:px-2">
+              <Button
+                variant="play"
                 disabled={
                   busy ||
                   running ||
@@ -391,36 +394,36 @@ export default function EventVisitorPage({
               >
                 <Play size={15} />
                 Play
-              </button>
-              <button
-                className="btn pause"
+              </Button>
+              <Button
+                variant="pause"
                 disabled={busy || !running}
                 onClick={() => action("pause")}
               >
                 <Pause size={15} />
                 Pause
-              </button>
-              <button
-                className="btn stop"
+              </Button>
+              <Button
+                variant="stop"
                 disabled={busy || !status?.session_id}
                 onClick={() => action("stop")}
               >
                 <Square size={15} />
                 Stop
-              </button>
+              </Button>
             </div>
           </div>
-        </section>
-        <section className="panel">
+        </Panel>
+        <Panel>
           <h2>Statistik Pengunjung</h2>
           {row("Total Masuk", value(status?.in_count))}
           {row("Total Keluar", value(status?.out_count))}
           {row("Di dalam Area", value(inside))}
-        </section>
-        <section className="panel">
+        </Panel>
+        <Panel>
           <h2>Profil Pengunjung</h2>
           {demographics.map((item) => (
-            <div className="info-row" key={item.label}>
+            <InfoRow key={item.label}>
               <span>{item.label}</span>
               <strong className="ml-auto text-neutral-600">
                 {value(item.count)}
@@ -430,9 +433,9 @@ export default function EventVisitorPage({
                   ? `${genderTotal ? Math.round((item.count / genderTotal) * 100) : 0}%`
                   : "-"}
               </span>
-            </div>
+            </InfoRow>
           ))}
-        </section>
+        </Panel>
       </div>
       <div className="pt-2">
         <HourlyVisitorStatistics
@@ -440,6 +443,6 @@ export default function EventVisitorPage({
           eventId={selectedEventId}
         />
       </div>
-    </main>
+    </Page>
   );
 }

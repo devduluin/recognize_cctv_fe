@@ -1,4 +1,9 @@
 "use client";
+import { Button } from "../../components/ui/button";
+import { Field, Input } from "../../components/ui/field";
+import { Page, PageHeading, Toolbar } from "../../components/ui/layout";
+import { DataTable, StatusBadge, TableContainer } from "../../components/ui/data-table";
+import { cx, ui } from "../../components/ui/styles";
 import {
   useState,
   useEffect,
@@ -137,59 +142,58 @@ export default function KameraPage() {
     }
   }
   return (
-    <main className="page">
-      <div className="page-heading mb-10">
+    <Page>
+      <PageHeading>
         <div>
-          <p className="eyebrow">SISTEM</p>
+          <p className={ui.eyebrow}>SISTEM</p>
           <h1>Kamera</h1>
-          <p className="page-description">
+          <p className={ui.pageDescription}>
             Daftar kamera yang dapat digunakan untuk pemantauan
           </p>
         </div>
-        <div className="toolbar">
-          <label className="field">
+        <Toolbar>
+          <Field>
             Cari Kamera
             <span className="relative">
               <Search
                 size={15}
                 className="absolute left-3 top-3 text-neutral-500"
               />
-              <input
+              <Input
                 type="search"
-                className="input pl-9 sm:w-[290px]"
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
               />
             </span>
-          </label>
-          <button
-            className="btn btn-outline"
+          </Field>
+          <Button
+            variant="outline"
             disabled={!selected.length}
             onClick={() => setPreview(true)}
           >
             Test Kamera
-          </button>
-          <button className="btn btn-primary" onClick={() => open()}>
+          </Button>
+          <Button variant="primary" onClick={() => open()}>
             <Plus size={16} />
             Tambahkan Kamera
-          </button>
-        </div>
-      </div>
+          </Button>
+        </Toolbar>
+      </PageHeading>
       {error && (
-        <p role="alert" className="error-message">
+        <p role="alert" className={ui.error}>
           {error}{" "}
           <button className="underline" onClick={load}>
             Coba lagi
           </button>
         </p>
       )}
-      <div className="data-table-wrap">
+      <TableContainer>
         {loading ? (
-          <p role="status" className="empty-state">
+          <p role="status" className={ui.emptyState}>
             Memuat data…
           </p>
         ) : !visible.length ? (
-          <div className="empty-state">
+          <div className={ui.emptyState}>
             <strong>
               {cameras.length ? "Kamera tidak ditemukan" : "Belum ada kamera"}
             </strong>
@@ -200,7 +204,7 @@ export default function KameraPage() {
             </p>
           </div>
         ) : (
-          <table className="data-table">
+          <DataTable>
             <thead>
               <tr>
                 <th className="w-12">
@@ -298,16 +302,15 @@ export default function KameraPage() {
                     {camera.last_used || "-"}
                   </td>
                   <td>
-                    <span
-                      className="status-badge"
+                    <StatusBadge
                       data-running={camera.status?.toLowerCase() === "running"}
                     >
                       {camera.status || "OFF"}
-                    </span>
+                    </StatusBadge>
                   </td>
                   <td>
                     <details
-                      className="row-menu"
+                      className={ui.rowMenu}
                       onKeyDown={(e) => {
                         if (e.key === "Escape") e.currentTarget.open = false;
                       }}
@@ -315,7 +318,7 @@ export default function KameraPage() {
                       <summary aria-label={`Aksi ${camera.name}`}>
                         <MoreHorizontal size={18} />
                       </summary>
-                      <div className="row-menu-content">
+                      <div className={ui.rowMenuContent}>
                         <button
                           onClick={(e) => {
                             e.currentTarget
@@ -346,9 +349,9 @@ export default function KameraPage() {
                 </tr>
               ))}
             </tbody>
-          </table>
+          </DataTable>
         )}
-      </div>
+      </TableContainer>
       {isOpen && (
         <Modal
           title={editingId ? "Edit Kamera" : "Tambahkan Kamera"}
@@ -357,49 +360,46 @@ export default function KameraPage() {
           size="small"
         >
           <form onSubmit={save}>
-            <fieldset disabled={busy} className="modal-body space-y-4">
+            <fieldset disabled={busy} className={cx(ui.modalBody, "space-y-4")}>
               {formError && (
-                <p role="alert" className="error-message">
+                <p role="alert" className={ui.error}>
                   {formError}
                 </p>
               )}
-              <label className="field">
+              <Field>
                 Nama Kamera
-                <input
+                <Input
                   autoFocus
                   required
-                  className="input"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                 />
-              </label>
-              <label className="field">
+              </Field>
+              <Field>
                 Sumber Kamera
-                <input
+                <Input
                   required
-                  className="input"
                   placeholder="0, rtsp://host/stream, atau path video"
                   value={source}
                   onChange={(e) => setSource(e.target.value)}
                 />
-              </label>
+              </Field>
             </fieldset>
-            <footer className="modal-footer">
-              <button
-                className="btn"
+            <footer className={ui.modalFooter}>
+              <Button
                 type="button"
                 disabled={busy}
                 onClick={() => setIsOpen(false)}
               >
                 Cancel
-              </button>
-              <button
-                className="btn btn-primary"
+              </Button>
+              <Button
+                variant="primary"
                 disabled={busy || !companyId || !name.trim() || !source.trim()}
                 type="submit"
               >
                 {busy ? "Menyimpan…" : "Simpan Kamera"}
-              </button>
+              </Button>
             </footer>
           </form>
         </Modal>
@@ -407,7 +407,7 @@ export default function KameraPage() {
       {preview && (
         <Modal title="Test Kamera" onClose={() => setPreview(false)}>
           <div
-            className={`modal-body grid gap-3 ${selected.length > 1 ? "sm:grid-cols-2" : ""}`}
+            className={cx(ui.modalBody, "grid gap-3", selected.length > 1 && "sm:grid-cols-2")}
           >
             {cameras
               .filter((camera) => selected.includes(camera.id))
@@ -427,13 +427,13 @@ export default function KameraPage() {
                 </div>
               ))}
           </div>
-          <footer className="modal-footer">
-            <button className="btn" onClick={() => setPreview(false)}>
+          <footer className={ui.modalFooter}>
+            <Button onClick={() => setPreview(false)}>
               Kembali
-            </button>
+            </Button>
           </footer>
         </Modal>
       )}
-    </main>
+    </Page>
   );
 }

@@ -1,4 +1,10 @@
 "use client";
+import { Button } from "../ui/button";
+import { Field, Input, Select, Switch } from "../ui/field";
+import { InfoRow, Panel } from "../ui/layout";
+import { cx, ui } from "../ui/styles";
+
+const settingRow = "flex flex-wrap items-center justify-between gap-3.5 border-b border-dashed border-[#d9d9d9] px-3 py-2.5 max-[600px]:px-0 [&>div]:min-w-[180px] [&>div]:flex-1 [&_p]:mt-[3px] [&_p]:text-xs/normal [&_p]:text-[#737373] [&_select]:min-w-[200px] [&_select]:flex-1";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   CheckCircle2,
@@ -224,7 +230,7 @@ export default function GeneralSettingsPanel() {
   return (
     <div aria-busy={busy}>
       {error && (
-        <p role="alert" className="error-message">
+        <p role="alert" className={ui.error}>
           {error}{" "}
           <button className="underline" onClick={() => refresh()}>
             Coba lagi
@@ -239,21 +245,21 @@ export default function GeneralSettingsPanel() {
           {message}
         </p>
       )}
-      <div className="settings-grid">
-        <section className="panel">
-          <div className="panel-heading">
+      <div className="grid gap-5 min-[900px]:grid-cols-[minmax(0,2.05fr)_minmax(0,1fr)]">
+        <Panel>
+          <div className={ui.panelHeading}>
             <div>
               <h2>Sistem Komputer Visi</h2>
-              <p className="panel-description">
+              <p className={ui.panelDescription}>
                 Kontrol mesin AI pusat dan status runtime kamera
               </p>
             </div>
-            <button className="btn" onClick={() => refresh()} disabled={busy}>
+            <Button onClick={() => refresh()} disabled={busy}>
               <RefreshCw size={16} className={busy ? "animate-spin" : ""} />
               Refresh
-            </button>
+            </Button>
           </div>
-          <div className="runtime-metrics">
+          <div className="my-6 grid grid-cols-2 gap-2 rounded-xl bg-[#f0f2f8] py-2 min-[600px]:grid-cols-4 [&>div]:border-r [&>div]:border-[#8b9dbb] [&>div]:px-4 [&>div]:py-[5px] [&>div:last-child]:border-0 [&_small]:mb-[3px] [&_small]:block [&_small]:text-xs/normal [&_small]:text-muted">
             {[
               [
                 "Runtime",
@@ -274,19 +280,17 @@ export default function GeneralSettingsPanel() {
             ))}
           </div>
           <fieldset disabled={busy || !ready}>
-            <label className="setting-row">
+            <label className={settingRow}>
               <div>
                 <span>Status Mesin AI</span>
                 <p>Matikan untuk menonaktifkan semua kamera.</p>
               </div>
-              <input
-                className="switch"
-                type="checkbox"
+              <Switch
                 checked={enabled}
                 onChange={(e) => setEnabled(e.target.checked)}
               />
             </label>
-            <label className="setting-row">
+            <label className={settingRow}>
               <div>
                 <span>Zona waktu global</span>
                 <p>
@@ -294,8 +298,7 @@ export default function GeneralSettingsPanel() {
                   waktu.
                 </p>
               </div>
-              <select
-                className="input"
+              <Select
                 value={timezone}
                 onChange={(e) => setTimezone(e.target.value)}
               >
@@ -311,15 +314,14 @@ export default function GeneralSettingsPanel() {
                     {label}
                   </option>
                 ))}
-              </select>
+              </Select>
             </label>
-            <label className="setting-row border-b-0">
+            <label className={settingRow}>
               <div>
                 <span>Jenis Monitoring</span>
                 <p>Pilih proses AI yang dijalankan oleh tombol Start.</p>
               </div>
-              <select
-                className="input"
+              <Select
                 value={settings.monitor_mode}
                 onChange={(e) =>
                   setSettings({ ...settings, monitor_mode: e.target.value })
@@ -329,22 +331,22 @@ export default function GeneralSettingsPanel() {
                 <option value="visitor">Monitor Pengunjung</option>
                 <option value="attendance">Absensi CCTV</option>
                 <option value="both">Pengunjung & Absensi</option>
-              </select>
+              </Select>
             </label>
-            <button className="btn mt-4 w-full" onClick={() => save()}>
+            <Button className="mt-4 w-full" onClick={() => save()}>
               <Save size={16} />
               Simpan
-            </button>
+            </Button>
           </fieldset>
           {(status?.error || status?.runtime?.error) && (
-            <p role="alert" className="error-message mt-4">
+            <p role="alert" className={cx(ui.error, "mt-4")}>
               {status.error || status.runtime?.error}
             </p>
           )}
-        </section>
-        <section className="panel">
+        </Panel>
+        <Panel>
           <h2>Default AI Tuning</h2>
-          <p className="panel-description">
+          <p className={ui.panelDescription}>
             Nilai bawaan untuk kamera yang tidak punya override khusus
           </p>
           <form
@@ -354,7 +356,7 @@ export default function GeneralSettingsPanel() {
             }}
           >
             <fieldset disabled={busy || !ready}>
-              <div className="tuning-fields">
+              <div className="my-6 grid gap-3.5">
                 {(
                   [
                     [
@@ -374,10 +376,9 @@ export default function GeneralSettingsPanel() {
                     ["max_frame_skip", "Max Frame Skip", 1, 10, 1],
                   ] as const
                 ).map(([key, label, min, max, step]) => (
-                  <label key={key} className="field">
+                  <Field key={key}>
                     {label}
-                    <input
-                      className="input"
+                    <Input
                       type="number"
                       required
                       min={min}
@@ -391,45 +392,45 @@ export default function GeneralSettingsPanel() {
                         })
                       }
                     />
-                  </label>
+                  </Field>
                 ))}
               </div>
-              <button className="btn btn-primary w-full" type="submit">
+              <Button variant="primary" className="w-full" type="submit">
                 Simpan Perubahan
-              </button>
+              </Button>
             </fieldset>
           </form>
-        </section>
+        </Panel>
       </div>
-      <div className="settings-bottom">
-        <section className="panel">
+      <div className="mt-5 grid items-start gap-5 min-[900px]:grid-cols-2">
+        <Panel>
           <h2>Konfigurasi Model</h2>
-          <p className="panel-description mb-4">
+          <p className={cx(ui.panelDescription, "mb-4")}>
             Path model dan integrasi aktif
           </p>
           {modelRows.map(([label, value]) => (
-            <div className="info-row" key={label}>
+            <InfoRow key={label}>
               <span>{label}</span>
               <span>{value || "-"}</span>
-            </div>
+            </InfoRow>
           ))}
-        </section>
-        <section className="panel">
+        </Panel>
+        <Panel>
           <h2>Health Check</h2>
-          <p className="panel-description mb-5">
+          <p className={cx(ui.panelDescription, "mb-5")}>
             Validasi dependency utama runtime
           </p>
           {health ? (
             <>
               {Object.entries(health.checks).map(([key, check]) => (
-                <div className="health-row" key={key}>
+                <div className="mt-2 flex items-center gap-2 rounded-xl border border-line px-3 py-2.5 max-[600px]:flex-wrap [&_svg]:shrink-0" key={key}>
                   {check.ok ? (
                     <CheckCircle2 size={15} className="text-emerald-600" />
                   ) : (
                     <XCircle size={15} className="text-red-600" />
                   )}
-                  <span>{key.replaceAll("_", " ")}</span>
-                  <small>{check.message}</small>
+                  <span className="capitalize">{key.replaceAll("_", " ")}</span>
+                  <small className="ml-auto max-w-[52%] text-right text-muted [overflow-wrap:anywhere] max-[600px]:max-w-full">{check.message}</small>
                 </div>
               ))}
               <p className="mt-5 text-center text-xs text-[#0c2e73]">
@@ -439,11 +440,11 @@ export default function GeneralSettingsPanel() {
               </p>
             </>
           ) : (
-            <p className="empty-state">
+            <p className={ui.emptyState}>
               {error ? "Status belum tersedia." : "Memuat status…"}
             </p>
           )}
-        </section>
+        </Panel>
       </div>
       <details className="mt-6">
         <summary className="py-3 text-sm text-[#607596]">
@@ -456,15 +457,14 @@ export default function GeneralSettingsPanel() {
             { key: "stop", label: "Stop", icon: Square },
             { key: "restart", label: "Restart", icon: RotateCw },
           ].map(({ key, label, icon: Icon }) => (
-            <button
+            <Button
               key={key}
-              className="btn"
               disabled={busy || !ready}
               onClick={() => runAction(key)}
             >
               <Icon size={16} />
               {label}
-            </button>
+            </Button>
           ))}
         </div>
       </details>
