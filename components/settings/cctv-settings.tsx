@@ -385,7 +385,6 @@ export default function CCTVSettingsPanel() {
         camera_id: selectedCameraId,
         name: cameraName.trim() || "Default CCTV Camera",
         camera_source: cameraSource.trim(),
-        zone_type: cameraZone || "in",
         roi_enabled: roiEnabled,
         roi_polygon: parseRoiPolygon(),
         clahe_enabled: claheEnabled,

@@ -1,18 +1,25 @@
-/* eslint-disable */
 "use client";
-import React, { useState, useEffect, useCallback, useMemo, FormEvent } from "react";
+import {
+  useState,
+  useEffect,
+  useCallback,
+  useMemo,
+  type FormEvent,
+} from "react";
 import Link from "next/link";
+import { Plus, Search, MoreHorizontal, ChevronsUpDown } from "lucide-react";
 import CameraTestPreview from "../../components/camera-test-preview";
-import { ArrowRight, ArrowLeft, Plus, Calendar, Trash2, Clock, Search, X, Pencil } from "lucide-react";
-
-const API_BASE = (process.env.NEXT_PUBLIC_SERVICE_RECOGNIZE_CCTV || "") + "/api/v1/events";
-
+import Modal from "../../components/ui-modal";
+import EventSummary from "../../components/event-summary";
+import { todayWib } from "../../components/hourly-visitor-statistics";
+const API_BASE = `${process.env.NEXT_PUBLIC_SERVICE_RECOGNIZE_CCTV || ""}/api/v1/events`;
 type VisitorEvent = {
   id: string;
   name: string;
   location?: string | null;
   camera_source?: string | null;
   camera_id?: string | null;
+  camera_ids?: string[] | null;
   line_position?: number | null;
   line_orientation?: string | null;
   reverse_direction?: boolean | null;
@@ -25,452 +32,666 @@ type VisitorEvent = {
   visitor_count?: number;
   created_at?: string;
 };
-
-type CCTVCamera = { id: string; name: string; rtsp_url: string; status?: string };
-
-const statusStyles: Record<string, { label: string; badge: string; dot: string }> = {
-  running: { label: "Running", badge: "bg-emerald-50 text-emerald-700 ring-emerald-600/10", dot: "bg-emerald-500" },
-  paused: { label: "Paused", badge: "bg-amber-50 text-amber-700 ring-amber-600/10", dot: "bg-amber-500" },
-  completed: { label: "Completed", badge: "bg-slate-100 text-slate-600 ring-slate-500/10", dot: "bg-slate-400" },
-  stopped: { label: "Stopped", badge: "bg-rose-50 text-rose-700 ring-rose-600/10", dot: "bg-rose-500" },
+type CameraOption = {
+  id: string;
+  name: string;
+  rtsp_url?: string;
+  camera_source?: string;
 };
-
+const initialForm = {
+  name: "",
+  location: "",
+  cameraSource: "",
+  cameraIds: [] as string[],
+  linePosition: 50,
+  lineOrientation: "horizontal",
+  reverseDirection: false,
+  eventDate: "",
+  eventStart: "",
+  eventEnd: "",
+  autoRun: true,
+  capacity: "",
+};
+function companyId() {
+  try {
+    const user = JSON.parse(localStorage.getItem("user_info") || "null");
+    return (
+      (user?.account_type === "personal" ? user.id : user?.company_id) ||
+      localStorage.getItem("cctv_company_id") ||
+      ""
+    );
+  } catch {
+    return "";
+  }
+}
 export default function EventsPage() {
   const [events, setEvents] = useState<VisitorEvent[]>([]);
+  const [cameras, setCameras] = useState<CameraOption[]>([]);
   const [loading, setLoading] = useState(true);
-  
-  const [name, setName] = useState("");
-  const [location, setLocation] = useState("");
-  const [cameraSource, setCameraSource] = useState("");
-  const [cameras, setCameras] = useState<CCTVCamera[]>([]);
-  const [cameraId, setCameraId] = useState("");
-  const [linePosition, setLinePosition] = useState(50);
-  const [lineOrientation, setLineOrientation] = useState("horizontal");
-  const [reverseDirection, setReverseDirection] = useState(false);
+  const [error, setError] = useState("");
+  const [query, setQuery] = useState("");
+  const [selected, setSelected] = useState<string[]>([]);
+  const [summaryEvents, setSummaryEvents] = useState<VisitorEvent[] | null>(
+    null,
+  );
+  const [sort, setSort] = useState<{
+    key: "name" | "event_date" | "visitor_count" | "status";
+    direction: number;
+  }>({ key: "event_date", direction: -1 });
+  const [form, setForm] = useState(initialForm);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [isOpen, setIsOpen] = useState(false);
+  const [preview, setPreview] = useState(false);
+  const [busy, setBusy] = useState(false);
   const [formError, setFormError] = useState("");
-  const fieldClass = "mt-1.5 w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20";
-  const [eventDate, setEventDate] = useState("");
-  const [eventStart, setEventStart] = useState("");
-  const [eventEnd, setEventEnd] = useState("");
-  const [autoRun, setAutoRun] = useState(true);
-  const [capacity, setCapacity] = useState("");
-  const [eventQuery, setEventQuery] = useState("");
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
-  const [editingEventId, setEditingEventId] = useState<string | null>(null);
-
-  const loadCameras = useCallback(async () => {
+  const update = <K extends keyof typeof initialForm>(
+    key: K,
+    value: (typeof initialForm)[K],
+  ) => setForm((previous) => ({ ...previous, [key]: value }));
+  const load = useCallback(async () => {
+    setLoading(true);
+    setError("");
     try {
-      const user = JSON.parse(localStorage.getItem("user_info") || "null");
-      const companyId = user?.account_type === "personal" ? user?.id : user?.company_id;
-      if (!companyId) return;
-      const response = await fetch(`${(process.env.NEXT_PUBLIC_SERVICE_RECOGNIZE_CCTV || "")}/api/v1/cctv/cameras/${encodeURIComponent(companyId)}`, { cache: "no-store" });
+      const response = await fetch(
+        `${API_BASE}?company_id=${encodeURIComponent(companyId())}`,
+        { cache: "no-store" },
+      );
+      if (!response.ok) throw new Error("Daftar event belum dapat dimuat.");
       const payload = await response.json();
-      if (response.ok) setCameras(payload?.result || []);
-    } catch { setCameras([]); }
-  }, []);
-
-  useEffect(() => {
-    if (!isCreateModalOpen) return;
-    const handleEscape = (event: KeyboardEvent) => {
-      if (event.key === "Escape" && !isSubmitting) setIsCreateModalOpen(false);
-    };
-    document.addEventListener("keydown", handleEscape);
-    return () => document.removeEventListener("keydown", handleEscape);
-  }, [isCreateModalOpen, isSubmitting]);
-
-  const visibleEvents = useMemo(() => {
-    const query = eventQuery.trim().toLowerCase();
-    if (!query) return events;
-    return events.filter((event) => String(event.name || "").toLowerCase().includes(query));
-  }, [eventQuery, events]);
-
-  const fetchEvents = useCallback(async () => {
-    try {
-      let url = API_BASE;
-      try {
-        const userInfoStr = localStorage.getItem("user_info");
-        if (userInfoStr) {
-          const user = JSON.parse(userInfoStr);
-          const cid = user.account_type === "personal" ? user.id : user.company_id;
-          if (cid) url += `?company_id=${encodeURIComponent(cid)}`;
-        }
-      } catch {}
-      
-      const response = await fetch(url);
-      if (response.ok) {
-        const payload = await response.json();
-        if (payload.result) setEvents(payload.result);
-      }
+      setEvents(Array.isArray(payload.result) ? payload.result : []);
     } catch (error) {
-      console.error(error);
+      setError(
+        error instanceof Error ? error.message : "Daftar event gagal dimuat.",
+      );
     } finally {
       setLoading(false);
     }
   }, []);
-
   useEffect(() => {
-    fetchEvents();
-    loadCameras();
-  }, [fetchEvents, loadCameras]);
-
-  const handleCreate = async (e: FormEvent) => {
-    e.preventDefault();
-    if (!name) return;
-    setIsSubmitting(true);
+    const initial = setTimeout(() => {
+      void load();
+      fetch(
+        `${process.env.NEXT_PUBLIC_SERVICE_RECOGNIZE_CCTV || ""}/api/v1/cctv/cameras/${encodeURIComponent(companyId())}`,
+      )
+        .then((response) => response.json())
+        .then((payload) =>
+          setCameras(Array.isArray(payload.result) ? payload.result : []),
+        )
+        .catch(() => {});
+      if (new URLSearchParams(window.location.search).get("create") === "1") {
+        setForm({ ...initialForm, eventDate: todayWib() });
+        setIsOpen(true);
+        window.history.replaceState(null, "", "/events");
+      }
+    }, 0);
+    return () => clearTimeout(initial);
+  }, [load]);
+  const visibleEvents = useMemo(
+    () =>
+      events
+        .filter((event) =>
+          event.name.toLowerCase().includes(query.trim().toLowerCase()),
+        )
+        .sort((a, b) => {
+          const left = a[sort.key] ?? "";
+          const right = b[sort.key] ?? "";
+          return (
+            sort.direction *
+            (typeof left === "number" && typeof right === "number"
+              ? left - right
+              : String(left).localeCompare(String(right)))
+          );
+        }),
+    [events, query, sort],
+  );
+  function open(event?: VisitorEvent) {
+    setForm(
+      event
+        ? {
+            name: event.name,
+            location: event.location || "",
+            cameraSource: event.camera_source || "",
+            cameraIds:
+              event.camera_ids || (event.camera_id ? [event.camera_id] : []),
+            linePosition: Math.round((event.line_position ?? 0.5) * 100),
+            lineOrientation: event.line_orientation || "horizontal",
+            reverseDirection: event.reverse_direction || false,
+            eventDate: event.event_date || "",
+            eventStart: event.event_start || "",
+            eventEnd: event.event_end || "",
+            autoRun: event.auto_run !== false,
+            capacity: event.capacity == null ? "" : String(event.capacity),
+          }
+        : { ...initialForm, eventDate: todayWib() },
+    );
+    setEditingId(event?.id || null);
     setFormError("");
-    
-    let company_id = undefined;
+    setIsOpen(true);
+  }
+  async function save(event: FormEvent) {
+    event.preventDefault();
+    setBusy(true);
+    setFormError("");
     try {
-      const userInfoStr = localStorage.getItem("user_info");
-      if (userInfoStr) {
-        const user = JSON.parse(userInfoStr);
-        company_id = user.account_type === "personal" ? user.id : user.company_id;
-      }
-    } catch {}
-
-    try {
-      const query = company_id ? `?company_id=${encodeURIComponent(company_id)}` : "";
-      const response = await fetch(editingEventId ? `${API_BASE}/${encodeURIComponent(editingEventId)}${query}` : API_BASE, {
-        method: editingEventId ? "PUT" : "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ location: location.trim() || null, camera_id: cameraId || null, camera_source: cameraSource.trim() || null, line_position: linePosition / 100, line_orientation: lineOrientation, reverse_direction: reverseDirection, name, capacity: capacity ? parseInt(capacity, 10) : null, event_date: eventDate || undefined, event_start: eventStart, event_end: eventEnd, auto_run: autoRun, company_id }),
-      });
+      const payload = {
+        name: form.name.trim(),
+        location: form.location.trim() || null,
+        camera_source: form.cameraSource.trim() || null,
+        camera_id: form.cameraIds[0] || null,
+        camera_ids: form.cameraIds.length ? form.cameraIds : null,
+        line_position: form.linePosition / 100,
+        line_orientation: form.lineOrientation,
+        reverse_direction: form.reverseDirection,
+        event_date: form.eventDate || null,
+        event_start: form.eventStart,
+        event_end: form.eventEnd,
+        auto_run: form.autoRun,
+        capacity: form.capacity ? Number(form.capacity) : null,
+        company_id: companyId(),
+      };
+      const response = await fetch(
+        editingId
+          ? `${API_BASE}/${encodeURIComponent(editingId)}?company_id=${encodeURIComponent(companyId())}`
+          : API_BASE,
+        {
+          method: editingId ? "PUT" : "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        },
+      );
       if (!response.ok) {
-        const payload = await response.json().catch(() => null);
-        throw new Error(typeof payload?.detail === "string" ? payload.detail : "Event belum dapat disimpan. Periksa isian dan coba lagi.");
+        const result = await response.json().catch(() => null);
+        throw new Error(
+          typeof result?.detail === "string"
+            ? result.detail
+            : "Event belum dapat disimpan.",
+        );
       }
-      if (response.ok) {
-        setName("");
-        setEventDate("");
-        setEventStart("");
-        setEventEnd("");
-        setAutoRun(true);
-        setCapacity("");
-        setEditingEventId(null);
-        setIsCreateModalOpen(false);
-        fetchEvents();
-      }
+      setIsOpen(false);
+      await load();
     } catch (error) {
-      setFormError(error instanceof Error ? error.message : "Event belum dapat disimpan.");
+      setFormError(
+        error instanceof Error ? error.message : "Event gagal disimpan.",
+      );
     } finally {
-      setIsSubmitting(false);
+      setBusy(false);
     }
-  };
-
-  const openCreateModal = () => {
-    setLocation(""); setCameraSource(""); setCameraId(""); setLinePosition(50);
-    setLineOrientation("horizontal"); setReverseDirection(false); setFormError("");
-    setName("");
-    setEventDate(new Date().toLocaleDateString("en-CA"));
-    setEventStart("");
-    setEventEnd("");
-    setAutoRun(true);
-        setCapacity("");
-    setEditingEventId(null);
-    setIsCreateModalOpen(true);
-  };
-
-  const openEditModal = (event: VisitorEvent) => {
-    setLocation(event.location || ""); setCameraSource(event.camera_source ?? ""); setCameraId(event.camera_id ?? "");
-    setLinePosition(Math.round((event.line_position ?? 0.5) * 100));
-    setLineOrientation(event.line_orientation ?? "horizontal");
-    setReverseDirection(event.reverse_direction ?? false); setFormError("");
-    setName(event.name || "");
-    setEventDate(event.event_date || "");
-    setEventStart(event.event_start || "");
-    setEventEnd(event.event_end || "");
-    setAutoRun(event.auto_run !== false);
-    setCapacity(event.capacity ? String(event.capacity) : "");
-    setEditingEventId(event.id);
-    setIsCreateModalOpen(true);
-  };
-
-  const handleDelete = async (id: string) => {
+  }
+  async function remove(id: string) {
     if (!confirm("Hapus event ini?")) return;
     try {
-      const user = JSON.parse(localStorage.getItem("user_info") || "null");
-      const companyId = user?.account_type === "personal" ? user?.id : user?.company_id;
-      const query = companyId ? `?company_id=${encodeURIComponent(companyId)}` : "";
-      const response = await fetch(`${API_BASE}/${encodeURIComponent(id)}${query}`, { method: "DELETE" });
-      if (response.ok) fetchEvents();
+      const response = await fetch(
+        `${API_BASE}/${encodeURIComponent(id)}?company_id=${encodeURIComponent(companyId())}`,
+        { method: "DELETE" },
+      );
+      if (!response.ok) throw new Error("Event belum dapat dihapus.");
+      setSelected((previous) => previous.filter((value) => value !== id));
+      await load();
     } catch (error) {
-      console.error(error);
+      setError(error instanceof Error ? error.message : "Event gagal dihapus.");
     }
-  };
-
+  }
+  const summarySelection = events.filter((event) =>
+    selected.includes(event.id),
+  );
   return (
-    <main className="mx-auto max-w-[1440px] px-4 py-8 sm:px-8 lg:py-10">
-      <div className="mb-8 flex items-start justify-between gap-4 border-b border-slate-200/80 pb-7">
-        <div className="flex min-w-0 items-start gap-4">
-          <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-slate-900 text-white shadow-sm">
-            <Calendar size={23} />
-          </span>
-          <div>
-            <p className="mb-2 text-[11px] font-bold uppercase tracking-[0.18em] text-indigo-600">Event Configuration</p>
-            <h1 className="text-2xl font-bold tracking-tight text-slate-950 sm:text-3xl">Manajemen Event</h1>
-            <p className="mt-2 text-sm text-slate-500">Kelola daftar event yang akan digunakan pada sistem monitoring.</p>
-          </div>
+    <main className="page">
+      <div className="page-heading">
+        <div>
+          <p className="eyebrow">EVENT</p>
+          <h1>Daftar Event</h1>
+          <p className="page-description">
+            Jumlah event masuk yang tercatat pada tanggal pilihan.
+          </p>
         </div>
-        <button
-          type="button"
-          onClick={openCreateModal}
-          title="Buat event baru"
-          aria-label="Buat event baru"
-          className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-indigo-600 text-white shadow-md shadow-indigo-600/20 transition hover:-translate-y-0.5 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500/30 focus:ring-offset-2"
-        >
-          <Plus size={21} />
-        </button>
+        <div className="toolbar">
+          <label className="field">
+            Cari Event
+            <span className="relative">
+              <Search
+                size={15}
+                className="absolute left-3 top-3 text-neutral-500"
+              />
+              <input
+                type="search"
+                className="input pl-9 sm:w-[290px]"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+              />
+            </span>
+          </label>
+          <button
+            className="btn btn-outline"
+            disabled={!summarySelection.length}
+            onClick={() => setSummaryEvents(summarySelection)}
+          >
+            Rangkum Event
+          </button>
+          <button className="btn btn-primary" onClick={() => open()}>
+            <Plus size={16} />
+            Buat Event
+          </button>
+        </div>
       </div>
-
-      <div>
-        {/* List Events */}
-          <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
-            <div className="flex flex-col gap-4 border-b border-slate-100 bg-white p-5 sm:flex-row sm:items-center sm:justify-between">
-              <div>
-                <div className="flex items-center gap-3">
-                  <h2 className="text-base font-semibold text-slate-950">Daftar Event</h2>
-                  <span className="rounded-full border border-indigo-100 bg-indigo-50 px-2.5 py-1 text-[11px] font-bold text-indigo-700">{events.length} event</span>
-                </div>
-                <p className="mt-1 text-xs text-slate-500">Event yang tersedia untuk dimonitor.</p>
-              </div>
-              <div className="relative w-full sm:max-w-[220px]">
-                <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-                <input
-                  type="search"
-                  value={eventQuery}
-                  onChange={(e) => setEventQuery(e.target.value)}
-                  placeholder="Cari event..."
-                  aria-label="Cari event"
-                  className="w-full rounded-lg border border-slate-200 bg-slate-50/50 py-2 pl-9 pr-3 text-xs outline-none transition placeholder:text-slate-400 focus:border-indigo-500 focus:bg-white focus:ring-2 focus:ring-indigo-500/20"
-                />
-              </div>
-            </div>
-            
-            <div className="max-h-[600px] overflow-x-auto overflow-y-auto">
-              {loading ? (
-                <div className="p-8 text-center text-sm text-slate-400">Memuat data...</div>
-              ) : events.length === 0 ? (
-                <div className="p-12 text-center">
-                  <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-slate-50 text-slate-300">
-                    <Calendar size={20} />
-                  </div>
-                  <h3 className="text-sm font-medium text-slate-900">Belum ada event</h3>
-                  <p className="mt-1 text-xs text-slate-500">Gunakan tombol + untuk membuat event pertama.</p>
-                </div>
-              ) : visibleEvents.length === 0 ? (
-                <div className="p-12 text-center">
-                  <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-slate-50 text-slate-300">
-                    <Search size={20} />
-                  </div>
-                  <h3 className="text-sm font-medium text-slate-900">Event tidak ditemukan</h3>
-                  <p className="mt-1 text-xs text-slate-500">Coba gunakan kata kunci lain.</p>
-                </div>
-              ) : (
-                <table className="w-full min-w-[720px] border-collapse text-left">
-                  <thead className="sticky top-0 z-10 border-b border-slate-200 bg-slate-50/95 text-[11px] font-bold uppercase tracking-wide text-slate-500">
-                    <tr>
-                      <th className="px-5 py-3.5">Event</th>
-                      <th className="px-5 py-3.5">Jadwal</th>
-                      <th className="px-5 py-3.5 text-center">Pengunjung</th>
-                      <th className="px-5 py-3.5">Status</th>
-                      <th className="px-5 py-3.5 text-right">Aksi</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100">
-                    {visibleEvents.map((ev) => {
-                      const status = statusStyles[ev.status || ""] || { label: "Not started", badge: "bg-indigo-50 text-indigo-700 ring-indigo-600/10", dot: "bg-indigo-500" };
-                      return (
-                        <tr key={ev.id} className="group transition-colors hover:bg-indigo-50/30">
-                          <td className="px-5 py-4">
-                            <div className="flex min-w-[220px] items-center gap-2.5">
-                              <span className={`h-2 w-2 shrink-0 rounded-full ${status.dot}`} />
-                              <span className="truncate font-semibold text-slate-900">{ev.name}</span>
-                            </div>
-                          </td>
-                          <td className="whitespace-nowrap px-5 py-4 text-sm text-slate-600">
-                            <span className="inline-flex items-center gap-2"><Calendar size={14} className="text-slate-400" />{(ev.event_date || ev.created_at) ? new Date(ev.event_date || ev.created_at || "").toLocaleDateString('id-ID', { year: 'numeric', month: 'short', day: 'numeric' }) : "-"}</span>
-                            <span className="mt-1 inline-flex items-center gap-2"><Clock size={14} className="text-slate-400" />{ev.event_start || "-"} s/d {ev.event_end || "-"}</span>
-                          </td>
-                          <td className="px-5 py-4 text-center">
-                            <span className="inline-flex min-w-10 items-center justify-center rounded-md bg-slate-100 px-2 py-1 text-sm font-bold text-slate-900">{Number(ev.visitor_count || 0).toLocaleString("id-ID")}</span>
-                          </td>
-                          <td className="px-5 py-4">
-                            <span className={`inline-flex items-center rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide ring-1 ring-inset ${status.badge}`}>
-                              {status.label}
-                            </span>
-                          </td>
-                          <td className="px-5 py-4">
-                            <div className="flex items-center justify-end gap-2">
-                              <button
-                                type="button"
-                                onClick={() => openEditModal(ev)}
-                                className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 transition hover:bg-indigo-50 hover:text-indigo-600"
-                                title="Edit Event"
-                                aria-label={`Edit ${ev.name}`}
-                              >
-                                <Pencil size={16} />
-                              </button>
-                              <Link href={`/events/${ev.id}`} className="inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-3 py-2 text-xs font-semibold text-white shadow-sm hover:bg-indigo-700">
-                                Detail <ArrowRight size={14} />
-                              </Link>
-                              <button
-                                onClick={() => handleDelete(ev.id)}
-                                className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 transition hover:bg-red-50 hover:text-red-500"
-                                title="Hapus Event"
-                                aria-label={`Hapus ${ev.name}`}
-                              >
-                                <Trash2 size={16} />
-                              </button>
-                            </div>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              )}
-            </div>
+      {error && (
+        <p role="alert" className="error-message">
+          {error}{" "}
+          <button className="underline" onClick={load}>
+            Coba lagi
+          </button>
+        </p>
+      )}
+      <div className="data-table-wrap">
+        {loading ? (
+          <p role="status" className="empty-state">
+            Memuat data…
+          </p>
+        ) : !visibleEvents.length ? (
+          <div className="empty-state">
+            <strong>
+              {events.length ? "Event tidak ditemukan" : "Belum ada event"}
+            </strong>
+            <p className="mt-2">
+              {events.length
+                ? "Coba kata kunci lain."
+                : "Klik Buat Event untuk menambahkan event pertama."}
+            </p>
           </div>
-      </div>
-
-      {isCreateModalOpen && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 px-4 py-6 backdrop-blur-[2px]"
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="create-event-title"
-          onMouseDown={(event) => { if (event.target === event.currentTarget && !isSubmitting) setIsCreateModalOpen(false); }}
-        >
-          <div className="w-full max-w-2xl overflow-hidden rounded-xl border border-slate-200 bg-white shadow-2xl" onMouseDown={(event) => event.stopPropagation()}>
-            <div className="flex items-center justify-between border-b border-slate-100 bg-slate-50/70 px-5 py-4">
-              <div className="flex items-center gap-3">
-                <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-indigo-100 text-indigo-600">
-                  {editingEventId ? <Pencil size={18} /> : <Plus size={18} />}
-                </span>
-                <div>
-                  <h2 id="create-event-title" className="text-base font-semibold text-slate-950">{editingEventId ? "Edit Event" : "Buat Event Baru"}</h2>
-                  <p className="mt-0.5 text-xs text-slate-500">{editingEventId ? "Perbarui lokasi, jadwal, kamera, dan garis hitung." : "Tambahkan event ke dalam sistem."}</p>
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={() => setIsCreateModalOpen(false)}
-                title="Tutup"
-                aria-label="Tutup modal"
-                className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 transition hover:bg-slate-200 hover:text-slate-700"
-              >
-                <X size={18} />
-              </button>
-            </div>
-            <form onSubmit={handleCreate} className="max-h-[calc(100vh-180px)] overflow-y-auto p-5">
-              <fieldset disabled={isSubmitting} className="space-y-4 disabled:opacity-60">
-                {formError && <p role="alert" className="rounded-lg bg-red-50 p-3 text-sm text-red-700">{formError}</p>}
-                <div>
-                  <label className="mb-1.5 block text-sm font-medium text-slate-700">Nama Event</label>
-                  <input
-                    autoFocus
-                    type="text"
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                    placeholder="Pameran Teknologi 2026"
-                    className="w-full rounded-lg border border-slate-200 bg-slate-50/40 px-3 py-2.5 text-sm transition focus:border-indigo-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
-                    required
-                  />
-                </div>
-                
-                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                  <div className="sm:col-span-2">
-                    <label className="mb-1.5 block text-sm font-medium text-slate-700">Kapasitas Event (Opsional)</label>
-                    <input
-                      type="number"
-                      value={capacity}
-                      onChange={(e) => setCapacity(e.target.value)}
-                      placeholder="Contoh: 500"
-                      className="w-full rounded-lg border border-slate-200 bg-slate-50/40 px-3 py-2.5 text-sm transition focus:border-indigo-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
-                      min="1"
-                    />
-                  </div>
-                </div>
-
-                <label className="block text-sm font-medium">Lokasi Event<input value={location} maxLength={500} onChange={(e) => setLocation(e.target.value)} placeholder="Gedung, alamat, atau area acara" className={fieldClass} /></label>
-                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                  <div className="sm:col-span-2">
-                    <label className="mb-1.5 block text-sm font-medium text-slate-700">Tanggal</label>
-                    <input
-                      type="date"
-                      value={eventDate}
-                      onChange={(e) => setEventDate(e.target.value)}
-                      className="w-full rounded-lg border border-slate-200 bg-slate-50/40 px-3 py-2.5 text-sm transition focus:border-indigo-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
-                      required
-                    />
-                  </div>
-                  <div>
-                    <label className="mb-1.5 block text-sm font-medium text-slate-700">Mulai</label>
-                    <input
-                      type="time"
-                      value={eventStart}
-                      onChange={(e) => setEventStart(e.target.value)}
-                      className="w-full rounded-lg border border-slate-200 bg-slate-50/40 px-3 py-2.5 text-sm transition focus:border-indigo-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
-                    />
-                  </div>
-                  <div>
-                    <label className="mb-1.5 block text-sm font-medium text-slate-700">Selesai</label>
-                    <input
-                      type="time"
-                      value={eventEnd}
-                      onChange={(e) => setEventEnd(e.target.value)}
-                      className="w-full rounded-lg border border-slate-200 bg-slate-50/40 px-3 py-2.5 text-sm transition focus:border-indigo-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
-                    />
-                  </div>
-                </div>
-                <label className="flex cursor-pointer items-center justify-between rounded-lg border border-slate-200 bg-slate-50/50 px-3 py-3">
-                  <span>
-                    <span className="block text-sm font-medium text-slate-700">Jalankan otomatis</span>
-                    <span className="mt-0.5 block text-xs text-slate-500">Mulai dan berhenti mengikuti tanggal serta jam event.</span>
-                  </span>
+        ) : (
+          <table className="data-table">
+            <thead>
+              <tr>
+                <th className="w-12">
                   <input
                     type="checkbox"
-                    checked={autoRun}
-                    onChange={(e) => setAutoRun(e.target.checked)}
-                    className="h-4 w-4 accent-indigo-600"
+                    aria-label="Pilih semua event"
+                    checked={
+                      visibleEvents.length > 0 &&
+                      visibleEvents.every((event) =>
+                        selected.includes(event.id),
+                      )
+                    }
+                    onChange={(e) =>
+                      setSelected(
+                        e.target.checked
+                          ? [
+                              ...new Set([
+                                ...selected,
+                                ...visibleEvents.map((event) => event.id),
+                              ]),
+                            ]
+                          : selected.filter(
+                              (id) =>
+                                !visibleEvents.some((event) => event.id === id),
+                            ),
+                      )
+                    }
+                  />
+                </th>
+                {(
+                  [
+                    { key: "name", label: "Nama Event" },
+                    { key: "event_date", label: "Jadwal" },
+                    { key: "visitor_count", label: "Jumlah Pengunjung" },
+                    { key: "status", label: "Status" },
+                  ] as const
+                ).map(({ key, label }) => (
+                  <th
+                    key={key}
+                    aria-sort={
+                      sort.key === key
+                        ? sort.direction === 1
+                          ? "ascending"
+                          : "descending"
+                        : "none"
+                    }
+                  >
+                    <button
+                      onClick={() =>
+                        setSort({
+                          key,
+                          direction: sort.key === key ? -sort.direction : 1,
+                        })
+                      }
+                    >
+                      {label}
+                      <ChevronsUpDown size={14} className="text-neutral-400" />
+                    </button>
+                  </th>
+                ))}
+                <th>Action</th>
+              </tr>
+            </thead>
+            <tbody>
+              {visibleEvents.map((event) => (
+                <tr key={event.id} data-running={event.status === "running"}>
+                  <td>
+                    <input
+                      type="checkbox"
+                      aria-label={`Pilih ${event.name}`}
+                      checked={selected.includes(event.id)}
+                      onChange={(e) =>
+                        setSelected(
+                          e.target.checked
+                            ? [...selected, event.id]
+                            : selected.filter((id) => id !== event.id),
+                        )
+                      }
+                    />
+                  </td>
+                  <td>
+                    <Link href={`/events/${event.id}`}>{event.name}</Link>
+                  </td>
+                  <td>
+                    {event.event_date || event.created_at
+                      ? new Date(
+                          event.event_date || event.created_at || "",
+                        ).toLocaleDateString("en-GB", {
+                          day: "numeric",
+                          month: "short",
+                          year: "numeric",
+                        })
+                      : "-"}
+                    <br />
+                    <span className="text-[10px] text-neutral-500">
+                      {event.event_start || "-"} - {event.event_end || "-"}
+                    </span>
+                  </td>
+                  <td>{event.visitor_count ?? 0}</td>
+                  <td>
+                    <span
+                      className="status-badge"
+                      data-running={event.status === "running"}
+                    >
+                      {event.status || "not started"}
+                    </span>
+                  </td>
+                  <td>
+                    <details
+                      className="row-menu"
+                      onKeyDown={(e) => {
+                        if (e.key === "Escape") e.currentTarget.open = false;
+                      }}
+                    >
+                      <summary aria-label={`Aksi ${event.name}`}>
+                        <MoreHorizontal size={18} />
+                      </summary>
+                      <div className="row-menu-content">
+                        <Link href={`/events/${event.id}`}>Detail Event</Link>
+                        <button
+                          onClick={(e) => {
+                            e.currentTarget
+                              .closest("details")
+                              ?.removeAttribute("open");
+                            open(event);
+                          }}
+                        >
+                          Edit Event
+                        </button>
+                        <button
+                          className="text-red-700"
+                          onClick={() => remove(event.id)}
+                        >
+                          Hapus Event
+                        </button>
+                      </div>
+                    </details>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
+      {isOpen && (
+        <Modal
+          title={editingId ? "Edit Event" : "Buat Event Baru"}
+          onClose={() => setIsOpen(false)}
+          busy={busy}
+        >
+          <form onSubmit={save}>
+            <fieldset disabled={busy}>
+              <div className="modal-body">
+                {formError && (
+                  <p role="alert" className="error-message">
+                    {formError}
+                  </p>
+                )}
+                <div className="form-grid">
+                  <label className="field">
+                    Nama Event
+                    <input
+                      autoFocus
+                      required
+                      className="input"
+                      placeholder="Masukkan nama event"
+                      value={form.name}
+                      onChange={(e) => update("name", e.target.value)}
+                    />
+                  </label>
+                  <label className="field">
+                    Kapasitas Event (Opsional)
+                    <input
+                      className="input"
+                      type="number"
+                      min="1"
+                      placeholder="Masukkan jumlah kapasitas"
+                      value={form.capacity}
+                      onChange={(e) => update("capacity", e.target.value)}
+                    />
+                  </label>
+                  <label className="field">
+                    Lokasi Event
+                    <input
+                      className="input"
+                      placeholder="Masukkan lokasi event"
+                      value={form.location}
+                      onChange={(e) => update("location", e.target.value)}
+                    />
+                  </label>
+                  <label className="field">
+                    Tanggal
+                    <input
+                      type="date"
+                      className="input"
+                      required
+                      value={form.eventDate}
+                      onChange={(e) => update("eventDate", e.target.value)}
+                    />
+                  </label>
+                  <label className="field">
+                    Mulai
+                    <input
+                      type="time"
+                      className="input"
+                      required
+                      value={form.eventStart}
+                      onChange={(e) => update("eventStart", e.target.value)}
+                    />
+                  </label>
+                  <label className="field">
+                    Selesai
+                    <input
+                      type="time"
+                      className="input"
+                      required
+                      value={form.eventEnd}
+                      onChange={(e) => update("eventEnd", e.target.value)}
+                    />
+                  </label>
+                </div>
+              </div>
+              <div className="form-section space-y-4">
+                <h3>Kamera & Garis Hitung</h3>
+                <label className="field">
+                  Sumber Kamera
+                  <input
+                    className="input"
+                    placeholder="0, rtsp://host/stream, atau path video"
+                    value={form.cameraSource}
+                    onChange={(e) => update("cameraSource", e.target.value)}
+                  />
+                  <small className="text-neutral-500">
+                    Kosongkan untuk memakai kamera company.
+                  </small>
+                </label>
+                {cameras.length > 0 && (
+                  <details>
+                    <summary className="py-1 text-sm">
+                      Pilih kamera terdaftar ({form.cameraIds.length})
+                    </summary>
+                    <div className="flex flex-wrap gap-4 py-3">
+                      {cameras.map((camera) => (
+                        <label
+                          key={camera.id}
+                          className="flex items-center gap-2"
+                        >
+                          <input
+                            type="checkbox"
+                            checked={form.cameraIds.includes(camera.id)}
+                            onChange={(e) => {
+                              const ids = e.target.checked
+                                ? [...form.cameraIds, camera.id]
+                                : form.cameraIds.filter(
+                                    (id) => id !== camera.id,
+                                  );
+                              update("cameraIds", ids);
+                              const first = cameras.find(
+                                (item) => item.id === ids[0],
+                              );
+                              update(
+                                "cameraSource",
+                                first?.rtsp_url || first?.camera_source || "",
+                              );
+                            }}
+                          />
+                          {camera.name}
+                        </label>
+                      ))}
+                    </div>
+                  </details>
+                )}
+                <label className="field">
+                  Orientasi Garis
+                  <select
+                    className="input"
+                    value={form.lineOrientation}
+                    onChange={(e) => update("lineOrientation", e.target.value)}
+                  >
+                    <option value="horizontal">Horizontal</option>
+                    <option value="vertical">Vertikal</option>
+                  </select>
+                </label>
+                <label className="field">
+                  Posisi Garis ({form.linePosition}%)
+                  <input
+                    type="range"
+                    min="10"
+                    max="90"
+                    value={form.linePosition}
+                    onChange={(e) =>
+                      update("linePosition", Number(e.target.value))
+                    }
                   />
                 </label>
-                <section className="space-y-4 rounded-xl border border-slate-200 bg-slate-50/60 p-4">
-                  <div><h3 className="text-sm font-semibold">Kamera & Garis Hitung</h3><p className="mt-1 text-xs text-slate-500">Konfigurasi khusus untuk event ini.</p></div>
-                  <label className="block text-sm font-medium">Kamera CCTV
-                    <select value={cameraId} onChange={(e) => { const selected = cameras.find((camera) => camera.id === e.target.value); setCameraId(e.target.value); setCameraSource(selected?.rtsp_url || ""); }} className={fieldClass}>
-                      <option value="">Pilih kamera CCTV</option>
-                      {cameras.map((camera) => <option key={camera.id} value={camera.id}>{camera.name}</option>)}
-                    </select>
-                    <span className="mt-1 block text-xs font-normal text-slate-500">Daftar kamera diambil dari master CCTV company.</span>
+                <div className="flex flex-wrap gap-6">
+                  <label className="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      checked={form.reverseDirection}
+                      onChange={(e) =>
+                        update("reverseDirection", e.target.checked)
+                      }
+                    />
+                    Balik arah masuk/keluar
                   </label>
-                  <label className="block text-sm font-medium">Orientasi Garis<select value={lineOrientation} onChange={(e) => setLineOrientation(e.target.value)} className={fieldClass}><option value="horizontal">Horizontal</option><option value="vertical">Vertikal</option></select></label>
-                  <label className="block text-sm font-medium">Posisi Garis · {linePosition}%<input type="range" min="10" max="90" value={linePosition} onChange={(e) => setLinePosition(Number(e.target.value))} className="mt-3 block w-full accent-indigo-600" /></label>
-                  <label className="flex items-center gap-3 text-sm"><input type="checkbox" checked={reverseDirection} onChange={(e) => setReverseDirection(e.target.checked)} className="accent-indigo-600" />Balik arah masuk/keluar</label>
-                  <p className="text-xs text-slate-500">Arah masuk: {lineOrientation === "horizontal" ? reverseDirection ? "bawah → atas" : "atas → bawah" : reverseDirection ? "kanan → kiri" : "kiri → kanan"}.</p>
-                  <CameraTestPreview key={cameraSource} source={cameraSource} position={linePosition} orientation={lineOrientation} reversed={reverseDirection} />
-                </section>
-              </fieldset>
-              <div className="mt-6 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-                <button
-                  type="button"
-                  onClick={() => setIsCreateModalOpen(false)}
-                  className="rounded-lg border border-slate-200 px-4 py-2.5 text-sm font-medium text-slate-600 transition hover:bg-slate-50"
-                >
-                  Batal
-                </button>
-                <button
-                  type="submit"
-                  disabled={!name || isSubmitting}
-                  className="flex items-center justify-center gap-2 rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  {isSubmitting ? <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" /> : <>{editingEventId ? <Pencil size={16} /> : <Plus size={16} />}{editingEventId ? "Update Event" : "Simpan Event"}</>}
-                </button>
+                  <label className="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      checked={form.autoRun}
+                      onChange={(e) => update("autoRun", e.target.checked)}
+                    />
+                    Jalankan otomatis sesuai jadwal
+                  </label>
+                </div>
               </div>
-            </form>
+              <div className="form-section grid items-center gap-5 sm:grid-cols-2">
+                <div>
+                  <h3>Preview Kamera</h3>
+                  <p className="panel-description">
+                    Video live untuk mengatur garis hitung sebelum event
+                    dimulai.
+                  </p>
+                  {form.cameraIds.length > 1 && (
+                    <button
+                      className="btn mt-4"
+                      type="button"
+                      onClick={() => setPreview(true)}
+                    >
+                      Test semua kamera ({form.cameraIds.length})
+                    </button>
+                  )}
+                </div>
+                <CameraTestPreview
+                  compact
+                  source={form.cameraSource}
+                  position={form.linePosition}
+                  orientation={form.lineOrientation}
+                  reversed={form.reverseDirection}
+                />
+              </div>
+            </fieldset>
+            <footer className="modal-footer">
+              <button
+                className="btn"
+                type="button"
+                onClick={() => setIsOpen(false)}
+                disabled={busy}
+              >
+                Cancel
+              </button>
+              <button
+                className="btn btn-primary"
+                type="submit"
+                disabled={busy || !form.name.trim()}
+              >
+                {busy ? "Menyimpan…" : "Simpan Event"}
+              </button>
+            </footer>
+          </form>
+        </Modal>
+      )}
+      {preview && (
+        <Modal title="Test Kamera" onClose={() => setPreview(false)}>
+          <div className="modal-body grid gap-4 sm:grid-cols-2">
+            {cameras
+              .filter((camera) => form.cameraIds.includes(camera.id))
+              .map((camera) => (
+                <div key={camera.id}>
+                  <CameraTestPreview
+                    source={camera.rtsp_url || camera.camera_source || ""}
+                    position={form.linePosition}
+                    orientation={form.lineOrientation}
+                    reversed={form.reverseDirection}
+                    autoStart
+                  />
+                  <p className="mt-2 text-xs">{camera.name}</p>
+                </div>
+              ))}
           </div>
-        </div>
+          <footer className="modal-footer">
+            <button className="btn" onClick={() => setPreview(false)}>
+              Kembali
+            </button>
+          </footer>
+        </Modal>
+      )}
+      {summaryEvents && (
+        <EventSummary
+          events={summaryEvents}
+          onClose={() => setSummaryEvents(null)}
+        />
       )}
     </main>
-  );}
+  );
+}
