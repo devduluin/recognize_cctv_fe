@@ -11,10 +11,7 @@ import {
   XCircle,
   RefreshCw,
   Save,
-  Play,
-  Square,
-  RotateCw,
-} from "lucide-react";
+      } from "lucide-react";
 const API_BASE = `${process.env.NEXT_PUBLIC_SERVICE_RECOGNIZE_CCTV || ""}/api/v1/cctv`;
 type RuntimeSettings = {
   monitor_mode: string;
@@ -178,28 +175,7 @@ export default function GeneralSettingsPanel() {
       setBusy(false);
     }
   }
-  async function runAction(action: string) {
-    setBusy(true);
-    setError("");
-    setMessage("");
-    try {
-      const query = `?company_id=${encodeURIComponent(companyId)}`;
-      if (action === "restart") {
-        await api(`/stop${query}`, {});
-        await api("/prepare", {});
-      } else
-        await api(
-          `/${action}${action === "start" || action === "stop" ? query : ""}`,
-          {},
-        );
-      await refresh();
-      setMessage("Perintah mesin AI selesai.");
-    } catch (error) {
-      setError(error instanceof Error ? error.message : "Perintah gagal.");
-    } finally {
-      setBusy(false);
-    }
-  }
+  
   const workers = Object.values(status?.cameras || {}).filter(
     (camera) => camera.running,
   );

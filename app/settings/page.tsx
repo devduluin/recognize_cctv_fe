@@ -6,7 +6,6 @@ import CCTVSettingsPanel from "../../components/settings/cctv-settings";
 import GeneralSettingsPanel from "../../components/settings/general-settings";
 import ProfileSettings from "../../components/settings/profile-settings";
 import { Page, PageHeading, Tabs } from "../../components/ui/layout";
-import { ButtonLink } from "../../components/ui/button";
 import { ui } from "../../components/ui/styles";
 function SettingsContent() {
   const params = useSearchParams();

@@ -2,27 +2,23 @@
 
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import Link from "next/link";
-import { LayoutGrid, Maximize2, Camera, ScanFace, Search, Users, Activity, Settings, Play, Square, RotateCw, ArrowRight, Power, Video, ListRestart, Trash2 } from "lucide-react";
+import { LayoutGrid, Maximize2, Camera, ScanFace, Activity, Settings, Play, Square, RotateCw, ArrowRight, Power, Video,  } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
-import { MetricCard, MonitorStatus, monitorButton, monitorPanel } from "../../components/monitoring-ui";
+import { MetricCard, MonitorStatus, monitorButton } from "../../components/monitoring-ui";
 
 const API_BASE = (process.env.NEXT_PUBLIC_SERVICE_RECOGNIZE_CCTV || "") + "/api/v1/cctv";
 
 export default function LivePreview() {
   const [busy, setBusy] = useState(false);
-  const [search, setSearch] = useState("");
-  const [cameraView, setCameraView] = useState<"grid" | "focus">("grid");
+    const [cameraView, setCameraView] = useState<"grid" | "focus">("grid");
   const [focusCameraId, setFocusCameraId] = useState("");
   const [companyId, setCompanyId] = useState("");
   const [setupReady, setSetupReady] = useState(false);
   const [cameras, setCameras] = useState([]);
   const [workers, setWorkers] = useState([]);
-  const [systemStarted, setSystemStarted] = useState(false);
-  const [systemReady, setSystemReady] = useState(false);
-  const [systemRunning, setSystemRunning] = useState(false);
-  const [systemInitializing, setSystemInitializing] = useState(false);
-  
+    const [systemReady, setSystemReady] = useState(false);
+      
   const [status, setStatus] = useState(null);
   const [attendance, setAttendance] = useState({});
   const [toastMessage, setToastMessage] = useState("");
@@ -111,11 +107,8 @@ export default function LivePreview() {
       const stat = await api(`/status?company_id=${encodeURIComponent(cid)}`);
       setStatus(stat);
       setWorkers(Array.isArray(stat.workers) ? stat.workers : []);
-      setSystemStarted(Boolean(stat.system_started));
-      setSystemReady(Boolean(stat.system_ready));
-      setSystemRunning(Boolean(stat.running));
-      setSystemInitializing(Boolean(stat.system_initializing));
-    } catch (error) {
+            setSystemReady(Boolean(stat.system_ready));
+                } catch (error) {
       setStatus({ error: true, label: "API Error" });
       showToast(error.message);
     }
@@ -193,12 +186,7 @@ export default function LivePreview() {
 
   const homeReady = setupReady && cameras.length > 0;
   
-  const setupRequiredMessage = () => {
-    if (!companyId) return "Company ID belum ditemukan. Buka halaman CCTV Settings memakai link company yang benar.";
-    if (!setupReady) return "Company ini belum setup atau CCTV belum aktif. Setup company settings dulu sebelum membuka preview.";
-    return "Company settings sudah aktif, tapi kamera belum disiapkan. Tambahkan kamera masuk atau keluar dulu.";
-  };
-
+  
   const progressPercent = (stat) => {
     if (!stat) return 0;
     const percent = Number(stat.initialization_progress_percent ?? 0);
@@ -224,98 +212,10 @@ export default function LivePreview() {
     return "Belum ada kamera tersimpan";
   };
 
-  const renderAttendanceRow = (employeeId, value) => {
-    const name = value?.employee_name || employeeId;
-    const urlIn = value?.photo_in ? (value.photo_in.startsWith("http") || value.photo_in.startsWith("/") ? value.photo_in : `/${value.photo_in}`) : "";
-    const urlOut = value?.photo_out ? (value.photo_out.startsWith("http") || value.photo_out.startsWith("/") ? value.photo_out : `/${value.photo_out}`) : "";
-
-    const shiftName = value?.shift_name || value?.shift_type_name || "-";
-    const checkinStatus = value?.checkin_status || "-";
-    const checkoutStatus = value?.checkout_status || "-";
-
-    const getStatusColor = (status) => {
-      if (status.includes("ontime") || status.includes("on_time") || status === "approved" || status === "present") return "text-emerald-600 bg-emerald-400/10 border-emerald-400/20";
-      if (status.includes("late") || status.includes("early_checkout")) return "text-amber-600 bg-amber-400/10 border-amber-400/20";
-      if (status.includes("missing")) return "text-red-600 bg-red-400/10 border-red-400/20";
-      return "text-slate-500 bg-slate-50 border-slate-200";
-    };
-
-    return (
-      <motion.tr 
-        key={employeeId}
-        initial={{ opacity: 0, y: 10 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="border-b border-slate-100 hover:bg-slate-50 transition-colors text-sm"
-      >
-        <td className="py-4 px-4 font-medium"><div className="flex items-center gap-3"><span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-indigo-50 text-xs font-semibold text-indigo-600">{String(name).slice(0, 2).toUpperCase()}</span><span>{name}</span></div></td>
-        <td className="py-3 px-4 text-slate-900/70">{shiftName}</td>
-        <td className="py-3 px-4">
-          <div className="flex flex-col gap-1.5 items-start">
-            <span className={`px-2 py-0.5 text-[10px] uppercase font-bold tracking-wider rounded border ${getStatusColor(checkinStatus)}`}>
-              IN: {checkinStatus.replace("_", " ")}
-            </span>
-            <span className={`px-2 py-0.5 text-[10px] uppercase font-bold tracking-wider rounded border ${getStatusColor(checkoutStatus)}`}>
-              OUT: {checkoutStatus.replace("_", " ")}
-            </span>
-          </div>
-        </td>
-        <td className="py-3 px-4">
-          <div className="flex items-center gap-2">
-            {urlIn ? (
-              <a className="block w-10 h-10 rounded overflow-hidden border border-slate-200" href={urlIn} target="_blank" rel="noreferrer" title={`In: ${name}`}>
-                <img src={urlIn} alt="" loading="lazy" className="w-full h-full object-cover" />
-              </a>
-            ) : <div className="w-10 h-10 rounded border border-dashed border-slate-200 flex items-center justify-center text-slate-900/20 text-xs">In</div>}
-            
-            {urlOut ? (
-              <a className="block w-10 h-10 rounded overflow-hidden border border-slate-200" href={urlOut} target="_blank" rel="noreferrer" title={`Out: ${name}`}>
-                <img src={urlOut} alt="" loading="lazy" className="w-full h-full object-cover" />
-              </a>
-            ) : <div className="w-10 h-10 rounded border border-dashed border-slate-200 flex items-center justify-center text-slate-900/20 text-xs">Out</div>}
-          </div>
-        </td>
-        <td className="py-3 px-4 text-slate-900/70">{value?.time_in || "-"}</td>
-        <td className="py-3 px-4 text-slate-900/70">{value?.time_out || "-"}</td>
-        <td className="py-3 px-4 text-right">
-          {value?.id ? (
-            <button
-              onClick={async () => {
-                if (confirm(`Hapus data absen untuk ${name}?`)) {
-                  setBusy(true);
-                  try {
-                    await api(`/attendance/${value.id}`, { method: "DELETE" });
-                    showToast(`Data ${name} dihapus`);
-                    await refreshAttendance();
-                  } catch (e) {
-                    showToast(e.message);
-                  } finally {
-                    setBusy(false);
-                  }
-                }
-              }}
-              disabled={busy}
-              className="p-1.5 text-slate-500 hover:text-red-600 hover:bg-red-400/10 rounded-lg transition-colors inline-flex disabled:opacity-50"
-              title="Hapus data ini"
-            >
-              <Trash2 size={16} />
-            </button>
-          ) : (
-            <span className="text-[10px] text-slate-500 italic">No ID</span>
-          )}
-        </td>
-      </motion.tr>
-    );
-  };
-
-  const hasCameras = cameras.length > 0;
   const isInitializing = Boolean(status?.initializing);
   const initPercent = progressPercent(status);
 
   const attendanceEntries = Object.entries(attendance);
-  const filteredAttendance = attendanceEntries.filter(([id, value]) => {
-    const record = value as { employee_name?: string };
-    return `${record?.employee_name ?? ""} ${id}`.toLocaleLowerCase("id-ID").includes(search.trim().toLocaleLowerCase("id-ID"));
-  });
 
   return (
     <div className="text-slate-900 font-sans selection:bg-indigo-500/30">
