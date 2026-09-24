@@ -42,6 +42,7 @@ type Status = {
   timezone?: string;
   last_visitor_at: string | null;
   last_error?: string;
+  cameras?: { camera_id: string; name: string; running: boolean; last_error?: string }[];
 };
 function getCompanyId() {
   try {
@@ -68,6 +69,7 @@ export default function EventVisitorPage({
   const [actionError, setActionError] = useState("");
   const [streamError, setStreamError] = useState(false);
   const [streamKey, setStreamKey] = useState(0);
+  const [selectedCameraId, setSelectedCameraId] = useState("");
   const stage = useRef<HTMLDivElement>(null);
   const refreshStatus = useCallback(
     async (signal?: AbortSignal) => {
@@ -182,6 +184,9 @@ export default function EventVisitorPage({
   }
   const currentEvent = events.find((event) => event.id === selectedEventId);
   const running = Boolean(status?.running);
+  const activeCamera = status?.cameras?.find((camera) => camera.camera_id === selectedCameraId)
+    || status?.cameras?.[0];
+  const cameraQuery = activeCamera ? `&camera_id=${encodeURIComponent(activeCamera.camera_id)}` : "";
   const inside = Math.max(
     0,
     (status?.in_count || 0) - (status?.out_count || 0),
@@ -311,6 +316,7 @@ export default function EventVisitorPage({
           </Panel>
           <Panel>
             <h2>Aktivitas Sesi</h2>
+            {row("Pengunjung unik", value(status?.unique_visitor_count))}
             {row(
               "Visitor Terakhir",
               status?.last_visitor_at
@@ -324,12 +330,37 @@ export default function EventVisitorPage({
         </div>
         <Panel className="p-0!">
           <h2 className="px-4 pt-3">Live Camera</h2>
+          {!!status?.cameras?.length && (
+            <div className="px-4 pb-3">
+              <Field>
+                Kamera
+                <Select
+                  value={activeCamera?.camera_id || ""}
+                  onChange={(event) => {
+                    setSelectedCameraId(event.target.value);
+                    setStreamError(false);
+                    setStreamKey((key) => key + 1);
+                  }}
+                >
+                  {status.cameras.map((camera) => (
+                    <option key={camera.camera_id} value={camera.camera_id}>
+                      {camera.name}{camera.running ? "" : " — berhenti"}
+                    </option>
+                  ))}
+                </Select>
+              </Field>
+              <p className="mt-2 text-sm text-[#52647f]">
+                Wajah yang cocok antar-kamera dalam sesi ini dihitung sebagai satu pengunjung unik.
+              </p>
+              {activeCamera?.last_error && <p role="alert" className={ui.error}>{activeCamera.last_error}</p>}
+            </div>
+          )}
           <div ref={stage} className="group/camera relative overflow-hidden rounded-xl bg-[#edf1f7] [&:fullscreen]:flex [&:fullscreen]:items-center [&:fullscreen]:rounded-none [&:fullscreen]:bg-[#101c30]">
             <div className="grid aspect-video w-full place-items-center group-[:fullscreen]/camera:aspect-auto group-[:fullscreen]/camera:h-full [&_img]:size-full [&_img]:object-contain">
               {running && !connectionError && !streamError ? (
                 <img
-                  key={streamKey}
-                  src={`${API_BASE}/stream?company_id=${encodeURIComponent(getCompanyId())}&event_id=${encodeURIComponent(selectedEventId)}`}
+                  key={`${streamKey}-${activeCamera?.camera_id || "default"}`}
+                  src={`${API_BASE}/stream?company_id=${encodeURIComponent(getCompanyId())}&event_id=${encodeURIComponent(selectedEventId)}${cameraQuery}`}
                   alt="Live kamera event"
                   onError={() => setStreamError(true)}
                 />

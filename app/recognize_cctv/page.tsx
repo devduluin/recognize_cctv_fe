@@ -328,7 +328,7 @@ export default function LivePreview() {
         <div className="flex flex-col">
           <span className="text-xs uppercase tracking-[0.16em] text-indigo-600 font-semibold mb-2">Operations / CCTV</span>
           <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight">Monitoring CCTV</h1>
-          <p className="mt-2 text-sm text-slate-500">Pantau kamera, pengenalan wajah, dan kehadiran karyawan.</p>
+          <p className="mt-2 text-sm text-slate-500">Pantau kamera dan pengenalan wajah.</p>
         </div>
         
         <div className="flex items-center gap-4">
@@ -388,7 +388,7 @@ export default function LivePreview() {
 
                     <div className="flex">
                       <span className="px-2 py-1 text-[10px] font-bold uppercase tracking-wider bg-slate-800 text-slate-700 rounded-md border border-slate-100">
-                        {camera.zone_type || "attendance"}
+                        {camera.zone_type || "monitoring"}
                       </span>
                     </div>
 
@@ -405,7 +405,6 @@ export default function LivePreview() {
 
                     <div className="flex items-center gap-4 text-xs font-medium text-slate-500">
                       <span>Detection: <span className="text-slate-200">{worker?.last_detections?.length || 0}</span></span>
-                      <span>Attendance: <span className="text-slate-200">{worker?.attendance_count || 0}</span></span>
                     </div>
 
                     <div className="grid grid-cols-2 gap-3 pt-2">
@@ -458,84 +457,11 @@ export default function LivePreview() {
 
         </section>
 
-        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
           <MetricCard label="Wajah terdaftar" value={status?.registered_count ?? "—"} detail="Data wajah untuk pengenalan" icon={ScanFace} />
-          <MetricCard label="Absensi sesi" value={status?.attendance_count ?? "—"} detail="Tercatat pada sesi monitoring" icon={Users} tone="emerald" />
           <MetricCard label="Kamera aktif" value={status ? `${workers.filter((worker) => worker.running).length} / ${cameras.length}` : "—"} detail="Kamera berjalan / terkonfigurasi" icon={Camera} tone="sky" />
           <MetricCard label="Pengenalan wajah" value={status ? status.recognition_enabled ? "Aktif" : "Nonaktif" : "—"} detail="Status pengenalan saat ini" icon={Activity} tone="amber" />
         </div>
-        {/* Attendance Table */}
-        <section className={monitorPanel}>
-          <div className="p-5 sm:p-6 flex flex-wrap items-center justify-between gap-4 border-b border-slate-100">
-            <div>
-              <h2 className="text-lg font-medium text-slate-900">Catatan Absensi</h2>
-              <p className="text-sm text-slate-500">Catatan kehadiran karyawan yang tersedia untuk company ini.</p>
-            </div>
-            <div className="flex flex-wrap items-center gap-3">
-              <button 
-                className="px-4 py-2 bg-red-500/10 text-red-600 border border-red-500/20 rounded-xl hover:bg-red-500/20 transition-colors disabled:opacity-50 text-sm font-medium shrink-0"
-                disabled={busy || attendanceEntries.length === 0} 
-                onClick={async () => {
-                  if (confirm("Hapus semua data absensi dan foto? (Tidak bisa di-undo)")) {
-                    setBusy(true);
-                    try {
-                      await api(`/attendance?company_id=${encodeURIComponent(companyId)}`, { method: "DELETE" });
-                      showToast("Semua data absensi berhasil dihapus");
-                      await refreshAttendance();
-                    } catch (e) {
-                      showToast(e.message);
-                    } finally {
-                      setBusy(false);
-                    }
-                  }
-                }}
-              >
-                Hapus Semua
-              </button>
-              <button 
-                className="w-10 h-10 flex items-center justify-center bg-slate-50 border border-slate-200 rounded-xl hover:bg-slate-100 transition-colors disabled:opacity-50 text-slate-500 hover:text-slate-900 shrink-0"
-                disabled={busy} 
-                onClick={refreshAttendance}
-                aria-label="Muat ulang absensi"
-              >
-                <ListRestart size={16} />
-              </button>
-            </div>
-          </div>
-          
-          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 px-5 py-4 sm:px-6">
-            <label className="flex w-full items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 sm:max-w-xs"><Search size={16} className="shrink-0 text-slate-400" /><input aria-label="Cari nama atau ID karyawan" placeholder="Cari nama atau ID karyawan…" value={search} onChange={(event) => setSearch(event.target.value)} className="min-w-0 w-full bg-transparent text-sm outline-none placeholder:text-slate-400" /></label>
-            <span className="text-xs text-slate-400">{filteredAttendance.length} dari {attendanceEntries.length} catatan</span>
-          </div>
-          <div className="overflow-x-auto">
-            <table className="min-w-[760px] w-full text-left border-collapse">
-              <thead>
-                <tr className="bg-slate-50 border-b border-slate-100">
-                  <th className="py-3 px-4 text-[10px] uppercase tracking-wider text-slate-500 font-bold">Karyawan</th>
-                  <th className="py-3 px-4 text-[10px] uppercase tracking-wider text-slate-500 font-bold">Shift</th>
-                  <th className="py-3 px-4 text-[10px] uppercase tracking-wider text-slate-500 font-bold">Status (In/Out)</th>
-                  <th className="py-3 px-4 text-[10px] uppercase tracking-wider text-slate-500 font-bold">Snapshot</th>
-                  <th className="py-3 px-4 text-[10px] uppercase tracking-wider text-slate-500 font-bold">Jam Masuk</th>
-                  <th className="py-3 px-4 text-[10px] uppercase tracking-wider text-slate-500 font-bold">Jam Keluar</th>
-                  <th className="py-3 px-4 text-[10px] uppercase tracking-wider text-slate-500 font-bold text-right">Aksi</th>
-                </tr>
-              </thead>
-              <tbody>
-                <AnimatePresence>
-                  {filteredAttendance.length === 0 ? (
-                    <motion.tr 
-                      initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-                    >
-                      <td colSpan={7} className="py-12 text-center text-sm text-slate-500">{search.trim() ? "Tidak ada karyawan yang cocok dengan pencarian." : "Belum ada catatan absensi."}</td>
-                    </motion.tr>
-                  ) : (
-                    filteredAttendance.map(([id, val]) => renderAttendanceRow(id, val))
-                  )}
-                </AnimatePresence>
-              </tbody>
-            </table>
-          </div>
-        </section>
       </main>
 
       <AnimatePresence>

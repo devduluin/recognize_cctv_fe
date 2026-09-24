@@ -4,7 +4,7 @@ import AdminShell from "../components/admin-shell";
 
 export const metadata: Metadata = {
   title: "Computer Vision",
-  description: "Dashboard monitoring pengunjung dan absensi CCTV.",
+  description: "Dashboard monitoring pengunjung CCTV.",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

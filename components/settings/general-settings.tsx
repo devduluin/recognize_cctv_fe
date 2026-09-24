@@ -329,8 +329,6 @@ export default function GeneralSettingsPanel() {
               >
                 <option value="">Pilih monitoring</option>
                 <option value="visitor">Monitor Pengunjung</option>
-                <option value="attendance">Absensi CCTV</option>
-                <option value="both">Pengunjung & Absensi</option>
               </Select>
             </label>
             <Button className="mt-4 w-full" onClick={() => save()}>
@@ -446,28 +444,7 @@ export default function GeneralSettingsPanel() {
           )}
         </Panel>
       </div>
-      <details className="mt-6">
-        <summary className="py-3 text-sm text-[#607596]">
-          Kontrol runtime lanjutan
-        </summary>
-        <div className="flex flex-wrap gap-2">
-          {[
-            { key: "prepare", label: "Prepare", icon: Play },
-            { key: "start", label: "Start", icon: Play },
-            { key: "stop", label: "Stop", icon: Square },
-            { key: "restart", label: "Restart", icon: RotateCw },
-          ].map(({ key, label, icon: Icon }) => (
-            <Button
-              key={key}
-              disabled={busy || !ready}
-              onClick={() => runAction(key)}
-            >
-              <Icon size={16} />
-              {label}
-            </Button>
-          ))}
-        </div>
-      </details>
+
     </div>
   );
 }

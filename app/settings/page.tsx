@@ -49,9 +49,6 @@ function SettingsContent() {
       {tab === "system" ? (
         <>
           <GeneralSettingsPanel />
-          <ButtonLink className="mt-4" href="/settings?tab=cctv">
-            Konfigurasi kamera & aturan absensi
-          </ButtonLink>
         </>
       ) : tab === "cctv" ? (
         <CCTVSettingsPanel />

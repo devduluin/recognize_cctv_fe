@@ -606,18 +606,10 @@ export default function CCTVSettingsPanel() {
       >
         <div className="flex flex-col">
           
-          <h2 className="text-lg font-semibold tracking-tight">Konfigurasi Absen CCTV</h2><p className="mt-2 text-sm text-slate-500">Atur company, aturan absensi, serta kamera masuk dan keluar.</p>
+          <h2 className="text-lg font-semibold tracking-tight">Konfigurasi Kamera CCTV</h2><p className="mt-2 text-sm text-slate-500">Atur sumber kamera.</p>
         </div>
         
         <div className="flex items-center gap-4">
-          <Link 
-            href="/recognize_cctv"
-            className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium bg-slate-50 hover:bg-slate-100 border border-slate-100 rounded-lg transition-colors text-slate-700 hover:text-slate-900"
-          >
-            <Video size={16} />
-            <span>Buka Monitor Absensi</span>
-          </Link>
-          
           <div className="flex items-center gap-2 px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-sm">
             <span className={`w-2 h-2 rounded-full ${pill.running ? "bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]" : pill.error ? "bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.5)]" : "bg-amber-500 shadow-[0_0_8px_rgba(245,158,11,0.5)]"}`} />
             <span className="text-slate-700 font-medium">{pill.label}</span>
@@ -625,72 +617,15 @@ export default function CCTVSettingsPanel() {
         </div>
       </motion.header>
 
-      <div className="grid grid-cols-1 xl:grid-cols-12 gap-6">
+      <div className="grid grid-cols-1 gap-6">
         
-        {/* Left Column - Attendance Rules */}
-        <div className="xl:col-span-4 space-y-6">
-          <section className={`bg-white border border-slate-100 rounded-xl overflow-hidden shadow-sm transition-opacity ${!settingsReady ? "opacity-60" : ""}`}>
-            <div className="p-6 border-b border-slate-100">
-              <h2 className="text-lg font-medium text-slate-900">Aturan Absensi CCTV</h2>
-              <p className="text-sm text-slate-500 mt-1">Konfigurasi jeda dan toleransi waktu.</p>
-            </div>
-            
-            <form className="p-6 space-y-6" onSubmit={async (e) => {
-              e.preventDefault();
-              if (!companyId) return;
-              setBusy(true);
-              try {
-                await api(`/settings/${encodeURIComponent(companyId)}`, {
-                  method: "POST",
-                  body: JSON.stringify({
-                    cooldown_seconds: parseInt(cooldownSeconds) || 0,
-                    time_tolerance_minutes: parseInt(timeToleranceMinutes) || 0,
-                    allow_attendance_after_tolerance: allowAfterTolerance
-                  }),
-                });
-                showToast("Aturan absensi disimpan");
-                await loadSettings(companyId, true);
-              } catch (err) {
-                showToast(errorMessage(err, "Gagal menyimpan aturan absensi"));
-              } finally {
-                setBusy(false);
-              }
-            }}>
-              <div className="space-y-5">
-                <label className="block text-sm font-medium text-slate-700">
-                  <span className="block mb-1.5">Jeda Deteksi Berulang (Detik)</span>
-                  <input type="number" min="0" step="1" className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-slate-900 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500" value={cooldownSeconds} onChange={(e) => setCooldownSeconds(e.target.value)} disabled={busy || !settingsReady} />
-                  <p className="text-[11px] text-slate-500 mt-1.5">Mencegah pendeteksian bertubi-tubi untuk orang yang sama.</p>
-                </label>
-
-                <label className="block text-sm font-medium text-slate-700">
-                  <span className="block mb-1.5">Toleransi Waktu Absen (Menit)</span>
-                  <input type="number" min="0" step="1" className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-slate-900 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500" value={timeToleranceMinutes} onChange={(e) => setTimeToleranceMinutes(e.target.value)} disabled={busy || !settingsReady} />
-                </label>
-
-                <label className="flex items-center gap-3 p-3 border border-slate-200 bg-slate-50 rounded-xl cursor-pointer hover:bg-slate-100 transition-colors">
-                  <input type="checkbox" className="w-4 h-4 text-indigo-600 rounded border-slate-300 focus:ring-indigo-500" checked={allowAfterTolerance} onChange={(e) => setAllowAfterTolerance(e.target.checked)} disabled={busy || !settingsReady} />
-                  <div>
-                    <span className="block text-sm font-medium text-slate-700">Izinkan Absen Terlambat</span>
-                    <span className="block text-[11px] text-slate-500 mt-0.5">Catat absensi meski melewati waktu toleransi.</span>
-                  </div>
-                </label>
-              </div>
-
-              <button type="submit" disabled={busy || !settingsReady} className="w-full py-2.5 bg-indigo-50 text-indigo-700 rounded-lg text-sm font-medium hover:bg-indigo-100 transition-colors disabled:opacity-50 mt-2">
-                Simpan Aturan
-              </button>
-            </form>
-          </section>
-        </div>
-
         {/* Right Column - Cameras */}
-        <div className="xl:col-span-8">
+        <div className="xl:col-span-12">
           <section className={`bg-white backdrop-blur-md border border-slate-100 rounded-xl overflow-hidden shadow-sm transition-opacity ${!settingsReady ? "opacity-60" : ""}`}>
             <div className="p-6 border-b border-slate-100 flex items-center justify-between">
               <div>
                 <h2 className="text-lg font-medium text-slate-900">CCTV Cameras</h2>
-                <p className="text-sm text-slate-500">Atur maksimal 2 kamera: satu untuk masuk dan satu untuk keluar.</p>
+                <p className="text-sm text-slate-500">Atur kamera yang akan digunakan untuk monitoring pengunjung.</p>
               </div>
               <div className="flex gap-2 shrink-0 ml-4">
                 <button 
