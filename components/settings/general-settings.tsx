@@ -1,14 +1,12 @@
 "use client";
 import { Button } from "../ui/button";
 import { Field, Input, Select, Switch } from "../ui/field";
-import { InfoRow, Panel } from "../ui/layout";
+import { Panel } from "../ui/layout";
 import { cx, ui } from "../ui/styles";
 
 const settingRow = "flex flex-wrap items-center justify-between gap-3.5 border-b border-dashed border-[#d9d9d9] px-3 py-2.5 max-[600px]:px-0 [&>div]:min-w-[180px] [&>div]:flex-1 [&_p]:mt-[3px] [&_p]:text-xs/normal [&_p]:text-[#737373] [&_select]:min-w-[200px] [&_select]:flex-1";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
-  CheckCircle2,
-  XCircle,
   RefreshCw,
   Save,
       } from "lucide-react";
@@ -35,10 +33,6 @@ type RuntimeStatus = {
     { running?: boolean; fps?: number; latency_ms?: number }
   >;
 };
-type Health = {
-  ok: boolean;
-  checks: Record<string, { ok: boolean; message: string }>;
-};
 const defaults: RuntimeSettings = {
   monitor_mode: "visitor",
   detection_min_confidence: 0.5,
@@ -51,7 +45,6 @@ export default function GeneralSettingsPanel() {
   const [timezone, setTimezone] = useState("Asia/Jakarta");
   const [settings, setSettings] = useState(defaults);
   const [status, setStatus] = useState<RuntimeStatus | null>(null);
-  const [health, setHealth] = useState<Health | null>(null);
   const [busy, setBusy] = useState(false);
   const [ready, setReady] = useState(false);
   const [error, setError] = useState("");
@@ -95,21 +88,19 @@ export default function GeneralSettingsPanel() {
           "Workspace belum tersedia. Lengkapi pengaturan akun Anda.",
         );
       const query = `?company_id=${encodeURIComponent(cid)}`;
-      const [company, runtime, currentStatus, currentHealth] =
+      const [company, runtime, currentStatus] =
         await Promise.all([
           api<{ enabled?: boolean; timezone?: string }>(
             `/settings/${encodeURIComponent(cid)}`,
           ),
           api<RuntimeSettings>(`/runtime/settings${query}`),
           api<RuntimeStatus>(`/status${query}`),
-          api<Health>("/health"),
         ]);
       if (!live.current) return;
       setEnabled(company.enabled ?? true);
       setTimezone(company.timezone || "Asia/Jakarta");
       setSettings({ ...defaults, ...runtime });
       setStatus(currentStatus);
-      setHealth(currentHealth);
       setReady(true);
     } catch (error) {
       if (live.current)
@@ -187,22 +178,6 @@ export default function GeneralSettingsPanel() {
     ? workers.reduce((sum, camera) => sum + (camera.latency_ms || 0), 0) /
       workers.length
     : 0;
-  const modelRows = [
-    ["Face YOLO", settings.face_model_path],
-    ["Gender Model", settings.gender_model_path],
-    ["Person YOLO", settings.person_model_path],
-    ["Vector DB", settings.vector_db_path],
-    ["Collection", settings.vector_db_collection],
-    ["HRMS Photos", settings.attendance_photos_url],
-    [
-      "RabbitMQ",
-      ready
-        ? settings.rabbitmq_url_configured
-          ? "Configured"
-          : "Not configured"
-        : "-",
-    ],
-  ];
   return (
     <div aria-busy={busy}>
       {error && (
@@ -359,50 +334,6 @@ export default function GeneralSettingsPanel() {
               </Button>
             </fieldset>
           </form>
-        </Panel>
-      </div>
-      <div className="mt-5 grid items-start gap-5 min-[900px]:grid-cols-2">
-        <Panel>
-          <h2>Konfigurasi Model</h2>
-          <p className={cx(ui.panelDescription, "mb-4")}>
-            Path model dan integrasi aktif
-          </p>
-          {modelRows.map(([label, value]) => (
-            <InfoRow key={label}>
-              <span>{label}</span>
-              <span>{value || "-"}</span>
-            </InfoRow>
-          ))}
-        </Panel>
-        <Panel>
-          <h2>Health Check</h2>
-          <p className={cx(ui.panelDescription, "mb-5")}>
-            Validasi dependency utama runtime
-          </p>
-          {health ? (
-            <>
-              {Object.entries(health.checks).map(([key, check]) => (
-                <div className="mt-2 flex items-center gap-2 rounded-xl border border-line px-3 py-2.5 max-[600px]:flex-wrap [&_svg]:shrink-0" key={key}>
-                  {check.ok ? (
-                    <CheckCircle2 size={15} className="text-emerald-600" />
-                  ) : (
-                    <XCircle size={15} className="text-red-600" />
-                  )}
-                  <span className="capitalize">{key.replaceAll("_", " ")}</span>
-                  <small className="ml-auto max-w-[52%] text-right text-muted [overflow-wrap:anywhere] max-[600px]:max-w-full">{check.message}</small>
-                </div>
-              ))}
-              <p className="mt-5 text-center text-xs text-[#0c2e73]">
-                {health.ok
-                  ? "Semua dependency wajib siap"
-                  : "Ada dependency wajib bermasalah"}
-              </p>
-            </>
-          ) : (
-            <p className={ui.emptyState}>
-              {error ? "Status belum tersedia." : "Memuat status…"}
-            </p>
-          )}
         </Panel>
       </div>
 

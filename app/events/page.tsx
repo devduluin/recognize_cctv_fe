@@ -25,6 +25,7 @@ type VisitorEvent = {
   camera_source?: string | null;
   camera_id?: string | null;
   camera_ids?: string[] | null;
+  camera_settings?: Record<string, any> | null;
   line_position?: number | null;
   line_orientation?: string | null;
   reverse_direction?: boolean | null;
@@ -46,11 +47,11 @@ type CameraOption = {
 const initialForm = {
   name: "",
   location: "",
-  cameraSource: "",
   cameraIds: [] as string[],
-  linePosition: 50,
-  lineOrientation: "horizontal",
-  reverseDirection: false,
+  cameraSettings: {} as Record<
+    string,
+    { linePosition: number; lineOrientation: string; reverseDirection: boolean }
+  >,
   eventDate: "",
   eventStart: "",
   eventEnd: "",
@@ -86,7 +87,6 @@ export default function EventsPage() {
   const [form, setForm] = useState(initialForm);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [isOpen, setIsOpen] = useState(false);
-  const [preview, setPreview] = useState(false);
   const [busy, setBusy] = useState(false);
   const [formError, setFormError] = useState("");
   const update = <K extends keyof typeof initialForm>(
@@ -150,17 +150,36 @@ export default function EventsPage() {
     [events, query, sort],
   );
   function open(event?: VisitorEvent) {
+    const defaultIds = event?.camera_ids || (event?.camera_id ? [event.camera_id] : []);
+    const settings: Record<string, any> = {};
+    if (event) {
+      if (event.camera_settings) {
+        for (const [id, cfg] of Object.entries(event.camera_settings)) {
+          settings[id] = {
+            linePosition: cfg.line_position ? Math.round(cfg.line_position * 100) : 50,
+            lineOrientation: cfg.line_orientation || "horizontal",
+            reverseDirection: cfg.reverse_direction || false,
+          };
+        }
+      }
+      for (const id of defaultIds) {
+        if (!settings[id]) {
+          settings[id] = {
+            linePosition: Math.round((event.line_position ?? 0.5) * 100),
+            lineOrientation: event.line_orientation || "horizontal",
+            reverseDirection: event.reverse_direction || false,
+          };
+        }
+      }
+    }
+    
     setForm(
       event
         ? {
             name: event.name,
             location: event.location || "",
-            cameraSource: event.camera_source || "",
-            cameraIds:
-              event.camera_ids || (event.camera_id ? [event.camera_id] : []),
-            linePosition: Math.round((event.line_position ?? 0.5) * 100),
-            lineOrientation: event.line_orientation || "horizontal",
-            reverseDirection: event.reverse_direction || false,
+            cameraIds: defaultIds,
+            cameraSettings: settings,
             eventDate: event.event_date || "",
             eventStart: event.event_start || "",
             eventEnd: event.event_end || "",
@@ -178,15 +197,23 @@ export default function EventsPage() {
     setBusy(true);
     setFormError("");
     try {
+      const dbSettings: Record<string, any> = {};
+      for (const id of form.cameraIds) {
+        const cfg = form.cameraSettings[id];
+        if (cfg) {
+          dbSettings[id] = {
+            line_position: cfg.linePosition / 100,
+            line_orientation: cfg.lineOrientation,
+            reverse_direction: cfg.reverseDirection,
+          };
+        }
+      }
       const payload = {
         name: form.name.trim(),
         location: form.location.trim() || null,
-        camera_source: form.cameraSource.trim() || null,
         camera_id: form.cameraIds[0] || null,
         camera_ids: form.cameraIds.length ? form.cameraIds : null,
-        line_position: form.linePosition / 100,
-        line_orientation: form.lineOrientation,
-        reverse_direction: form.reverseDirection,
+        camera_settings: Object.keys(dbSettings).length ? dbSettings : null,
         event_date: form.eventDate || null,
         event_start: form.eventStart,
         event_end: form.eventEnd,
@@ -521,85 +548,48 @@ export default function EventsPage() {
               <div className={cx(ui.formSection, "space-y-4")}>
                 <h3>Kamera & Garis Hitung</h3>
                 <Field>
-                  Sumber Kamera
-                  <Input
-                    placeholder="0, rtsp://host/stream, atau path video"
-                    value={form.cameraSource}
-                    onChange={(e) => update("cameraSource", e.target.value)}
-                  />
-                  <small className="text-neutral-500">
-                    Kosongkan untuk memakai kamera company.
-                  </small>
-                </Field>
-                {cameras.length > 0 && (
-                  <details>
-                    <summary className="py-1 text-sm">
-                      Pilih kamera terdaftar ({form.cameraIds.length})
-                    </summary>
-                    <div className="flex flex-wrap gap-4 py-3">
+                  Pilih Kamera Terdaftar
+                  {cameras.length > 0 ? (
+                    <div className="mt-1 flex flex-col gap-2 rounded-lg border border-neutral-200 bg-white p-3 max-h-48 overflow-y-auto">
                       {cameras.map((camera) => (
                         <label
                           key={camera.id}
-                          className="flex items-center gap-2"
+                          className="flex items-center gap-3 text-sm cursor-pointer"
                         >
                           <input
                             type="checkbox"
+                            className="h-4 w-4 rounded border-gray-300"
                             checked={form.cameraIds.includes(camera.id)}
                             onChange={(e) => {
                               const ids = e.target.checked
                                 ? [...form.cameraIds, camera.id]
-                                : form.cameraIds.filter(
-                                    (id) => id !== camera.id,
-                                  );
-                              update("cameraIds", ids);
-                              const first = cameras.find(
-                                (item) => item.id === ids[0],
-                              );
-                              update(
-                                "cameraSource",
-                                first?.rtsp_url || first?.camera_source || "",
-                              );
+                                : form.cameraIds.filter((id) => id !== camera.id);
+                              
+                              const newSettings = { ...form.cameraSettings };
+                              if (e.target.checked && !newSettings[camera.id]) {
+                                newSettings[camera.id] = {
+                                  linePosition: 50,
+                                  lineOrientation: "horizontal",
+                                  reverseDirection: false,
+                                };
+                              }
+                              
+                              setForm({
+                                ...form,
+                                cameraIds: ids,
+                                cameraSettings: newSettings,
+                              });
                             }}
                           />
-                          {camera.name}
+                          <span className="font-medium text-gray-700">{camera.name}</span>
                         </label>
                       ))}
                     </div>
-                  </details>
-                )}
-                <Field>
-                  Orientasi Garis
-                  <Select
-                    value={form.lineOrientation}
-                    onChange={(e) => update("lineOrientation", e.target.value)}
-                  >
-                    <option value="horizontal">Horizontal</option>
-                    <option value="vertical">Vertikal</option>
-                  </Select>
+                  ) : (
+                    <p className="text-sm text-neutral-500">Belum ada kamera terdaftar.</p>
+                  )}
                 </Field>
-                <Field>
-                  Posisi Garis ({form.linePosition}%)
-                  <input
-                    type="range"
-                    min="10"
-                    max="90"
-                    value={form.linePosition}
-                    onChange={(e) =>
-                      update("linePosition", Number(e.target.value))
-                    }
-                  />
-                </Field>
-                <div className="flex flex-wrap gap-6">
-                  <label className="flex items-center gap-2">
-                    <input
-                      type="checkbox"
-                      checked={form.reverseDirection}
-                      onChange={(e) =>
-                        update("reverseDirection", e.target.checked)
-                      }
-                    />
-                    Balik arah masuk/keluar
-                  </label>
+                <div className="mt-4">
                   <label className="flex items-center gap-2">
                     <input
                       type="checkbox"
@@ -610,31 +600,80 @@ export default function EventsPage() {
                   </label>
                 </div>
               </div>
-              <div className={cx(ui.formSection, "grid items-center gap-5 sm:grid-cols-2")}>
-                <div>
-                  <h3>Preview Kamera</h3>
-                  <p className={ui.panelDescription}>
-                    Video live untuk mengatur garis hitung sebelum event
-                    dimulai.
-                  </p>
-                  {form.cameraIds.length > 1 && (
-                    <Button
-                      className="mt-4"
-                      type="button"
-                      onClick={() => setPreview(true)}
-                    >
-                      Test semua kamera ({form.cameraIds.length})
-                    </Button>
-                  )}
+              
+              {form.cameraIds.length > 0 && (
+                <div className={cx(ui.formSection, "bg-neutral-50")}>
+                  <h3 className="mb-4">Pengaturan Per Kamera</h3>
+                  <div className="flex flex-col gap-6">
+                    {form.cameraIds.map((cameraId) => {
+                      const camera = cameras.find((c) => c.id === cameraId);
+                      if (!camera) return null;
+                      const source = camera.rtsp_url || camera.camera_source || "";
+                      const cfg = form.cameraSettings[cameraId] || {
+                        linePosition: 50,
+                        lineOrientation: "horizontal",
+                        reverseDirection: false,
+                      };
+                      
+                      const updateCam = (key: string, value: any) => {
+                        setForm({
+                          ...form,
+                          cameraSettings: {
+                            ...form.cameraSettings,
+                            [cameraId]: { ...cfg, [key]: value },
+                          },
+                        });
+                      };
+
+                      return (
+                        <div key={cameraId} className="grid items-start gap-6 sm:grid-cols-2 rounded-xl border border-neutral-200 bg-white p-5 shadow-sm">
+                          <div className="space-y-4">
+                            <h4 className="font-semibold text-neutral-800">{camera.name}</h4>
+                            <Field>
+                              Orientasi Garis
+                              <Select
+                                value={cfg.lineOrientation}
+                                onChange={(e) => updateCam("lineOrientation", e.target.value)}
+                              >
+                                <option value="horizontal">Horizontal</option>
+                                <option value="vertical">Vertikal</option>
+                              </Select>
+                            </Field>
+                            <Field>
+                              Posisi Garis ({cfg.linePosition}%)
+                              <input
+                                type="range"
+                                min="10"
+                                max="90"
+                                value={cfg.linePosition}
+                                onChange={(e) => updateCam("linePosition", Number(e.target.value))}
+                              />
+                            </Field>
+                            <label className="flex items-center gap-2 text-sm mt-2">
+                              <input
+                                type="checkbox"
+                                checked={cfg.reverseDirection}
+                                onChange={(e) => updateCam("reverseDirection", e.target.checked)}
+                              />
+                              Balik arah masuk/keluar
+                            </label>
+                          </div>
+                          <div>
+                            <p className="mb-2 text-sm font-medium text-neutral-600">Preview Garis</p>
+                            <CameraTestPreview
+                              compact
+                              source={source}
+                              position={cfg.linePosition}
+                              orientation={cfg.lineOrientation}
+                              reversed={cfg.reverseDirection}
+                            />
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
                 </div>
-                <CameraTestPreview
-                  compact
-                  source={form.cameraSource}
-                  position={form.linePosition}
-                  orientation={form.lineOrientation}
-                  reversed={form.reverseDirection}
-                />
-              </div>
+              )}
             </fieldset>
             <footer className={ui.modalFooter}>
               <Button
@@ -653,31 +692,6 @@ export default function EventsPage() {
               </Button>
             </footer>
           </form>
-        </Modal>
-      )}
-      {preview && (
-        <Modal title="Test Kamera" onClose={() => setPreview(false)}>
-          <div className={cx(ui.modalBody, "grid gap-4 sm:grid-cols-2")}>
-            {cameras
-              .filter((camera) => form.cameraIds.includes(camera.id))
-              .map((camera) => (
-                <div key={camera.id}>
-                  <CameraTestPreview
-                    source={camera.rtsp_url || camera.camera_source || ""}
-                    position={form.linePosition}
-                    orientation={form.lineOrientation}
-                    reversed={form.reverseDirection}
-                    autoStart
-                  />
-                  <p className="mt-2 text-xs">{camera.name}</p>
-                </div>
-              ))}
-          </div>
-          <footer className={ui.modalFooter}>
-            <Button onClick={() => setPreview(false)}>
-              Kembali
-            </Button>
-          </footer>
         </Modal>
       )}
       {summaryEvents && (
