@@ -237,7 +237,10 @@ export default function HourlyVisitorStatistics({
     return () => controller.abort();
   }, [effectiveCompanyId, eventId]);
   useEffect(() => {
-    if (!date || !effectiveCompanyId) return;
+    if (!date || !effectiveCompanyId) {
+      setLoading(false);
+      return;
+    }
     const controller = new AbortController();
     let timer: ReturnType<typeof setTimeout>;
     async function load() {
@@ -319,11 +322,8 @@ export default function HourlyVisitorStatistics({
         Tanggal
         <Input
           type="date"
-          required
           value={date}
-          onChange={(e) => {
-            if (e.target.value) setDate(e.target.value);
-          }}
+          onChange={(e) => setDate(e.target.value)}
         />
       </Field>
       {suffix === "top" && !eventId && (
@@ -395,7 +395,6 @@ export default function HourlyVisitorStatistics({
             Lihat jumlah pengunjung yang masuk setiap jamnya.
           </p>
         </div>
-        {filters("chart")}
       </div>
       <div aria-busy={loading && !!effectiveCompanyId}>
         {current ? (
@@ -415,9 +414,11 @@ export default function HourlyVisitorStatistics({
           <div role="status" className={cx(ui.chartPanel, ui.emptyState)}>
             {!effectiveCompanyId
               ? "Workspace belum tersedia. Lengkapi pengaturan akun Anda."
-              : error
-                ? "Statistik tidak tersedia."
-                : "Memuat statistik pengunjung…"}
+              : !date
+                ? "Pilih tanggal untuk melihat statistik."
+                : error
+                  ? "Statistik tidak tersedia."
+                  : "Memuat statistik pengunjung…"}
           </div>
         )}
       </div>
