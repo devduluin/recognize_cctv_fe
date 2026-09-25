@@ -292,21 +292,6 @@ export default function GeneralSettingsPanel() {
                 ))}
               </Select>
             </label>
-            <label className={settingRow}>
-              <div>
-                <span>Jenis Monitoring</span>
-                <p>Pilih proses AI yang dijalankan oleh tombol Start.</p>
-              </div>
-              <Select
-                value={settings.monitor_mode}
-                onChange={(e) =>
-                  setSettings({ ...settings, monitor_mode: e.target.value })
-                }
-              >
-                <option value="">Pilih monitoring</option>
-                <option value="visitor">Monitor Pengunjung</option>
-              </Select>
-            </label>
             <Button className="mt-4 w-full" onClick={() => save()}>
               <Save size={16} />
               Simpan
