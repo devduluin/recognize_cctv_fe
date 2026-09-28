@@ -27,7 +27,7 @@ jobs:
           host: ${{ secrets.SSH_HOST_DEV_NEW }}
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_KEY }}
-          source: ".,!node_modules,!.env,!.env.*"
+          source: ".,!.git,!node_modules,!.next,!.env,!.env.*"
           target: "/home/apps/machine-learning/machine-learning-fe"
           overwrite: true
           rm: false
