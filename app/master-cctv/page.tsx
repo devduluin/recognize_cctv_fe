@@ -11,7 +11,7 @@ import {
   useMemo,
   type FormEvent,
 } from "react";
-import { Plus, Search, ChevronsUpDown } from "lucide-react";
+import { Plus, Search, ChevronsUpDown, ChevronDown, ChevronUp, FlaskConical } from "lucide-react";
 import CameraTestPreview from "../../components/camera-test-preview";
 import Modal from "../../components/ui-modal";
 type CCTVCamera = {
@@ -38,6 +38,7 @@ export default function KameraPage() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [formError, setFormError] = useState("");
+  const [showDummyTesting, setShowDummyTesting] = useState(false);
   const [sort, setSort] = useState<{
     key: "name" | "events" | "last_used" | "status";
     direction: number;
@@ -88,6 +89,7 @@ export default function KameraPage() {
     setSource(camera?.rtsp_url || camera?.camera_source || "");
     setEditingId(camera?.id || null);
     setFormError("");
+    setShowDummyTesting(false);
     setIsOpen(true);
   }
   async function save(event: FormEvent) {
@@ -364,10 +366,81 @@ export default function KameraPage() {
                 Sumber Kamera
                 <Input
                   required
-                  placeholder="0, rtsp://host/stream, atau path video"
+                  placeholder="0, rtsp://host/stream, atau URL/path video"
                   value={source}
                   onChange={(e) => setSource(e.target.value)}
                 />
+                <div className="mt-2">
+                  <button
+                    type="button"
+                    onClick={() => setShowDummyTesting((previous) => !previous)}
+                    className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-500 hover:text-slate-800 transition-colors py-0.5"
+                  >
+                    <FlaskConical size={13} className="text-amber-500" />
+                    <span>Dummy Testing</span>
+                    {showDummyTesting ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
+                  </button>
+
+                  {showDummyTesting && (
+                    <div className="mt-2 p-2.5 rounded-lg border border-slate-200 bg-slate-50/80 space-y-2 text-xs">
+                      <div className="text-[11px] font-medium text-slate-500">
+                        Pilih sample video link untuk pengujian:
+                      </div>
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (!name) setName("Sample Lobby");
+                            setSource("http://127.0.0.1:8000/samples/gettyimages-926491036-640_adpp.mp4");
+                          }}
+                          className="px-2.5 py-1 rounded-md border border-slate-200 bg-white hover:bg-slate-100 text-slate-700 font-medium shadow-sm transition"
+                        >
+                          Lobby Entrance
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (!name) setName("Sample Lorong");
+                            setSource("http://127.0.0.1:8000/samples/sample_faces.mp4");
+                          }}
+                          className="px-2.5 py-1 rounded-md border border-slate-200 bg-white hover:bg-slate-100 text-slate-700 font-medium shadow-sm transition"
+                        >
+                          Lorong Kantor
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (!name) setName("Sample Turnstile");
+                            setSource("http://127.0.0.1:8000/samples/sample_people.mp4");
+                          }}
+                          className="px-2.5 py-1 rounded-md border border-slate-200 bg-white hover:bg-slate-100 text-slate-700 font-medium shadow-sm transition"
+                        >
+                          Turnstile
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (!name) setName("Sample Gerbang");
+                            setSource("http://127.0.0.1:8000/samples/gettyimages-2154415328-640_adpp.mp4");
+                          }}
+                          className="px-2.5 py-1 rounded-md border border-slate-200 bg-white hover:bg-slate-100 text-slate-700 font-medium shadow-sm transition"
+                        >
+                          Gerbang Event
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (!name) setName("Webcam");
+                            setSource("0");
+                          }}
+                          className="px-2.5 py-1 rounded-md border border-slate-200 bg-white hover:bg-slate-100 text-slate-700 font-medium shadow-sm transition"
+                        >
+                          Webcam (0)
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
               </Field>
             </fieldset>
             <footer className={ui.modalFooter}>

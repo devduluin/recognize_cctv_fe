@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import { useSearchParams } from "next/navigation";
-import { RefreshCw, Save, Plus, Lock, LogIn, LogOut, Pencil, Trash2, ScanLine } from "lucide-react";
+import { RefreshCw, Save, Plus, Lock, LogIn, LogOut, Pencil, Trash2, ScanLine, ChevronDown, ChevronUp, FlaskConical } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
 const API_BASE = (process.env.NEXT_PUBLIC_SERVICE_RECOGNIZE_CCTV || "") + "/api/v1/cctv";
@@ -105,6 +105,7 @@ export default function CCTVSettingsPanel() {
   const [maxFrameSkip, setMaxFrameSkip] = useState("");
   const [showEditor, setShowEditor] = useState(false);
   const [editorMode, setEditorMode] = useState("New");
+  const [showDummyTesting, setShowDummyTesting] = useState(false);
 
   const [toastMessage, setToastMessage] = useState("");
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -713,29 +714,76 @@ export default function CCTVSettingsPanel() {
                           className="w-full bg-white border border-slate-200 rounded-xl px-4 py-2.5 text-slate-900 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-shadow placeholder:text-slate-500 font-mono text-sm mb-2"
                           value={cameraSource} onChange={(e) => setCameraSource(e.target.value)} disabled={busy} 
                         />
-                        <div className="flex items-center gap-2">
-                          <span className="text-[10px] text-slate-500 uppercase tracking-widest font-semibold">Quick Test:</span>
-                          <button 
+                        <div className="mt-2">
+                          <button
                             type="button"
-                            onClick={() => setCameraSource("0")}
-                            className="text-[11px] px-2 py-1 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded text-slate-700 transition-colors"
+                            onClick={() => setShowDummyTesting((prev) => !prev)}
+                            className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-500 hover:text-slate-800 transition-colors py-0.5"
                           >
-                            Webcam (0)
+                            <FlaskConical size={13} className="text-amber-500" />
+                            <span>Dummy Testing</span>
+                            {showDummyTesting ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
                           </button>
-                          <button 
-                            type="button"
-                            onClick={() => setCameraSource("./samples/sample_faces.mp4")}
-                            className="text-[11px] px-2 py-1 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded text-slate-700 transition-colors"
-                          >
-                            Sample Video
-                          </button>
-                          <button 
-                            type="button"
-                            onClick={() => setCameraSource("https://github.com/intel-iot-devkit/sample-videos/raw/master/face-demographics-walking.mp4")}
-                            className="text-[11px] px-2 py-1 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded text-slate-700 transition-colors"
-                          >
-                            Sample URL
-                          </button>
+
+                          {showDummyTesting && (
+                            <div className="mt-2 p-2.5 rounded-lg border border-slate-200 bg-slate-50/80 space-y-2 text-xs">
+                              <div className="text-[11px] font-medium text-slate-500">
+                                Pilih sample video link untuk pengujian:
+                              </div>
+                              <div className="flex flex-wrap items-center gap-1.5">
+                                <button 
+                                  type="button"
+                                  onClick={() => {
+                                    if (!cameraName) setCameraName("Sample Lobby");
+                                    setCameraSource("http://127.0.0.1:8000/samples/gettyimages-926491036-640_adpp.mp4");
+                                  }}
+                                  className="px-2.5 py-1 rounded-md border border-slate-200 bg-white hover:bg-slate-100 text-slate-700 font-medium shadow-sm transition"
+                                >
+                                  Lobby Entrance
+                                </button>
+                                <button 
+                                  type="button"
+                                  onClick={() => {
+                                    if (!cameraName) setCameraName("Sample Lorong");
+                                    setCameraSource("http://127.0.0.1:8000/samples/sample_faces.mp4");
+                                  }}
+                                  className="px-2.5 py-1 rounded-md border border-slate-200 bg-white hover:bg-slate-100 text-slate-700 font-medium shadow-sm transition"
+                                >
+                                  Lorong Kantor
+                                </button>
+                                <button 
+                                  type="button"
+                                  onClick={() => {
+                                    if (!cameraName) setCameraName("Sample Turnstile");
+                                    setCameraSource("http://127.0.0.1:8000/samples/sample_people.mp4");
+                                  }}
+                                  className="px-2.5 py-1 rounded-md border border-slate-200 bg-white hover:bg-slate-100 text-slate-700 font-medium shadow-sm transition"
+                                >
+                                  Turnstile
+                                </button>
+                                <button 
+                                  type="button"
+                                  onClick={() => {
+                                    if (!cameraName) setCameraName("Sample Gerbang");
+                                    setCameraSource("http://127.0.0.1:8000/samples/gettyimages-2154415328-640_adpp.mp4");
+                                  }}
+                                  className="px-2.5 py-1 rounded-md border border-slate-200 bg-white hover:bg-slate-100 text-slate-700 font-medium shadow-sm transition"
+                                >
+                                  Gerbang Event
+                                </button>
+                                <button 
+                                  type="button"
+                                  onClick={() => {
+                                    if (!cameraName) setCameraName("Webcam");
+                                    setCameraSource("0");
+                                  }}
+                                  className="px-2.5 py-1 rounded-md border border-slate-200 bg-white hover:bg-slate-100 text-slate-700 font-medium shadow-sm transition"
+                                >
+                                  Webcam (0)
+                                </button>
+                              </div>
+                            </div>
+                          )}
                         </div>
                       </label>
 
