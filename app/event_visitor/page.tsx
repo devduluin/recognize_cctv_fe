@@ -67,9 +67,8 @@ export default function EventVisitorPage({
   const [status, setStatus] = useState<Status | null>(null);
   const [connectionError, setConnectionError] = useState("");
   const [actionError, setActionError] = useState("");
-  const [streamError, setStreamError] = useState(false);
+  const [streamErrors, setStreamErrors] = useState<Record<string, boolean>>({});
   const [streamKey, setStreamKey] = useState(0);
-  const [selectedCameraId, setSelectedCameraId] = useState("");
   const stage = useRef<HTMLDivElement>(null);
   const refreshStatus = useCallback(
     async (signal?: AbortSignal) => {
@@ -171,7 +170,7 @@ export default function EventVisitorPage({
             ? payload.detail
             : "Perintah belum berhasil.",
         );
-      setStreamError(false);
+      setStreamErrors({});
       setStreamKey((key) => key + 1);
       await refreshStatus();
     } catch (error) {
@@ -184,9 +183,21 @@ export default function EventVisitorPage({
   }
   const currentEvent = events.find((event) => event.id === selectedEventId);
   const running = Boolean(status?.running);
-  const activeCamera = status?.cameras?.find((camera) => camera.camera_id === selectedCameraId)
-    || status?.cameras?.[0];
-  const cameraQuery = activeCamera ? `&camera_id=${encodeURIComponent(activeCamera.camera_id)}` : "";
+  const cameraList =
+    status?.cameras && status.cameras.length > 0
+      ? status.cameras
+      : [
+          {
+            camera_id: "default",
+            name: "Kamera Utama",
+            running: Boolean(status?.running),
+            last_error: status?.last_error,
+          },
+        ];
+  const gridColsClass =
+    cameraList.length === 1
+      ? "grid-cols-1"
+      : "grid-cols-1 md:grid-cols-2";
   const inside = Math.max(
     0,
     (status?.in_count || 0) - (status?.out_count || 0),
@@ -282,6 +293,206 @@ export default function EventVisitorPage({
         </p>
       ) : null}
       <div className="grid items-start gap-6 min-[900px]:grid-cols-2 [&_[data-slot=panel]]:rounded-xl [&_[data-slot=panel]]:p-4 [&_[data-slot=panel]]:shadow-none [&_h2]:mb-2">
+        <Panel className="p-0! min-[900px]:col-span-2 overflow-hidden border border-[#e2e8f0]">
+          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#e2e8f0] bg-[#f8fafc] px-5 py-3.5">
+            <div>
+              <div className="flex items-center gap-2.5">
+                <h2 className="m-0! text-base font-semibold text-[#101c30]">Live Monitoring Kamera</h2>
+                <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-0.5 text-xs font-medium text-emerald-700">
+                  <span className={`inline-block size-2 rounded-full ${running ? "bg-emerald-500 animate-pulse" : "bg-slate-400"}`} />
+                  {running ? `${cameraList.length} Kamera Aktif` : "Standby"}
+                </span>
+              </div>
+              <p className="mt-1 text-xs text-[#52647f]">
+                Tampilan grid otomatis semua kamera. Wajah yang cocok antar-kamera dalam event ini otomatis teridentifikasi sebagai satu pengunjung unik.
+              </p>
+            </div>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                className="h-8! px-3! text-xs! w-auto!"
+                onClick={async () => {
+                  try {
+                    if (document.fullscreenElement) {
+                      await document.exitFullscreen();
+                    } else {
+                      await stage.current?.requestFullscreen();
+                    }
+                  } catch {
+                    setActionError("Layar penuh tidak tersedia di browser ini.");
+                  }
+                }}
+              >
+                <Maximize size={13} className="mr-1.5" />
+                Fullscreen Grid
+              </Button>
+            </div>
+          </div>
+
+          <div
+            ref={stage}
+            className="group/camera relative bg-[#0b1320] p-3 md:p-4 [&:fullscreen]:flex [&:fullscreen]:h-full [&:fullscreen]:flex-col [&:fullscreen]:justify-between [&:fullscreen]:p-4 [&:fullscreen]:bg-[#0b1320]"
+          >
+            <div className={`grid gap-3.5 ${gridColsClass} w-full`}>
+              {cameraList.map((camera, index) => {
+                const camId = camera.camera_id;
+                const camQuery =
+                  camId && camId !== "default"
+                    ? `&camera_id=${encodeURIComponent(camId)}`
+                    : "";
+                const streamUrl = `${API_BASE}/stream?company_id=${encodeURIComponent(getCompanyId())}&event_id=${encodeURIComponent(selectedEventId)}${camQuery}`;
+                const hasError = Boolean(streamErrors[camId]);
+                const isRunning = running && camera.running !== false;
+
+                return (
+                  <div
+                    key={camId}
+                    id={`camera-cell-${camId}`}
+                    className="group/cell relative flex flex-col overflow-hidden rounded-xl border border-white/10 bg-[#101c30] shadow-md"
+                  >
+                    {/* Camera Header Bar */}
+                    <div className="flex items-center justify-between border-b border-white/10 bg-white/5 px-3 py-2 text-xs">
+                      <div className="flex items-center gap-2">
+                        <span className="flex size-5 items-center justify-center rounded bg-white/10 text-[11px] font-semibold text-white/90">
+                          {index + 1}
+                        </span>
+                        <span className="max-w-[200px] truncate font-medium text-white" title={camera.name}>
+                          {camera.name}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span
+                          className={`inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-medium ${
+                            isRunning && !hasError && !connectionError
+                              ? "bg-emerald-500/20 text-emerald-400"
+                              : "bg-white/10 text-slate-400"
+                          }`}
+                        >
+                          <span
+                            className={`size-1.5 rounded-full ${
+                              isRunning && !hasError && !connectionError
+                                ? "bg-emerald-400 animate-pulse"
+                                : "bg-slate-500"
+                            }`}
+                          />
+                          {isRunning && !hasError && !connectionError ? "LIVE" : "OFFLINE"}
+                        </span>
+                        <button
+                          type="button"
+                          className="rounded p-1 text-slate-400 transition-colors hover:bg-white/10 hover:text-white"
+                          title="Fullscreen kamera ini"
+                          onClick={async (e) => {
+                            e.stopPropagation();
+                            const el = document.getElementById(`camera-cell-${camId}`);
+                            try {
+                              if (document.fullscreenElement) {
+                                await document.exitFullscreen();
+                              } else if (el) {
+                                await el.requestFullscreen();
+                              }
+                            } catch {
+                              setActionError("Fullscreen tidak didukung di browser ini.");
+                            }
+                          }}
+                        >
+                          <Maximize size={13} />
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Camera Stream Frame */}
+                    <div className="relative aspect-video w-full overflow-hidden bg-black grid place-items-center">
+                      {isRunning && !connectionError && !hasError ? (
+                        <img
+                          key={`${streamKey}-${camId}`}
+                          src={streamUrl}
+                          alt={camera.name}
+                          className="size-full object-contain"
+                          onError={() => {
+                            setStreamErrors((prev) => ({ ...prev, [camId]: true }));
+                          }}
+                        />
+                      ) : (
+                        <div className="flex flex-col items-center justify-center p-4 text-center text-slate-400">
+                          <Video size={30} className="mb-2 text-slate-500" />
+                          <p className="text-xs">
+                            {hasError
+                              ? "Stream tidak dapat dimuat"
+                              : connectionError
+                                ? "Koneksi terputus"
+                                : "Monitoring belum berjalan"}
+                          </p>
+                          {hasError && (
+                            <Button
+                              variant="outline"
+                              className="mt-2.5 h-7! w-auto! border-white/20 px-2.5! text-xs! text-white hover:bg-white/10"
+                              onClick={() => {
+                                setStreamErrors((prev) => ({ ...prev, [camId]: false }));
+                                setStreamKey((k) => k + 1);
+                              }}
+                            >
+                              <RefreshCw size={12} className="mr-1" />
+                              Muat ulang
+                            </Button>
+                          )}
+                        </div>
+                      )}
+
+                      {camera.last_error && (
+                        <div className="absolute inset-x-2 bottom-2 rounded border border-rose-800 bg-rose-950/80 px-2 py-1 text-[11px] text-rose-200">
+                          {camera.last_error}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Global Control Bar */}
+            <div className="mt-3.5 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-white/10 bg-white/5 px-4 py-2.5">
+              <span className="text-xs text-slate-300">
+                Kontrol Sesi: Mulai atau jeda pemantauan pada semua kamera.
+              </span>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="play"
+                  className="h-8! w-auto! px-3! text-xs!"
+                  disabled={
+                    busy ||
+                    running ||
+                    !status ||
+                    status.camera_source == null ||
+                    Boolean(connectionError)
+                  }
+                  onClick={() => action("start")}
+                >
+                  <Play size={13} className="mr-1" />
+                  Mulai
+                </Button>
+                <Button
+                  variant="pause"
+                  className="h-8! w-auto! px-3! text-xs!"
+                  disabled={busy || !running}
+                  onClick={() => action("pause")}
+                >
+                  <Pause size={13} className="mr-1" />
+                  Jeda
+                </Button>
+                <Button
+                  variant="stop"
+                  className="h-8! w-auto! px-3! text-xs!"
+                  disabled={busy || !status?.session_id}
+                  onClick={() => action("stop")}
+                >
+                  <Square size={13} className="mr-1" />
+                  Selesai
+                </Button>
+              </div>
+            </div>
+          </div>
+        </Panel>
+
         <div className="grid gap-6">
           <Panel>
             <h2>Informasi Event</h2>
@@ -324,145 +535,31 @@ export default function EventVisitorPage({
             {row("Session ID", status?.session_id || "-")}
           </Panel>
         </div>
-        <Panel className="p-0!">
-          <h2 className="px-4 pt-3">Live Camera</h2>
-          {!!status?.cameras?.length && (
-            <div className="px-4 pb-3">
-              <Field>
-                Kamera
-                <Select
-                  value={activeCamera?.camera_id || ""}
-                  onChange={(event) => {
-                    setSelectedCameraId(event.target.value);
-                    setStreamError(false);
-                    setStreamKey((key) => key + 1);
-                  }}
-                >
-                  {status.cameras.map((camera) => (
-                    <option key={camera.camera_id} value={camera.camera_id}>
-                      {camera.name}{camera.running ? "" : " — berhenti"}
-                    </option>
-                  ))}
-                </Select>
-              </Field>
-              <p className="mt-2 text-sm text-[#52647f]">
-                Wajah yang cocok antar-kamera dalam sesi ini dihitung sebagai satu pengunjung unik.
-              </p>
-              {activeCamera?.last_error && <p role="alert" className={ui.error}>{activeCamera.last_error}</p>}
-            </div>
-          )}
-          <div ref={stage} className="group/camera relative overflow-hidden rounded-xl bg-[#edf1f7] [&:fullscreen]:flex [&:fullscreen]:items-center [&:fullscreen]:rounded-none [&:fullscreen]:bg-[#101c30]">
-            <div className="grid aspect-video w-full place-items-center group-[:fullscreen]/camera:aspect-auto group-[:fullscreen]/camera:h-full [&_img]:size-full [&_img]:object-contain">
-              {running && !connectionError && !streamError ? (
-                <img
-                  key={`${streamKey}-${activeCamera?.camera_id || "default"}`}
-                  src={`${API_BASE}/stream?company_id=${encodeURIComponent(getCompanyId())}&event_id=${encodeURIComponent(selectedEventId)}${cameraQuery}`}
-                  alt="Live kamera event"
-                  onError={() => setStreamError(true)}
-                />
-              ) : (
-                <div className={ui.emptyState}>
-                  <Video size={36} className="mx-auto mb-3 text-[#0c2e73]" />
-                  <p>
-                    {streamError
-                      ? "Preview belum tersedia"
-                      : connectionError
-                        ? "Koneksi kamera terputus"
-                        : "Monitoring belum berjalan"}
-                  </p>
-                  {streamError && (
-                    <Button
-                      className="mt-3"
-                      onClick={() => {
-                        setStreamError(false);
-                        setStreamKey((key) => key + 1);
-                      }}
-                    >
-                      <RefreshCw size={15} />
-                      Muat ulang video
-                    </Button>
-                  )}
-                </div>
-              )}
-              <span className="absolute left-4 top-4 rounded bg-white/90 px-2 py-1 text-[10px] text-slate-700">
-                {running && !streamError && !connectionError
-                  ? "LIVE"
-                  : "STAND BY"}
-              </span>
-              <Button
-                className="absolute top-4 right-4 min-h-6! rounded! px-2! py-1! text-xs!"
-                onClick={async () => {
-                  try {
-                    if (document.fullscreenElement)
-                      await document.exitFullscreen();
-                    else await stage.current?.requestFullscreen();
-                  } catch {
-                    setActionError(
-                      "Layar penuh tidak tersedia di browser ini.",
-                    );
-                  }
-                }}
-              >
-                <Maximize size={14} />
-                Full Screen
-              </Button>
-            </div>
-            <div className="grid grid-cols-3 gap-2.5 bg-[#f4f6f9] px-[18px] py-3 group-[:fullscreen]/camera:absolute group-[:fullscreen]/camera:inset-x-5 group-[:fullscreen]/camera:bottom-5 group-[:fullscreen]/camera:bg-transparent [&_button]:px-2">
-              <Button
-                variant="play"
-                disabled={
-                  busy ||
-                  running ||
-                  !status ||
-                  status.camera_source == null ||
-                  Boolean(connectionError)
-                }
-                onClick={() => action("start")}
-              >
-                <Play size={15} />
-                Play
-              </Button>
-              <Button
-                variant="pause"
-                disabled={busy || !running}
-                onClick={() => action("pause")}
-              >
-                <Pause size={15} />
-                Pause
-              </Button>
-              <Button
-                variant="stop"
-                disabled={busy || !status?.session_id}
-                onClick={() => action("stop")}
-              >
-                <Square size={15} />
-                Stop
-              </Button>
-            </div>
-          </div>
-        </Panel>
-        <Panel>
-          <h2>Statistik Pengunjung</h2>
-          {row("Total Masuk", value(status?.in_count))}
-          {row("Total Keluar", value(status?.out_count))}
-          {row("Di dalam Area", value(inside))}
-        </Panel>
-        <Panel>
-          <h2>Profil Pengunjung</h2>
-          {demographics.map((item) => (
-            <InfoRow key={item.label}>
-              <span>{item.label}</span>
-              <strong className="ml-auto text-neutral-600">
-                {value(item.count)}
-              </strong>
-              <span className="w-14">
-                {status
-                  ? `${genderTotal ? Math.round((item.count / genderTotal) * 100) : 0}%`
-                  : "-"}
-              </span>
-            </InfoRow>
-          ))}
-        </Panel>
+
+        <div className="grid gap-6">
+          <Panel>
+            <h2>Statistik Pengunjung</h2>
+            {row("Total Masuk", value(status?.in_count))}
+            {row("Total Keluar", value(status?.out_count))}
+            {row("Di dalam Area", value(inside))}
+          </Panel>
+          <Panel>
+            <h2>Profil Pengunjung</h2>
+            {demographics.map((item) => (
+              <InfoRow key={item.label}>
+                <span>{item.label}</span>
+                <strong className="ml-auto text-neutral-600">
+                  {value(item.count)}
+                </strong>
+                <span className="w-14">
+                  {status
+                    ? `${genderTotal ? Math.round((item.count / genderTotal) * 100) : 0}%`
+                    : "-"}
+                </span>
+              </InfoRow>
+            ))}
+          </Panel>
+        </div>
       </div>
       <div className="pt-2">
         <HourlyVisitorStatistics
