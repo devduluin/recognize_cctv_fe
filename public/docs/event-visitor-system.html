@@ -1,0 +1,487 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dokumentasi Sistem AI Event Visitor & Multi-Camera Tracking</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['"Plus Jakarta Sans"', 'sans-serif'],
+            mono: ['"JetBrains Mono"', 'monospace'],
+          },
+          colors: {
+            brand: {
+              50: '#f0f5ff',
+              100: '#e5edff',
+              500: '#2563eb',
+              600: '#1d4ed8',
+              700: '#1e40af',
+              900: '#0c2340',
+            }
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    body { font-family: 'Plus Jakarta Sans', sans-serif; }
+    .mermaid svg { max-width: 100% !important; height: auto !important; margin: 0 auto; }
+    @media print {
+      .no-print { display: none !important; }
+      body { background: white !important; color: black !important; }
+      .page-break { page-break-before: always; }
+    }
+  </style>
+</head>
+<body class="bg-slate-50 text-slate-800 antialiased selection:bg-blue-600 selection:text-white">
+
+  <!-- Header Banner -->
+  <header class="bg-gradient-to-r from-slate-900 via-blue-950 to-slate-900 text-white border-b border-slate-800 sticky top-0 z-50 backdrop-blur-md bg-opacity-95">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex flex-wrap items-center justify-between gap-4">
+      <div class="flex items-center space-x-3">
+        <div class="size-10 rounded-xl bg-blue-600 flex items-center justify-center shadow-lg shadow-blue-500/30">
+          <svg class="size-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+          </svg>
+        </div>
+        <div>
+          <h1 class="text-lg font-bold tracking-tight text-white">Event Visitor AI System</h1>
+          <p class="text-xs text-blue-300 font-medium">Dokumentasi Teknis & Alur Kerja untuk Klien / Manajemen</p>
+        </div>
+      </div>
+      <div class="flex items-center gap-3 no-print">
+        <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+          <span class="size-2 rounded-full bg-emerald-400 animate-pulse"></span>
+          Produksi Siap Pakai
+        </span>
+        <button onclick="window.print()" class="inline-flex items-center gap-2 px-3.5 py-1.5 text-xs font-semibold rounded-lg bg-white/10 hover:bg-white/20 text-white border border-white/20 transition-all">
+          <svg class="size-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+          </svg>
+          Cetak / Simpan PDF
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Hero Section -->
+  <section class="bg-white border-b border-slate-200 py-12 px-4 sm:px-6 lg:px-8">
+    <div class="max-w-7xl mx-auto">
+      <div class="max-w-3xl">
+        <div class="inline-flex items-center gap-2 px-3 py-1 rounded-md bg-blue-50 text-blue-700 text-xs font-semibold mb-4 border border-blue-100">
+          ARSITEKTUR & ALUR SISTEM CERDAS
+        </div>
+        <h2 class="text-3xl sm:text-4xl font-extrabold text-slate-900 tracking-tight leading-tight">
+          Pemantauan Pengunjung Cerdas Berbasis Multi-CCTV & Sinkronisasi Wajah
+        </h2>
+        <p class="mt-4 text-base sm:text-lg text-slate-600 leading-relaxed">
+          Dokumen ini menjelaskan bagaimana sistem menghitung pengunjung secara akurat (In/Out), membedakan gender, melacak pergerakan cepat/orang berlari, menyatukan identitas antar-kamera agar tidak terhitung ganda (*anti-duplikasi*), serta menyajikan video dalam tampilan <b>Grid Otomatis</b>.
+        </p>
+      </div>
+
+      <!-- Quick Feature Grid -->
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 mt-10">
+        <div class="p-5 rounded-2xl bg-slate-50 border border-slate-200/80 hover:shadow-md transition-shadow">
+          <div class="size-10 rounded-xl bg-blue-100 text-blue-600 flex items-center justify-center font-bold mb-3">
+            ⊞
+          </div>
+          <h3 class="font-bold text-slate-900 text-sm">Multi-Camera Grid Otomatis</h3>
+          <p class="text-xs text-slate-600 mt-1.5 leading-relaxed">
+            Semua kamera (Kamera 1, 2, 3) langsung tampil bersamaan di layar secara real-time tanpa perlu memilih dropdown.
+          </p>
+        </div>
+
+        <div class="p-5 rounded-2xl bg-slate-50 border border-slate-200/80 hover:shadow-md transition-shadow">
+          <div class="size-10 rounded-xl bg-emerald-100 text-emerald-600 flex items-center justify-center font-bold mb-3">
+            🔄
+          </div>
+          <h3 class="font-bold text-slate-900 text-sm">Cross-Camera Identity</h3>
+          <p class="text-xs text-slate-600 mt-1.5 leading-relaxed">
+            Pengunjung yang terdeteksi di Kamera 1 tidak akan dihitung ganda saat melintasi Kamera B karena disinkronkan melalui Face Vector DB.
+          </p>
+        </div>
+
+        <div class="p-5 rounded-2xl bg-slate-50 border border-slate-200/80 hover:shadow-md transition-shadow">
+          <div class="size-10 rounded-xl bg-indigo-100 text-indigo-600 flex items-center justify-center font-bold mb-3">
+            ⚡
+          </div>
+          <h3 class="font-bold text-slate-900 text-sm">Velocity-Predicted Tracking</h3>
+          <p class="text-xs text-slate-600 mt-1.5 leading-relaxed">
+            Menghitung vektor kecepatan $(v_x, v_y)$ orang berlari atau berjalan cepat sehingga tidak putus track dan tidak lolos hitungan.
+          </p>
+        </div>
+
+        <div class="p-5 rounded-2xl bg-slate-50 border border-slate-200/80 hover:shadow-md transition-shadow">
+          <div class="size-10 rounded-xl bg-amber-100 text-amber-600 flex items-center justify-center font-bold mb-3">
+            👤
+          </div>
+          <h3 class="font-bold text-slate-900 text-sm">Person-First AI Detection</h3>
+          <p class="text-xs text-slate-600 mt-1.5 leading-relaxed">
+            Pelacakan tubuh penuh via YOLO. Jika wajah membelakangi kamera, orang tetap terhitung dan dianalisis gendernya via MiVOLO.
+          </p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Main Content Container -->
+  <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 space-y-14">
+
+    <!-- Section 1: Bagan Arsitektur Tingkat Tinggi -->
+    <section class="bg-white rounded-3xl p-6 sm:p-8 border border-slate-200 shadow-sm">
+      <div class="border-b border-slate-100 pb-5 mb-6">
+        <span class="text-xs font-bold text-blue-600 uppercase tracking-wider">BAGIAN 1</span>
+        <h3 class="text-2xl font-bold text-slate-900 mt-1">Bagan Arsitektur Sistem Keseluruhan</h3>
+        <p class="text-sm text-slate-600 mt-1">Diagram alir dari penerimaan stream CCTV hingga penyajian data di antarmuka web.</p>
+      </div>
+
+      <div class="p-4 rounded-2xl bg-slate-900 text-white overflow-x-auto">
+        <div class="mermaid">
+graph LR
+    subgraph CCTV_INPUT["1. Input Kamera (RTSP / Video)"]
+        CAM1["📹 CCTV 1 (Pintu Masuk Utama)"]
+        CAM2["📹 CCTV 2 (Pintu Samping)"]
+        CAM3["📹 CCTV 3 (Pintu Keluar)"]
+    end
+
+    subgraph AI_PIPELINE["2. AI Inference Engine (CPU-Optimized)"]
+        YOLO["YOLOv11 Person Detector<br/>(Deteksi Tubuh Manusia)"]
+        FACE["YOLO Face Detector<br/>(Deteksi Wajah Tajam)"]
+        MIVOLO["MiVOLO Classifier<br/>(Prediksi Laki/Perempuan)"]
+        FACENET["Lazy FaceNet Embedder<br/>(512-dim Biometrik Wajah)"]
+    end
+
+    subgraph CORE_LOGIC["3. Core Logic & Tracking"]
+        TRACKER["Velocity Hungarian Tracker<br/>(Pelacakan Orang Berlari/Jalan)"]
+        LINE["Counting Line Crossing<br/>(Deteksi Arah IN / OUT)"]
+        REGISTRY["Visitor Identity Registry<br/>(Sinkronisasi Multi-Kamera)"]
+        CHROMADB[("ChromaDB Vector Store<br/>(Database Wajah Sesi)")]
+    end
+
+    subgraph OUTPUT_UI["4. Tampilan Web & Laporan"]
+        GRID["🖥️ Multi-Camera Grid 2x2<br/>(Stream Real-Time Semua Kamera)"]
+        STATS["📊 Dashboard Ringkasan<br/>(Total Masuk, Keluar, Gender)"]
+        HOURLY["📈 Statistik per Jam & Export<br/>(PDF, Excel, CSV)"]
+    end
+
+    CAM1 & CAM2 & CAM3 --> YOLO
+    YOLO --> TRACKER
+    YOLO --> FACE
+    FACE --> FACENET
+    YOLO --> MIVOLO
+    FACENET --> CHROMADB
+    CHROMADB <--> REGISTRY
+    TRACKER --> LINE
+    LINE --> REGISTRY
+    REGISTRY --> STATS & HOURLY
+    CAM1 & CAM2 & CAM3 -. MJPEG .-> GRID
+        </div>
+      </div>
+    </section>
+
+    <!-- Section 2: Flowchart Logika Pendeteksian & Penghitungan -->
+    <section class="bg-white rounded-3xl p-6 sm:p-8 border border-slate-200 shadow-sm">
+      <div class="border-b border-slate-100 pb-5 mb-6">
+        <span class="text-xs font-bold text-blue-600 uppercase tracking-wider">BAGIAN 2</span>
+        <h3 class="text-2xl font-bold text-slate-900 mt-1">Flowchart Alur Logika Deteksi & Penghitungan Pengunjung</h3>
+        <p class="text-sm text-slate-600 mt-1">Alur keputusan saat orang masuk ke frame kamera hingga penghitungan arah IN/OUT.</p>
+      </div>
+
+      <div class="p-4 rounded-2xl bg-slate-900 text-white overflow-x-auto">
+        <div class="mermaid">
+flowchart TD
+    START([Frame Video Diterima]) --> YOLO[YOLO Person Detector: Deteksi Tubuh Manusia]
+    
+    YOLO --> CHECK_PERSON{Orang Ditemukan?}
+    CHECK_PERSON -- Tidak --> END_FRAME([Lanjut ke Frame Berikutnya])
+    
+    CHECK_PERSON -- Ya --> TRACK_MATCH[Prediksi Posisi & Velocity Tracking<br/>pred_box = box + v * delta]
+    TRACK_MATCH --> HUNGARIAN{Cocok dengan Track Sebelumnya?}
+    
+    HUNGARIAN -- Ya --> UPDATE_TRACK[Perbarui Kecepatan v dan Riwayat Trajectory]
+    HUNGARIAN -- Tidak --> NEW_TRACK[Buat Track ID Baru<br/>vx=0, vy=0]
+    
+    UPDATE_TRACK & NEW_TRACK --> FACE_CHECK{Apakah Wajah Terlihat & Tajam?}
+    
+    FACE_CHECK -- Ya --> HAS_IDENTITY{Sudah Punya Identitas Wajah?}
+    HAS_IDENTITY -- Belum --> FACENET[Hitung FaceNet 512-dim Embedding]
+    FACENET --> QUERY_DB[Cari Kemiripan di ChromaDB]
+    QUERY_DB --> MATCH_FOUND{Wajah Cocok dengan Pengunjung Lama?}
+    MATCH_FOUND -- Ya --> REUSE_ID[Gunakan Kembali ID Pengunjung Lama<br/>Visitor Sudah Dikenal]
+    MATCH_FOUND -- Tidak --> CREATE_ID[Buat Visitor ID Baru di ChromaDB]
+    HAS_IDENTITY -- Sudah --> SKIP_FACE[Lewati FaceNet - Hemat CPU]
+    
+    FACE_CHECK -- Tidak --> BODY_GENDER[Analisis Gender dari Bentuk Tubuh via MiVOLO]
+    REUSE_ID & CREATE_ID & SKIP_FACE & BODY_GENDER --> CROSS_CHECK{Apakah Melewati Garis Batas?}
+    
+    CROSS_CHECK -- Tidak --> RENDER[Gambar Bounding Box & Label di Video Stream]
+    CROSS_CHECK -- Ya --> DIR_CHECK{Arah Melintas?}
+    
+    DIR_CHECK -- Arah IN Masuk --> CHECK_INSIDE{Apakah Pengunjung Sudah Berada di Dalam Area?}
+    CHECK_INSIDE -- Ya, Sudah di Dalam --> REJECT_IN[TOLAK / ABAIKAN<br/>Anti-Duplikasi Antar-Kamera]
+    CHECK_INSIDE -- Belum di Dalam --> COUNT_IN[CATAT MASUK:<br/>+1 Total Masuk<br/>+1 Pengunjung Unik<br/>Status: INSIDE]
+    
+    DIR_CHECK -- Arah OUT Keluar --> CHECK_OUTSIDE{Apakah Pengunjung Sedang di Dalam Area?}
+    CHECK_OUTSIDE -- Ya, Sedang di Dalam --> COUNT_OUT[CATAT KELUAR:<br/>+1 Total Keluar<br/>Status: OUTSIDE]
+    CHECK_OUTSIDE -- Tidak Terdaftar di Dalam --> IGNORE_OUT[Abaikan / Catat Tanpa Mengurangi Area]
+
+    COUNT_IN & COUNT_OUT & REJECT_IN & IGNORE_OUT --> DB_WRITE[(Tulis Event ke Database SQLite/Postgres)]
+    DB_WRITE --> RENDER
+    RENDER --> END_FRAME
+        </div>
+      </div>
+    </section>
+
+    <!-- Section 3: Kasus Lapangan / Tanya Jawab Klien -->
+    <section class="bg-white rounded-3xl p-6 sm:p-8 border border-slate-200 shadow-sm">
+      <div class="border-b border-slate-100 pb-5 mb-8">
+        <span class="text-xs font-bold text-blue-600 uppercase tracking-wider">BAGIAN 3</span>
+        <h3 class="text-2xl font-bold text-slate-900 mt-1">Pertanyaan Umum Klien & Solusi Teknis (*Case Studies*)</h3>
+        <p class="text-sm text-slate-600 mt-1">Panduan praktis menjelaskan skenario lapangan nyata kepada klien.</p>
+      </div>
+
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+
+        <!-- Case 1 -->
+        <div class="p-6 rounded-2xl bg-blue-50/50 border border-blue-100 hover:border-blue-300 transition-all flex flex-col justify-between">
+          <div>
+            <div class="inline-flex items-center gap-2 px-2.5 py-1 rounded bg-blue-100 text-blue-800 text-xs font-bold mb-3">
+              SKENARIO 1
+            </div>
+            <h4 class="text-base font-bold text-slate-900">
+              "Ada 3 kamera. Jika seseorang masuk lewat Kamera 1 lalu jalan melewati Kamera 2, apakah terhitung ulang?"
+            </h4>
+            <div class="mt-3.5 text-xs text-slate-600 space-y-2 leading-relaxed">
+              <p>
+                <b>Jawab: TIDAK DIHITUNG ULANG.</b> Jumlah pengunjung unik tetap dihitung <b>1 orang</b>.
+              </p>
+              <p>
+                <b>Alur Kerja:</b>
+                <br/>1. Di Kamera 1, wajah orang tersebut disimpan di basis data biometrik sesi dengan status <code>INSIDE</code> (di dalam area).
+                <br/>2. Saat orang tersebut tertangkap Kamera 2, AI langsung mengenali wajahnya sebagai orang yang sama.
+                <br/>3. Jika orang tersebut melintasi garis masuk di Kamera 2, sistem otomatis <b>menolak (reject)</b> hitungan masuk karena orang tersebut sudah tercatat di dalam.
+              </p>
+            </div>
+          </div>
+          <div class="mt-4 pt-3 border-t border-blue-200/60 flex items-center text-[11px] font-semibold text-blue-700">
+            ✓ Fitur: Cross-Camera Identity Synchronization
+          </div>
+        </div>
+
+        <!-- Case 2 -->
+        <div class="p-6 rounded-2xl bg-emerald-50/50 border border-emerald-100 hover:border-emerald-300 transition-all flex flex-col justify-between">
+          <div>
+            <div class="inline-flex items-center gap-2 px-2.5 py-1 rounded bg-emerald-100 text-emerald-800 text-xs font-bold mb-3">
+              SKENARIO 2
+            </div>
+            <h4 class="text-base font-bold text-slate-900">
+              "Bagaimana jika orang tersebut berjalan sangat cepat atau berlari melewati pintu masuk?"
+            </h4>
+            <div class="mt-3.5 text-xs text-slate-600 space-y-2 leading-relaxed">
+              <p>
+                <b>Jawab: TETAP TERHITUNG 100% AKURAT.</b>
+              </p>
+              <p>
+                <b>Alur Kerja:</b>
+                <br/>1. Orang yang berlari bisa melompat 200–300 pixel dalam sekejap. Sistem menghitung kecepatan gerak $v_x, v_y$ dan memproyeksikan posisi ke depan <code>pred_box = box + v * delta</code>.
+                <br/>2. Algoritma Hungarian memperbesar radius pencarian secara dinamis mengikuti kecepatan lari ($v \times 2.5$).
+                <br/>3. Logika lintasan garis mendeteksi lompatan posisi sebelum dan sesudah garis batas sehingga arah IN/OUT tetap valid.
+              </p>
+            </div>
+          </div>
+          <div class="mt-4 pt-3 border-t border-emerald-200/60 flex items-center text-[11px] font-semibold text-emerald-700">
+            ✓ Fitur: Velocity-Predicted Hungarian Motion Tracking
+          </div>
+        </div>
+
+        <!-- Case 3 -->
+        <div class="p-6 rounded-2xl bg-amber-50/50 border border-amber-100 hover:border-amber-300 transition-all flex flex-col justify-between">
+          <div>
+            <div class="inline-flex items-center gap-2 px-2.5 py-1 rounded bg-amber-100 text-amber-800 text-xs font-bold mb-3">
+              SKENARIO 3
+            </div>
+            <h4 class="text-base font-bold text-slate-900">
+              "Bagaimana jika wajah pengunjung tertutup masker, topi, atau membelakangi kamera?"
+            </h4>
+            <div class="mt-3.5 text-xs text-slate-600 space-y-2 leading-relaxed">
+              <p>
+                <b>Jawab: TETAP TERDETEKSI & TERHITUNG.</b>
+              </p>
+              <p>
+                <b>Alur Kerja:</b>
+                <br/>1. Sistem menggunakan model <b>Person Body Detector (YOLO)</b> yang melacak tubuh manusia seutuhnya, bukan hanya wajah.
+                <br/>2. Garis batas mendeteksi pergerakan tubuh dan mencatatnya sebagai track lokal.
+                <br/>3. Gender tetap diprediksi menggunakan proporsi bentuk tubuh via model MiVOLO.
+                <br/>4. Jika saat berjalan orang tersebut sempat menoleh 1 detik saja ke arah kamera, identitasnya langsung otomatis di-upgrade ke pengenal wajah.
+              </p>
+            </div>
+          </div>
+          <div class="mt-4 pt-3 border-t border-amber-200/60 flex items-center text-[11px] font-semibold text-amber-700">
+            ✓ Fitur: Person-First Architecture & Proactive Upgrade
+          </div>
+        </div>
+
+        <!-- Case 4 -->
+        <div class="p-6 rounded-2xl bg-indigo-50/50 border border-indigo-100 hover:border-indigo-300 transition-all flex flex-col justify-between">
+          <div>
+            <div class="inline-flex items-center gap-2 px-2.5 py-1 rounded bg-indigo-100 text-indigo-800 text-xs font-bold mb-3">
+              SKENARIO 4
+            </div>
+            <h4 class="text-base font-bold text-slate-900">
+              "Bagaimana operator memantau beberapa kamera sekaligus di ruang kendali?"
+            </h4>
+            <div class="mt-3.5 text-xs text-slate-600 space-y-2 leading-relaxed">
+              <p>
+                <b>Jawab: MELALUI TAMPILAN MULTI-CAMERA GRID OTOMATIS.</b>
+              </p>
+              <p>
+                <b>Alur Kerja:</b>
+                <br/>1. Tidak perlu memilih kamera satu per satu dari dropdown. Semua kamera langsung tampil bersamaan dalam layout Grid 2x2 atau berdampingan.
+                <br/>2. Setiap kamera memiliki badge status LIVE, nama kamera, dan tombol Fullscreen tersendiri.
+                <br/>3. Terdapat tombol <b>Fullscreen Grid</b> untuk menampilkan seluruh kamera sekaligus di layar TV dinding pemantau (*Surveillance Wall*).
+              </p>
+            </div>
+          </div>
+          <div class="mt-4 pt-3 border-t border-indigo-200/60 flex items-center text-[11px] font-semibold text-indigo-700">
+            ✓ Fitur: Automated Surveillance Grid Matrix
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- Section 4: Panduan Pemasangan Kamera & Rekomendasi Hardware -->
+    <section class="bg-white rounded-3xl p-6 sm:p-8 border border-slate-200 shadow-sm">
+      <div class="border-b border-slate-100 pb-5 mb-6">
+        <span class="text-xs font-bold text-blue-600 uppercase tracking-wider">BAGIAN 4</span>
+        <h3 class="text-2xl font-bold text-slate-900 mt-1">Rekomendasi Penempatan Kamera & Spesifikasi Teknis</h3>
+        <p class="text-sm text-slate-600 mt-1">Standar instalasi untuk mencapai akurasi deteksi maksimal di lokasi acara.</p>
+      </div>
+
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div class="p-5 rounded-2xl bg-slate-50 border border-slate-200">
+          <div class="font-bold text-slate-900 text-sm mb-2 flex items-center gap-2">
+            <span class="size-6 rounded-full bg-blue-600 text-white inline-flex items-center justify-center text-xs">1</span>
+            Arah & Sudut Kamera
+          </div>
+          <ul class="text-xs text-slate-600 space-y-2 list-disc list-inside leading-relaxed">
+            <li>Arahkan kamera <b>menghadap arah datangnya pengunjung</b> (frontal/sedikit menyamping).</li>
+            <li>Ketinggian ideal tiang/bracket: <b>2.0 – 2.5 meter</b>.</li>
+            <li>Sudut kemiringan (*tilt*): <b>15° – 20°</b> ke bawah. Hindari sudut tegak lurus dari atas kepala (*top-down*).</li>
+          </ul>
+        </div>
+
+        <div class="p-5 rounded-2xl bg-slate-50 border border-slate-200">
+          <div class="font-bold text-slate-900 text-sm mb-2 flex items-center gap-2">
+            <span class="size-6 rounded-full bg-blue-600 text-white inline-flex items-center justify-center text-xs">2</span>
+            Pencahayaan & Area Garis
+          </div>
+          <ul class="text-xs text-slate-600 space-y-2 list-disc list-inside leading-relaxed">
+            <li>Pastikan area garis batas memiliki intensitas cahaya merata (minimal 250 lux).</li>
+            <li>Hindari lampu sorot langsung (*glare*) yang menembak tepat ke lensa kamera.</li>
+            <li>Letakkan garis batas (*Counting Line*) di area di mana orang melangkah secara teratur (misal di lorong/pintu gerbang).</li>
+          </ul>
+        </div>
+
+        <div class="p-5 rounded-2xl bg-slate-50 border border-slate-200">
+          <div class="font-bold text-slate-900 text-sm mb-2 flex items-center gap-2">
+            <span class="size-6 rounded-full bg-blue-600 text-white inline-flex items-center justify-center text-xs">3</span>
+            Optimalisasi CPU Server
+          </div>
+          <ul class="text-xs text-slate-600 space-y-2 list-disc list-inside leading-relaxed">
+            <li><b>Tanpa GPU Mahal</b>: Berjalan lancar di CPU standar (Intel Core i5/i7 gen 10+ atau Apple Silicon).</li>
+            <li>Resolusi inferensi diatur ke <b>640px</b> untuk menjaga latensi rendah (50–70 ms).</li>
+            <li>Jeda deteksi AI 2–3 frame menghasilkan efisiensi komputasi tinggi tanpa kehilangan pelacakan.</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <!-- Section 5: Ringkasan Nilai Bisnis untuk Klien -->
+    <section class="bg-gradient-to-br from-blue-900 via-indigo-900 to-slate-950 text-white rounded-3xl p-8 sm:p-10 shadow-xl">
+      <div class="max-w-3xl">
+        <h3 class="text-2xl sm:text-3xl font-bold tracking-tight">Ringkasan Nilai Bisnis bagi Klien (*Business Value*)</h3>
+        <p class="mt-3 text-sm sm:text-base text-blue-200 leading-relaxed">
+          Mengapa solusi ini lebih unggul dibandingkan counter manual atau sensor gerak konvensional?
+        </p>
+
+        <div class="mt-8 grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div class="flex items-start gap-3 bg-white/10 p-4 rounded-xl backdrop-blur-sm border border-white/10">
+            <div class="size-6 rounded-full bg-emerald-500 text-white flex items-center justify-center text-xs font-bold shrink-0 mt-0.5">✓</div>
+            <div>
+              <div class="font-semibold text-sm text-white">Data Real-Time & Akurat</div>
+              <div class="text-xs text-blue-200 mt-1">Mengetahui kapasitas riil area saat ini (Occupancy Inside) secara langsung untuk keselamatan event.</div>
+            </div>
+          </div>
+
+          <div class="flex items-start gap-3 bg-white/10 p-4 rounded-xl backdrop-blur-sm border border-white/10">
+            <div class="size-6 rounded-full bg-emerald-500 text-white flex items-center justify-center text-xs font-bold shrink-0 mt-0.5">✓</div>
+            <div>
+              <div class="font-semibold text-sm text-white">Profil Demografi Pengunjung</div>
+              <div class="text-xs text-blue-200 mt-1">Statistik rasio pengunjung Laki-laki vs Perempuan untuk kebutuhan laporan sponsor dan analisis pasar.</div>
+            </div>
+          </div>
+
+          <div class="flex items-start gap-3 bg-white/10 p-4 rounded-xl backdrop-blur-sm border border-white/10">
+            <div class="size-6 rounded-full bg-emerald-500 text-white flex items-center justify-center text-xs font-bold shrink-0 mt-0.5">✓</div>
+            <div>
+              <div class="font-semibold text-sm text-white">Bebas Hitungan Ganda</div>
+              <div class="text-xs text-blue-200 mt-1">Pengunjung yang mondar-mandir antar-pintu gerbang tidak melipatgandakan data statistik.</div>
+            </div>
+          </div>
+
+          <div class="flex items-start gap-3 bg-white/10 p-4 rounded-xl backdrop-blur-sm border border-white/10">
+            <div class="size-6 rounded-full bg-emerald-500 text-white flex items-center justify-center text-xs font-bold shrink-0 mt-0.5">✓</div>
+            <div>
+              <div class="font-semibold text-sm text-white">Laporan Siap Ekspor</div>
+              <div class="text-xs text-blue-200 mt-1">Dilengkapi ekspor laporan berformat PDF eksekutif, spreadsheet Excel (.xlsx), dan CSV siap pakai.</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- Footer -->
+  <footer class="bg-white border-t border-slate-200 py-6 text-center text-xs text-slate-500">
+    <div class="max-w-7xl mx-auto px-4">
+      Dokumentasi Sistem AI Event Visitor & Multi-Camera CCTV • Hak Cipta &copy; 2026 • Dibuat untuk Presentasi Klien & Manajemen
+    </div>
+  </footer>
+
+  <script>
+    document.addEventListener("DOMContentLoaded", function () {
+      if (typeof mermaid !== "undefined") {
+        mermaid.initialize({
+          startOnLoad: true,
+          theme: 'dark',
+          themeVariables: {
+            darkMode: true,
+            background: '#0f172a',
+            primaryColor: '#2563eb',
+            primaryTextColor: '#f8fafc',
+            primaryBorderColor: '#3b82f6',
+            lineColor: '#60a5fa',
+            secondaryColor: '#10b981',
+            tertiaryColor: '#1e293b'
+          },
+          flowchart: {
+            useMaxWidth: true,
+            htmlLabels: true,
+            curve: 'basis'
+          }
+        });
+      }
+    });
+  </script>
+</body>
+</html>
