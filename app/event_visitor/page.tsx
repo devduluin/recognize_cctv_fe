@@ -196,10 +196,6 @@ export default function EventVisitorPage({
   const demographics = [
     { label: "Laki-laki", count: status?.male_count || 0 },
     { label: "Perempuan", count: status?.female_count || 0 },
-    {
-      label: "Belum Teridentifikasi",
-      count: status?.unknown_gender_count || 0,
-    },
   ];
   const genderTotal = demographics.reduce((sum, item) => sum + item.count, 0);
   const row = (label: string, content: string) => (

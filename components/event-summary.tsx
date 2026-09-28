@@ -106,7 +106,7 @@ export default function EventSummary({
   }, [events, refresh]);
   const totals = data?.totals;
   const totalGender = totals
-    ? totals.male_count + totals.female_count + totals.unknown_gender_count
+    ? totals.male_count + totals.female_count
     : 0;
   const gender = (count = 0) =>
     `${count.toLocaleString("id-ID")} Orang (${totalGender ? Math.round((count / totalGender) * 100) : 0}%)`;
