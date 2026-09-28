@@ -306,6 +306,24 @@ export default function EventVisitorPage({
               <p className="mt-1 text-xs text-[#52647f]">
                 Tampilan grid otomatis semua kamera. Wajah yang cocok antar-kamera dalam event ini otomatis teridentifikasi sebagai satu pengunjung unik.
               </p>
+              <div className="mt-2 flex flex-wrap items-center gap-3 text-[11px] text-[#52647f]">
+                <span className="inline-flex items-center gap-1.5 font-medium">
+                  <span className="size-2.5 rounded-[2px] bg-[#1e90ff] ring-1 ring-blue-500/50" />
+                  <span>Kotak Biru: Laki-laki</span>
+                </span>
+                <span className="inline-flex items-center gap-1.5 font-medium">
+                  <span className="size-2.5 rounded-[2px] bg-[#ff69b4] ring-1 ring-pink-500/50" />
+                  <span>Kotak Pink: Perempuan</span>
+                </span>
+                <span className="inline-flex items-center gap-1.5 font-medium">
+                  <span className="size-2.5 rounded-[2px] bg-[#eab308] ring-1 ring-yellow-500/50" />
+                  <span>Kuning: Belum Terdeteksi</span>
+                </span>
+                <span className="inline-flex items-center gap-1.5 font-medium">
+                  <span className="size-2.5 rounded-[2px] bg-[#22c55e] ring-1 ring-green-500/50" />
+                  <span>Hijau: Crossing Garis</span>
+                </span>
+              </div>
             </div>
             <div className="flex items-center gap-2">
               <Button
