@@ -138,7 +138,7 @@ export default function AdminShell({ children }: { children: ReactNode }) {
       </div>
     ));
   return (
-    <div className="min-h-dvh bg-white scheme-light lg:pl-64">
+    <div className="flex min-h-dvh flex-col bg-white scheme-light lg:pl-64">
       <a href="#page-content" className="fixed -top-[100px] left-4 z-100 bg-white p-3 text-navy focus:top-2.5">
         Lewati ke konten
       </a>
@@ -204,7 +204,7 @@ export default function AdminShell({ children }: { children: ReactNode }) {
           <span aria-current="page">{title}</span>
         </nav>
       </header>
-      <div id="page-content" tabIndex={-1} className="min-w-0 outline-none">
+      <div id="page-content" tabIndex={-1} className="flex flex-1 flex-col min-w-0 outline-none">
         {children}
       </div>
     </div>

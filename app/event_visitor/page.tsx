@@ -2,7 +2,8 @@
 import { Button, ButtonLink, buttonStyles } from "../../components/ui/button";
 import { Field, Select } from "../../components/ui/field";
 import { InfoRow, Page, PageHeading, Panel, Toolbar } from "../../components/ui/layout";
-import { ui } from "../../components/ui/styles";
+import { cx, ui } from "../../components/ui/styles";
+import { RowMenu } from "../../components/ui/row-menu";
 /* eslint-disable @next/next/no-img-element -- MJPEG streams must use a native image element. */
 import { useState, useEffect, useRef, useCallback } from "react";
 import {
@@ -21,6 +22,7 @@ type VisitorEvent = {
   id: string;
   name: string;
   event_date?: string;
+  event_end_date?: string;
   created_at?: string;
   event_start?: string;
   event_end?: string;
@@ -226,30 +228,26 @@ export default function EventVisitorPage({
           </p>
         </div>
         {fixedEventId && (
-          <details
-            className={ui.rowMenu}
-            onKeyDown={(e) => {
-              if (e.key === "Escape") e.currentTarget.open = false;
-            }}
+          <RowMenu
+            trigger={
+              <span className={cx(buttonStyles({ variant: "outline", className: "w-auto! h-auto!" }), "inline-flex items-center gap-2")}>
+                <Download size={16} />
+                Download Report
+              </span>
+            }
           >
-            <summary data-slot="button" className={buttonStyles({ variant: "outline", className: "w-auto! h-auto!" })}>
-              <Download size={16} />
-              Download Report
-            </summary>
-            <div className={ui.rowMenuContent}>
-              {["pdf", "excel", "csv"].map((format) => (
-                <a
-                  key={format}
-                  href={`${EVENTS_API}/${encodeURIComponent(fixedEventId)}/report?company_id=${encodeURIComponent(getCompanyId())}&format=${format}`}
-                  download
-                >
-                  {format === "excel"
-                    ? "Excel (.xlsx)"
-                    : `${format.toUpperCase()} (.${format})`}
-                </a>
-              ))}
-            </div>
-          </details>
+            {["pdf", "excel", "csv"].map((format) => (
+              <a
+                key={format}
+                href={`${EVENTS_API}/${encodeURIComponent(fixedEventId)}/report?company_id=${encodeURIComponent(getCompanyId())}&format=${format}`}
+                download
+              >
+                {format === "excel"
+                  ? "Excel (.xlsx)"
+                  : `${format.toUpperCase()} (.${format})`}
+              </a>
+            ))}
+          </RowMenu>
         )}
       </PageHeading>
       {!fixedEventId && (
@@ -516,16 +514,31 @@ export default function EventVisitorPage({
             <h2>Informasi Event</h2>
             {row(
               "Tanggal Event",
-              currentEvent?.event_date || currentEvent?.created_at
-                ? new Date(
-                    currentEvent.event_date || currentEvent.created_at || "",
-                  ).toLocaleDateString("id-ID", {
-                    weekday: "long",
-                    day: "numeric",
-                    month: "long",
-                    year: "numeric",
-                  })
-                : "-",
+              currentEvent?.event_date
+                ? currentEvent.event_end_date && currentEvent.event_end_date !== currentEvent.event_date
+                  ? `${new Date(currentEvent.event_date).toLocaleDateString("id-ID", {
+                      day: "numeric",
+                      month: "short",
+                      year: "numeric",
+                    })} - ${new Date(currentEvent.event_end_date).toLocaleDateString("id-ID", {
+                      day: "numeric",
+                      month: "short",
+                      year: "numeric",
+                    })}`
+                  : new Date(currentEvent.event_date).toLocaleDateString("id-ID", {
+                      weekday: "long",
+                      day: "numeric",
+                      month: "long",
+                      year: "numeric",
+                    })
+                : currentEvent?.created_at
+                  ? new Date(currentEvent.created_at).toLocaleDateString("id-ID", {
+                      weekday: "long",
+                      day: "numeric",
+                      month: "long",
+                      year: "numeric",
+                    })
+                  : "-",
             )}
             {row(
               "Waktu Event",

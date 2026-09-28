@@ -2,7 +2,7 @@
 import { Button } from "../../components/ui/button";
 import { Field, Input } from "../../components/ui/field";
 import { Page, PageHeading, Toolbar } from "../../components/ui/layout";
-import { DataTable, StatusBadge, TableContainer } from "../../components/ui/data-table";
+import { DataTable, StatusBadge, TableContainer, RowMenu } from "../../components/ui/data-table";
 import { cx, ui } from "../../components/ui/styles";
 import {
   useState,
@@ -11,7 +11,7 @@ import {
   useMemo,
   type FormEvent,
 } from "react";
-import { Plus, Search, MoreHorizontal, ChevronsUpDown } from "lucide-react";
+import { Plus, Search, ChevronsUpDown } from "lucide-react";
 import CameraTestPreview from "../../components/camera-test-preview";
 import Modal from "../../components/ui-modal";
 type CCTVCamera = {
@@ -157,12 +157,14 @@ export default function KameraPage() {
             <span className="relative">
               <Search
                 size={15}
-                className="absolute left-3 top-3 text-neutral-500"
+                className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-neutral-400"
               />
               <Input
                 type="search"
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
+                placeholder="Cari kamera..."
+                className="pl-9"
               />
             </span>
           </Field>
@@ -309,42 +311,25 @@ export default function KameraPage() {
                     </StatusBadge>
                   </td>
                   <td>
-                    <details
-                      className={ui.rowMenu}
-                      onKeyDown={(e) => {
-                        if (e.key === "Escape") e.currentTarget.open = false;
-                      }}
-                    >
-                      <summary aria-label={`Aksi ${camera.name}`}>
-                        <MoreHorizontal size={18} />
-                      </summary>
-                      <div className={ui.rowMenuContent}>
-                        <button
-                          onClick={(e) => {
-                            e.currentTarget
-                              .closest("details")
-                              ?.removeAttribute("open");
-                            open(camera);
-                          }}
-                        >
-                          Edit Kamera
-                        </button>
-                        <button
-                          onClick={() => {
-                            setSelected([camera.id]);
-                            setPreview(true);
-                          }}
-                        >
-                          Test Kamera
-                        </button>
-                        <button
-                          className="text-red-700"
-                          onClick={() => remove(camera.id)}
-                        >
-                          Hapus
-                        </button>
-                      </div>
-                    </details>
+                    <RowMenu triggerAriaLabel={`Aksi ${camera.name}`}>
+                      <button onClick={() => open(camera)}>
+                        Edit Kamera
+                      </button>
+                      <button
+                        onClick={() => {
+                          setSelected([camera.id]);
+                          setPreview(true);
+                        }}
+                      >
+                        Test Kamera
+                      </button>
+                      <button
+                        className="text-red-700"
+                        onClick={() => remove(camera.id)}
+                      >
+                        Hapus
+                      </button>
+                    </RowMenu>
                   </td>
                 </tr>
               ))}

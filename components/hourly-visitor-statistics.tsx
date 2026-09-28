@@ -215,7 +215,7 @@ export default function HourlyVisitorStatistics({
     null,
   );
   const [error, setError] = useState("");
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [refresh, setRefresh] = useState(0);
   const [availableEvents, setAvailableEvents] = useState<EventOption[]>([]);
   const [selectedEventId, setSelectedEventId] = useState("");
@@ -238,7 +238,6 @@ export default function HourlyVisitorStatistics({
   }, [effectiveCompanyId, eventId]);
   useEffect(() => {
     if (!date || !effectiveCompanyId) {
-      setLoading(false);
       return;
     }
     const controller = new AbortController();

@@ -12,3 +12,5 @@ export function DataTable({ className, ...props }: ComponentProps<"table">) {
 export function StatusBadge({ className, ...props }: ComponentProps<"span">) {
   return <span {...props} className={cx(ui.statusBadge, className)} />;
 }
+
+export { RowMenu } from "./row-menu";

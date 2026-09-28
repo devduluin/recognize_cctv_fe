@@ -12,6 +12,7 @@ export default function CameraTestPreview({
   position,
   orientation,
   reversed,
+  mirror = false,
   autoStart = false,
   hideLineUI = false,
   compact = false,
@@ -20,6 +21,7 @@ export default function CameraTestPreview({
   position: number;
   orientation: string;
   reversed: boolean;
+  mirror?: boolean;
   autoStart?: boolean;
   hideLineUI?: boolean;
   compact?: boolean;
@@ -206,7 +208,7 @@ export default function CameraTestPreview({
         <canvas
           ref={canvas}
           aria-label="Video live kamera event"
-          className={`absolute inset-0 h-full w-full object-contain ${preview ? "" : "invisible"}`}
+          className={`absolute inset-0 h-full w-full object-contain ${preview ? "" : "invisible"} ${mirror ? "-scale-x-100" : ""}`}
         />
         {preview ? (
           <div className="relative h-full w-full">

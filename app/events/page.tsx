@@ -1,8 +1,8 @@
 "use client";
 import { Button } from "../../components/ui/button";
-import { Field, Input, Select } from "../../components/ui/field";
+import { Field, Input, Select, DateRangePicker } from "../../components/ui/field";
 import { Page, PageHeading, Toolbar } from "../../components/ui/layout";
-import { DataTable, StatusBadge, TableContainer } from "../../components/ui/data-table";
+import { DataTable, StatusBadge, TableContainer, RowMenu } from "../../components/ui/data-table";
 import { cx, ui } from "../../components/ui/styles";
 import {
   useState,
@@ -12,12 +12,27 @@ import {
   type FormEvent,
 } from "react";
 import Link from "next/link";
-import { Plus, Search, MoreHorizontal, ChevronsUpDown } from "lucide-react";
+import { Plus, Search, ChevronsUpDown } from "lucide-react";
 import CameraTestPreview from "../../components/camera-test-preview";
 import Modal from "../../components/ui-modal";
 import EventSummary from "../../components/event-summary";
 import { todayWib } from "../../components/hourly-visitor-statistics";
 const API_BASE = `${process.env.NEXT_PUBLIC_SERVICE_RECOGNIZE_CCTV || ""}/api/v1/events`;
+
+type CameraSetting = {
+  linePosition: number;
+  lineOrientation: string;
+  reverseDirection: boolean;
+  mirror: boolean;
+};
+
+type CameraDbSetting = {
+  line_position?: number | null;
+  line_orientation?: string | null;
+  reverse_direction?: boolean | null;
+  mirror?: boolean | null;
+};
+
 type VisitorEvent = {
   id: string;
   name: string;
@@ -25,11 +40,12 @@ type VisitorEvent = {
   camera_source?: string | null;
   camera_id?: string | null;
   camera_ids?: string[] | null;
-  camera_settings?: Record<string, any> | null;
+  camera_settings?: Record<string, CameraDbSetting> | null;
   line_position?: number | null;
   line_orientation?: string | null;
   reverse_direction?: boolean | null;
   event_date?: string | null;
+  event_end_date?: string | null;
   event_start?: string | null;
   event_end?: string | null;
   auto_run?: boolean;
@@ -50,9 +66,10 @@ const initialForm = {
   cameraIds: [] as string[],
   cameraSettings: {} as Record<
     string,
-    { linePosition: number; lineOrientation: string; reverseDirection: boolean }
+    { linePosition: number; lineOrientation: string; reverseDirection: boolean; mirror: boolean }
   >,
   eventDate: "",
+  eventEndDate: "",
   eventStart: "",
   eventEnd: "",
   autoRun: true,
@@ -151,7 +168,7 @@ export default function EventsPage() {
   );
   function open(event?: VisitorEvent) {
     const defaultIds = event?.camera_ids || (event?.camera_id ? [event.camera_id] : []);
-    const settings: Record<string, any> = {};
+    const settings: Record<string, CameraSetting> = {};
     if (event) {
       if (event.camera_settings) {
         for (const [id, cfg] of Object.entries(event.camera_settings)) {
@@ -159,6 +176,7 @@ export default function EventsPage() {
             linePosition: cfg.line_position ? Math.round(cfg.line_position * 100) : 50,
             lineOrientation: cfg.line_orientation || "horizontal",
             reverseDirection: cfg.reverse_direction || false,
+            mirror: cfg.mirror || false,
           };
         }
       }
@@ -168,6 +186,7 @@ export default function EventsPage() {
             linePosition: Math.round((event.line_position ?? 0.5) * 100),
             lineOrientation: event.line_orientation || "horizontal",
             reverseDirection: event.reverse_direction || false,
+            mirror: false,
           };
         }
       }
@@ -181,12 +200,13 @@ export default function EventsPage() {
             cameraIds: defaultIds,
             cameraSettings: settings,
             eventDate: event.event_date || "",
+            eventEndDate: event.event_end_date || event.event_date || "",
             eventStart: event.event_start || "",
             eventEnd: event.event_end || "",
             autoRun: event.auto_run !== false,
             capacity: event.capacity == null ? "" : String(event.capacity),
           }
-        : { ...initialForm, eventDate: todayWib() },
+        : { ...initialForm, eventDate: todayWib(), eventEndDate: todayWib() },
     );
     setEditingId(event?.id || null);
     setFormError("");
@@ -197,7 +217,12 @@ export default function EventsPage() {
     setBusy(true);
     setFormError("");
     try {
-      const dbSettings: Record<string, any> = {};
+      if (!form.eventDate) {
+        setFormError("Tanggal event harus dipilih.");
+        setBusy(false);
+        return;
+      }
+      const dbSettings: Record<string, CameraDbSetting> = {};
       for (const id of form.cameraIds) {
         const cfg = form.cameraSettings[id];
         if (cfg) {
@@ -205,6 +230,7 @@ export default function EventsPage() {
             line_position: cfg.linePosition / 100,
             line_orientation: cfg.lineOrientation,
             reverse_direction: cfg.reverseDirection,
+            mirror: cfg.mirror || false,
           };
         }
       }
@@ -215,6 +241,7 @@ export default function EventsPage() {
         camera_ids: form.cameraIds.length ? form.cameraIds : null,
         camera_settings: Object.keys(dbSettings).length ? dbSettings : null,
         event_date: form.eventDate || null,
+        event_end_date: form.eventEndDate || form.eventDate || null,
         event_start: form.eventStart,
         event_end: form.eventEnd,
         auto_run: form.autoRun,
@@ -282,12 +309,14 @@ export default function EventsPage() {
             <span className="relative">
               <Search
                 size={15}
-                className="absolute left-3 top-3 text-neutral-500"
+                className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-neutral-400"
               />
               <Input
                 type="search"
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
+                placeholder="Cari event..."
+                className="pl-9"
               />
             </span>
           </Field>
@@ -414,15 +443,29 @@ export default function EventsPage() {
                     <Link href={`/events/${event.id}`}>{event.name}</Link>
                   </td>
                   <td>
-                    {event.event_date || event.created_at
-                      ? new Date(
-                          event.event_date || event.created_at || "",
-                        ).toLocaleDateString("en-GB", {
-                          day: "numeric",
-                          month: "short",
-                          year: "numeric",
-                        })
-                      : "-"}
+                    {event.event_date
+                      ? event.event_end_date && event.event_end_date !== event.event_date
+                        ? `${new Date(event.event_date).toLocaleDateString("en-GB", {
+                            day: "numeric",
+                            month: "short",
+                            year: "numeric",
+                          })} - ${new Date(event.event_end_date).toLocaleDateString("en-GB", {
+                            day: "numeric",
+                            month: "short",
+                            year: "numeric",
+                          })}`
+                        : new Date(event.event_date).toLocaleDateString("en-GB", {
+                            day: "numeric",
+                            month: "short",
+                            year: "numeric",
+                          })
+                      : event.created_at
+                        ? new Date(event.created_at).toLocaleDateString("en-GB", {
+                            day: "numeric",
+                            month: "short",
+                            year: "numeric",
+                          })
+                        : "-"}
                     <br />
                     <span className="text-[10px] text-neutral-500">
                       {event.event_start || "-"} - {event.event_end || "-"}
@@ -437,35 +480,18 @@ export default function EventsPage() {
                     </StatusBadge>
                   </td>
                   <td>
-                    <details
-                      className={ui.rowMenu}
-                      onKeyDown={(e) => {
-                        if (e.key === "Escape") e.currentTarget.open = false;
-                      }}
-                    >
-                      <summary aria-label={`Aksi ${event.name}`}>
-                        <MoreHorizontal size={18} />
-                      </summary>
-                      <div className={ui.rowMenuContent}>
-                        <Link href={`/events/${event.id}`}>Detail Event</Link>
-                        <button
-                          onClick={(e) => {
-                            e.currentTarget
-                              .closest("details")
-                              ?.removeAttribute("open");
-                            open(event);
-                          }}
-                        >
-                          Edit Event
-                        </button>
-                        <button
-                          className="text-red-700"
-                          onClick={() => remove(event.id)}
-                        >
-                          Hapus Event
-                        </button>
-                      </div>
-                    </details>
+                    <RowMenu triggerAriaLabel={`Aksi ${event.name}`}>
+                      <Link href={`/events/${event.id}`}>Detail Event</Link>
+                      <button onClick={() => open(event)}>
+                        Edit Event
+                      </button>
+                      <button
+                        className="text-red-700"
+                        onClick={() => remove(event.id)}
+                      >
+                        Hapus Event
+                      </button>
+                    </RowMenu>
                   </td>
                 </tr>
               ))}
@@ -517,12 +543,14 @@ export default function EventsPage() {
                     />
                   </Field>
                   <Field>
-                    Tanggal
-                    <Input
-                      type="date"
-                      required
-                      value={form.eventDate}
-                      onChange={(e) => update("eventDate", e.target.value)}
+                    Tanggal Event
+                    <DateRangePicker
+                      startDate={form.eventDate}
+                      endDate={form.eventEndDate}
+                      onChange={(start, end) => {
+                        update("eventDate", start);
+                        update("eventEndDate", end);
+                      }}
                     />
                   </Field>
                   <Field>
@@ -613,9 +641,13 @@ export default function EventsPage() {
                         linePosition: 50,
                         lineOrientation: "horizontal",
                         reverseDirection: false,
+                        mirror: false,
                       };
                       
-                      const updateCam = (key: string, value: any) => {
+                      const updateCam = <K extends keyof CameraSetting>(
+                        key: K,
+                        value: CameraSetting[K]
+                      ) => {
                         setForm({
                           ...form,
                           cameraSettings: {
@@ -649,14 +681,26 @@ export default function EventsPage() {
                                 onChange={(e) => updateCam("linePosition", Number(e.target.value))}
                               />
                             </Field>
-                            <label className="flex items-center gap-2 text-sm mt-2">
-                              <input
-                                type="checkbox"
-                                checked={cfg.reverseDirection}
-                                onChange={(e) => updateCam("reverseDirection", e.target.checked)}
-                              />
-                              Balik arah masuk/keluar
-                            </label>
+                            <div className="space-y-2 pt-1">
+                              <label className="flex items-center gap-2 text-sm text-neutral-700 cursor-pointer">
+                                <input
+                                  type="checkbox"
+                                  checked={cfg.reverseDirection}
+                                  onChange={(e) => updateCam("reverseDirection", e.target.checked)}
+                                  className="size-4 rounded border-neutral-300 text-navy focus:ring-navy"
+                                />
+                                Balik arah masuk/keluar
+                              </label>
+                              <label className="flex items-center gap-2 text-sm text-neutral-700 cursor-pointer">
+                                <input
+                                  type="checkbox"
+                                  checked={cfg.mirror}
+                                  onChange={(e) => updateCam("mirror", e.target.checked)}
+                                  className="size-4 rounded border-neutral-300 text-navy focus:ring-navy"
+                                />
+                                Mirror kamera (balik horizontal)
+                              </label>
+                            </div>
                           </div>
                           <div>
                             <p className="mb-2 text-sm font-medium text-neutral-600">Preview Garis</p>
@@ -666,6 +710,7 @@ export default function EventsPage() {
                               position={cfg.linePosition}
                               orientation={cfg.lineOrientation}
                               reversed={cfg.reverseDirection}
+                              mirror={cfg.mirror}
                             />
                           </div>
                         </div>
