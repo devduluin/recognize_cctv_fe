@@ -735,7 +735,8 @@ export default function CCTVSettingsPanel() {
                                   type="button"
                                   onClick={() => {
                                     if (!cameraName) setCameraName("Sample Lobby");
-                                    setCameraSource("http://127.0.0.1:8000/samples/gettyimages-926491036-640_adpp.mp4");
+                                    const base = (process.env.NEXT_PUBLIC_SERVICE_RECOGNIZE_CCTV || "").replace(/\/+$/, "");
+                                    setCameraSource(base ? `${base}/samples/gettyimages-926491036-640_adpp.mp4` : `./samples/gettyimages-926491036-640_adpp.mp4`);
                                   }}
                                   className="px-2.5 py-1 rounded-md border border-slate-200 bg-white hover:bg-slate-100 text-slate-700 font-medium shadow-sm transition"
                                 >
@@ -745,7 +746,8 @@ export default function CCTVSettingsPanel() {
                                   type="button"
                                   onClick={() => {
                                     if (!cameraName) setCameraName("Sample Lorong");
-                                    setCameraSource("http://127.0.0.1:8000/samples/sample_faces.mp4");
+                                    const base = (process.env.NEXT_PUBLIC_SERVICE_RECOGNIZE_CCTV || "").replace(/\/+$/, "");
+                                    setCameraSource(base ? `${base}/samples/sample_faces.mp4` : `./samples/sample_faces.mp4`);
                                   }}
                                   className="px-2.5 py-1 rounded-md border border-slate-200 bg-white hover:bg-slate-100 text-slate-700 font-medium shadow-sm transition"
                                 >
@@ -755,7 +757,8 @@ export default function CCTVSettingsPanel() {
                                   type="button"
                                   onClick={() => {
                                     if (!cameraName) setCameraName("Sample Turnstile");
-                                    setCameraSource("http://127.0.0.1:8000/samples/sample_people.mp4");
+                                    const base = (process.env.NEXT_PUBLIC_SERVICE_RECOGNIZE_CCTV || "").replace(/\/+$/, "");
+                                    setCameraSource(base ? `${base}/samples/sample_people.mp4` : `./samples/sample_people.mp4`);
                                   }}
                                   className="px-2.5 py-1 rounded-md border border-slate-200 bg-white hover:bg-slate-100 text-slate-700 font-medium shadow-sm transition"
                                 >
@@ -765,11 +768,22 @@ export default function CCTVSettingsPanel() {
                                   type="button"
                                   onClick={() => {
                                     if (!cameraName) setCameraName("Sample Gerbang");
-                                    setCameraSource("http://127.0.0.1:8000/samples/gettyimages-2154415328-640_adpp.mp4");
+                                    const base = (process.env.NEXT_PUBLIC_SERVICE_RECOGNIZE_CCTV || "").replace(/\/+$/, "");
+                                    setCameraSource(base ? `${base}/samples/gettyimages-2154415328-640_adpp.mp4` : `./samples/gettyimages-2154415328-640_adpp.mp4`);
                                   }}
                                   className="px-2.5 py-1 rounded-md border border-slate-200 bg-white hover:bg-slate-100 text-slate-700 font-medium shadow-sm transition"
                                 >
                                   Gerbang Event
+                                </button>
+                                <button 
+                                  type="button"
+                                  onClick={() => {
+                                    if (!cameraName) setCameraName("Sample (Path Lokal)");
+                                    setCameraSource("./samples/sample_faces.mp4");
+                                  }}
+                                  className="px-2.5 py-1 rounded-md border border-amber-200 bg-amber-50 hover:bg-amber-100 text-amber-800 font-medium shadow-sm transition"
+                                >
+                                  Path Docker (./samples)
                                 </button>
                                 <button 
                                   type="button"
