@@ -347,9 +347,10 @@ export default function EventVisitorPage({
 
           <div
             ref={stage}
-            className="group/camera relative bg-[#0b1320] p-3 md:p-4 [&:fullscreen]:flex [&:fullscreen]:h-full [&:fullscreen]:flex-col [&:fullscreen]:justify-between [&:fullscreen]:p-4 [&:fullscreen]:bg-[#0b1320]"
+            className="group/camera relative bg-[#0b1320] p-3 md:p-4 [&:fullscreen]:flex [&:fullscreen]:h-full [&:fullscreen]:flex-col [&:fullscreen]:overflow-y-auto [&:fullscreen]:p-4 [&:fullscreen]:bg-[#0b1320]"
           >
-            <div className={`grid gap-3.5 ${gridColsClass} w-full`}>
+            <div className="group-[:fullscreen]/camera:grid group-[:fullscreen]/camera:gap-4 group-[:fullscreen]/camera:flex-1 group-[:fullscreen]/camera:items-start min-[900px]:group-[:fullscreen]/camera:grid-cols-[minmax(0,1fr)_280px]">
+            <div className={`grid min-w-0 gap-3.5 ${gridColsClass} w-full`}>
               {cameraList.map((camera, index) => {
                 const camId = camera.camera_id;
                 const camQuery =
@@ -463,6 +464,66 @@ export default function EventVisitorPage({
                   </div>
                 );
               })}
+            </div>
+            <aside
+              aria-label="Ringkasan pengunjung event"
+              className="hidden min-w-0 rounded-xl border border-white/10 bg-[#101c30] p-4 text-white group-[:fullscreen]/camera:block"
+            >
+              <h2 className="m-0! text-base! font-semibold text-white!">Statistik Pengunjung</h2>
+              {currentEvent?.name && (
+                <p className="mt-1 break-words text-sm text-slate-300">{currentEvent.name}</p>
+              )}
+              <p className="mt-2 text-xs text-slate-300">
+                {connectionError
+                  ? "Koneksi terputus. Angka terakhir belum diperbarui."
+                  : !status
+                    ? "Memuat statistik pengunjung…"
+                    : "Total event dari seluruh kamera · Diperbarui setiap 3 detik"}
+              </p>
+              <dl className="mt-4 divide-y divide-white/10">
+                {[
+                  { label: "Total Masuk", count: status?.in_count },
+                  { label: "Total Keluar", count: status?.out_count },
+                  { label: "Di dalam Area", count: inside },
+                ].map((item) => (
+                  <div key={item.label} className="py-3 first:pt-0">
+                    <dt className="text-sm text-slate-300">{item.label}</dt>
+                    <dd className="mt-1 break-words text-2xl font-semibold tabular-nums">
+                      {value(item.count)}
+                    </dd>
+                  </div>
+                ))}
+                <div className="pt-3">
+                  <dt className="text-sm text-slate-300">Kapasitas Tempat</dt>
+                  <dd className="mt-1 text-sm font-medium">
+                    {!currentEvent
+                      ? "-"
+                      : currentEvent.capacity
+                        ? `${currentEvent.capacity.toLocaleString("id-ID")} Orang`
+                        : "Tidak dibatasi"}
+                  </dd>
+                </div>
+              </dl>
+              {currentEvent?.capacity && inside > currentEvent.capacity ? (
+                <p role="alert" className="mt-4 rounded border border-rose-800 bg-rose-950 px-3 py-2 text-sm text-rose-200">
+                  Jumlah pengunjung melebihi kapasitas event.
+                </p>
+              ) : null}
+              <button
+                type="button"
+                className="mt-5 min-h-11 w-full rounded-lg border border-white/20 px-3 py-2 text-sm font-medium text-white hover:bg-white/10 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
+                onClick={async () => {
+                  try {
+                    await document.exitFullscreen();
+                  } catch {
+                    setActionError("Tidak dapat keluar dari layar penuh. Tekan Esc untuk keluar.");
+                  }
+                }}
+              >
+                Keluar fullscreen
+              </button>
+              {actionError && <p role="alert" className="mt-3 text-sm text-rose-200">{actionError}</p>}
+            </aside>
             </div>
 
             {/* Global Control Bar */}

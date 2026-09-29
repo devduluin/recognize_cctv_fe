@@ -599,6 +599,7 @@ export default function EventsPage() {
                                   linePosition: 50,
                                   lineOrientation: "horizontal",
                                   reverseDirection: false,
+                                  mirror: false,
                                 };
                               }
                               
@@ -637,11 +638,12 @@ export default function EventsPage() {
                       const camera = cameras.find((c) => c.id === cameraId);
                       if (!camera) return null;
                       const source = camera.rtsp_url || camera.camera_source || "";
-                      const cfg = form.cameraSettings[cameraId] || {
+                      const cfg = {
                         linePosition: 50,
                         lineOrientation: "horizontal",
                         reverseDirection: false,
                         mirror: false,
+                        ...(form.cameraSettings[cameraId] || {}),
                       };
                       
                       const updateCam = <K extends keyof CameraSetting>(
@@ -685,7 +687,7 @@ export default function EventsPage() {
                               <label className="flex items-center gap-2 text-sm text-neutral-700 cursor-pointer">
                                 <input
                                   type="checkbox"
-                                  checked={cfg.reverseDirection}
+                                  checked={Boolean(cfg.reverseDirection)}
                                   onChange={(e) => updateCam("reverseDirection", e.target.checked)}
                                   className="size-4 rounded border-neutral-300 text-navy focus:ring-navy"
                                 />
@@ -694,7 +696,7 @@ export default function EventsPage() {
                               <label className="flex items-center gap-2 text-sm text-neutral-700 cursor-pointer">
                                 <input
                                   type="checkbox"
-                                  checked={cfg.mirror}
+                                  checked={Boolean(cfg.mirror)}
                                   onChange={(e) => updateCam("mirror", e.target.checked)}
                                   className="size-4 rounded border-neutral-300 text-navy focus:ring-navy"
                                 />
