@@ -44,8 +44,18 @@ jobs:
 
             cd /home/apps/machine-learning/machine-learning-fe
 
-            if [ ! -f environment/.env.staging ]; then
-              echo "Missing environment/.env.staging on server. Create it manually before deploying."
+            SHARED_ENV="/home/apps/machine-learning/shared/.env.fe"
+            if [ -f "$SHARED_ENV" ]; then
+              echo "Found shared environment file: $SHARED_ENV"
+              mkdir -p environment
+              ln -sf "$SHARED_ENV" .env
+              ln -sf "$SHARED_ENV" environment/.env.staging
+              ln -sf "$SHARED_ENV" environment/.env.production
+              ENV_FILE="$SHARED_ENV"
+            elif [ -f "environment/.env.staging" ]; then
+              ENV_FILE="environment/.env.staging"
+            else
+              echo "Missing environment file. Create /home/apps/machine-learning/shared/.env.fe or environment/.env.staging on server."
               exit 1
             fi
 
@@ -56,10 +66,10 @@ jobs:
             docker compose version
 
             echo "Building and starting containers..."
-            docker compose --env-file environment/.env.staging up -d --build
+            docker compose --env-file "$ENV_FILE" up -d --build
 
             echo "Container status:"
-            docker compose --env-file environment/.env.staging ps
+            docker compose --env-file "$ENV_FILE" ps
 
             echo "Checking frontend health..."
             curl --fail --silent --show-error --retry 10 --retry-all-errors \
