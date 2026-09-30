@@ -44,20 +44,37 @@ jobs:
 
             cd /home/apps/machine-learning/machine-learning-fe
 
-            SHARED_ENV="/home/apps/machine-learning/shared/.env.fe"
-            if [ -f "$SHARED_ENV" ]; then
-              echo "Found shared environment file: $SHARED_ENV"
-              mkdir -p environment
-              ln -sf "$SHARED_ENV" .env
-              ln -sf "$SHARED_ENV" environment/.env.staging
-              ln -sf "$SHARED_ENV" environment/.env.production
-              ENV_FILE="$SHARED_ENV"
-            elif [ -f "environment/.env.staging" ]; then
-              ENV_FILE="environment/.env.staging"
+            SHARED_DIR="/home/apps/machine-learning/shared"
+            SHARED_ENV="$SHARED_DIR/.env.fe"
+
+            mkdir -p "$SHARED_DIR"
+
+            if [ ! -f "$SHARED_ENV" ]; then
+              echo "Shared environment file $SHARED_ENV not found. Creating automatically from template..."
+              if [ -f "environment/.env.example" ]; then
+                cp "environment/.env.example" "$SHARED_ENV"
+              elif [ -f "environment/.env.production" ]; then
+                cp "environment/.env.production" "$SHARED_ENV"
+              elif [ -f "environment/.env.staging" ]; then
+                cp "environment/.env.staging" "$SHARED_ENV"
+              elif [ -f ".env.example" ]; then
+                cp ".env.example" "$SHARED_ENV"
+              elif [ -f ".env" ]; then
+                cp ".env" "$SHARED_ENV"
+              else
+                echo "ERROR: No template env file found to create $SHARED_ENV."
+                exit 1
+              fi
+              echo "Successfully initialized $SHARED_ENV from template."
             else
-              echo "Missing environment file. Create /home/apps/machine-learning/shared/.env.fe or environment/.env.staging on server."
-              exit 1
+              echo "Using existing shared env file: $SHARED_ENV"
             fi
+
+            mkdir -p environment
+            ln -sf "$SHARED_ENV" .env
+            ln -sf "$SHARED_ENV" environment/.env.staging
+            ln -sf "$SHARED_ENV" environment/.env.production
+            ENV_FILE="$SHARED_ENV"
 
             echo "Current directory:"
             pwd
