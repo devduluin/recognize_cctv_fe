@@ -6,6 +6,7 @@ services:
       args:
         NEXT_PUBLIC_APP_MODE: ${NEXT_PUBLIC_APP_MODE}
         NEXT_PUBLIC_SERVICE_RECOGNIZE_CCTV: ${NEXT_PUBLIC_SERVICE_RECOGNIZE_CCTV}
+        IS_MAINTANANCE: ${IS_MAINTANANCE:-false}
     restart: always
     ports:
       - "8005:8005"
