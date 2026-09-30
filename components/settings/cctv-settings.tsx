@@ -4,6 +4,7 @@ import React, { useState, useEffect, useCallback, useRef } from "react";
 import { useSearchParams } from "next/navigation";
 import { RefreshCw, Save, Plus, Lock, LogIn, LogOut, Pencil, Trash2, ScanLine, ChevronDown, ChevronUp, FlaskConical } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
+import { toast } from "../ui/toast";
 
 const API_BASE = (process.env.NEXT_PUBLIC_SERVICE_RECOGNIZE_CCTV || "") + "/api/v1/cctv";
 
@@ -107,16 +108,14 @@ export default function CCTVSettingsPanel() {
   const [editorMode, setEditorMode] = useState("New");
   const [showDummyTesting, setShowDummyTesting] = useState(false);
 
-  const [toastMessage, setToastMessage] = useState("");
-  const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const roiPreviewRef = useRef<HTMLDivElement | null>(null);
 
-  const showToast = (message: string) => {
-    setToastMessage(message);
-    if (toastTimer.current) clearTimeout(toastTimer.current);
-    toastTimer.current = setTimeout(() => {
-      setToastMessage("");
-    }, 3200);
+  const showToast = (message: string, isError = false) => {
+    if (isError) {
+      toast.error(message);
+    } else {
+      toast.success(message);
+    }
   };
 
   const api = async (path: string, options: ApiOptions = {}) => {
@@ -981,20 +980,6 @@ export default function CCTVSettingsPanel() {
           </section>
         </div>
       </div>
-
-      <AnimatePresence>
-        {toastMessage && (
-          <motion.div 
-            initial={{ opacity: 0, y: 50, scale: 0.9 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: 20, scale: 0.9 }}
-            className="fixed bottom-6 right-6 bg-white text-slate-900 px-4 py-3 rounded-xl font-medium shadow-sm flex items-center gap-3 z-50 text-sm"
-          >
-            <div className="w-2 h-2 bg-emerald-500 rounded-full" />
-            {toastMessage}
-          </motion.div>
-        )}
-      </AnimatePresence>
     </div>
   );
 }

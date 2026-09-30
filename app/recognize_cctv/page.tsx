@@ -6,6 +6,7 @@ import { LayoutGrid, Maximize2, Camera, ScanFace, Activity, Settings, Play, Squa
 import { motion, AnimatePresence } from "framer-motion";
 
 import { MetricCard, MonitorStatus, monitorButton } from "../../components/monitoring-ui";
+import { toast } from "../../components/ui/toast";
 
 const API_BASE = (process.env.NEXT_PUBLIC_SERVICE_RECOGNIZE_CCTV || "") + "/api/v1/cctv";
 
@@ -21,16 +22,13 @@ export default function LivePreview() {
       
   const [status, setStatus] = useState(null);
   const [attendance, setAttendance] = useState({});
-  const [toastMessage, setToastMessage] = useState("");
 
-  const toastTimer = useRef(null);
-
-  const showToast = (message) => {
-    setToastMessage(message);
-    if (toastTimer.current) clearTimeout(toastTimer.current);
-    toastTimer.current = setTimeout(() => {
-      setToastMessage("");
-    }, 3200);
+  const showToast = (message: string, isError = false) => {
+    if (isError) {
+      toast.error(message);
+    } else {
+      toast.success(message);
+    }
   };
 
   const api = async (path, options = {}) => {
@@ -363,20 +361,6 @@ export default function LivePreview() {
           <MetricCard label="Pengenalan wajah" value={status ? status.recognition_enabled ? "Aktif" : "Nonaktif" : "—"} detail="Status pengenalan saat ini" icon={Activity} tone="amber" />
         </div>
       </main>
-
-      <AnimatePresence>
-        {toastMessage && (
-          <motion.div 
-            initial={{ opacity: 0, y: 50, scale: 0.9 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: 20, scale: 0.9 }}
-            className="fixed bottom-6 right-6 bg-white text-slate-900 px-4 py-3 rounded-xl font-medium shadow-sm flex items-center gap-3 z-50 text-sm"
-          >
-            <div className="w-2 h-2 bg-emerald-500 rounded-full" />
-            {toastMessage}
-          </motion.div>
-        )}
-      </AnimatePresence>
     </div>
   );
 }

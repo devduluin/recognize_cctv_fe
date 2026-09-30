@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 import AdminShell from "../components/admin-shell";
 import MaintenancePage from "../components/maintenance-page";
+import { Toaster } from "../components/ui/toast";
 
 export const metadata: Metadata = {
   title: "Computer Vision",
@@ -21,6 +22,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
     <html lang="id" className="h-full antialiased">
       <body className="min-h-full">
         {isMaintenance ? <MaintenancePage /> : <AdminShell>{children}</AdminShell>}
+        <Toaster />
       </body>
     </html>
   );

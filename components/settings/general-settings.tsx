@@ -9,7 +9,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import {
   RefreshCw,
   Save,
-      } from "lucide-react";
+} from "lucide-react";
+import { toast } from "../ui/toast";
 const API_BASE = `${process.env.NEXT_PUBLIC_SERVICE_RECOGNIZE_CCTV || ""}/api/v1/cctv`;
 type RuntimeSettings = {
   monitor_mode: string;
@@ -155,13 +156,13 @@ export default function GeneralSettingsPanel() {
       window.dispatchEvent(
         new CustomEvent("monitor-mode-changed", { detail: saved.monitor_mode }),
       );
-      setMessage(
-        tuning ? "Tuning AI disimpan." : "Pengaturan sistem disimpan.",
-      );
+      const msg = tuning ? "Tuning AI disimpan." : "Pengaturan sistem disimpan.";
+      setMessage(msg);
+      toast.success(msg);
     } catch (error) {
-      setError(
-        error instanceof Error ? error.message : "Perubahan belum tersimpan.",
-      );
+      const errMsg = error instanceof Error ? error.message : "Perubahan belum tersimpan.";
+      setError(errMsg);
+      toast.error(errMsg);
     } finally {
       setBusy(false);
     }
