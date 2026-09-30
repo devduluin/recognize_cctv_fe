@@ -14,6 +14,7 @@ FROM base AS builder
 WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
+RUN rm -f .env*
 RUN mkdir -p public
 
 # Next.js telemetry is disabled
