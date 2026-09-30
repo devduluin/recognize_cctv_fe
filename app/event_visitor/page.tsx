@@ -397,6 +397,18 @@ export default function EventVisitorPage({
                         <button
                           type="button"
                           className="rounded p-1 text-slate-400 transition-colors hover:bg-white/10 hover:text-white"
+                          title="Refresh / Reconnect stream kamera ini"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setStreamErrors((prev) => ({ ...prev, [camId]: false }));
+                            setStreamKey((k) => k + 1);
+                          }}
+                        >
+                          <RefreshCw size={13} />
+                        </button>
+                        <button
+                          type="button"
+                          className="rounded p-1 text-slate-400 transition-colors hover:bg-white/10 hover:text-white"
                           title="Fullscreen kamera ini"
                           onClick={async (e) => {
                             e.stopPropagation();
@@ -427,6 +439,10 @@ export default function EventVisitorPage({
                           className="size-full object-contain"
                           onError={() => {
                             setStreamErrors((prev) => ({ ...prev, [camId]: true }));
+                            setTimeout(() => {
+                              setStreamErrors((prev) => ({ ...prev, [camId]: false }));
+                              setStreamKey((k) => k + 1);
+                            }, 3000);
                           }}
                         />
                       ) : (
