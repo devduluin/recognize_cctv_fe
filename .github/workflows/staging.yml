@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
 
 concurrency:
-  group: machine-learning-fe-staging-deploy
+  group: recognize_cctv_fe-staging-deploy
   cancel-in-progress: false
 
 jobs:
@@ -28,7 +28,7 @@ jobs:
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_KEY }}
           source: ".,!.git,!node_modules,!.next,!.env"
-          target: "/home/apps/machine-learning/machine-learning-fe"
+          target: "/home/apps/machine-learning/recognize_cctv_fe"
           overwrite: true
           rm: false
 
@@ -42,7 +42,7 @@ jobs:
           script: |
             set -e
 
-            cd /home/apps/machine-learning/machine-learning-fe
+            cd /home/apps/machine-learning/recognize_cctv_fe
 
             SHARED_DIR="/home/apps/machine-learning/shared"
             SHARED_ENV="$SHARED_DIR/.env.fe"
