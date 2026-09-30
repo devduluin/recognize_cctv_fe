@@ -27,7 +27,7 @@ jobs:
           host: ${{ secrets.SSH_HOST_DEV_NEW }}
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_KEY }}
-          source: ".,!.git,!node_modules,!.next,!.env,!.env.*"
+          source: ".,!.git,!node_modules,!.next,!.env"
           target: "/home/apps/machine-learning/machine-learning-fe"
           overwrite: true
           rm: false
@@ -49,20 +49,17 @@ jobs:
 
             mkdir -p "$SHARED_DIR"
 
+            # Remove legacy environment folder if it exists
+            rm -rf environment
+
             if [ ! -f "$SHARED_ENV" ]; then
               echo "Shared environment file $SHARED_ENV not found. Creating automatically from template..."
-              if [ -f "environment/.env.example" ]; then
-                cp "environment/.env.example" "$SHARED_ENV"
-              elif [ -f "environment/.env.production" ]; then
-                cp "environment/.env.production" "$SHARED_ENV"
-              elif [ -f "environment/.env.staging" ]; then
-                cp "environment/.env.staging" "$SHARED_ENV"
-              elif [ -f ".env.example" ]; then
+              if [ -f ".env.example" ]; then
                 cp ".env.example" "$SHARED_ENV"
               elif [ -f ".env" ]; then
                 cp ".env" "$SHARED_ENV"
               else
-                echo "ERROR: No template env file found to create $SHARED_ENV."
+                echo "ERROR: No .env.example found to create $SHARED_ENV."
                 exit 1
               fi
               echo "Successfully initialized $SHARED_ENV from template."
@@ -70,10 +67,7 @@ jobs:
               echo "Using existing shared env file: $SHARED_ENV"
             fi
 
-            mkdir -p environment
             ln -sf "$SHARED_ENV" .env
-            ln -sf "$SHARED_ENV" environment/.env.staging
-            ln -sf "$SHARED_ENV" environment/.env.production
             ENV_FILE="$SHARED_ENV"
 
             echo "Current directory:"
