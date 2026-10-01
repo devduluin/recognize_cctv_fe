@@ -1,4 +1,5 @@
 "use client";
+import { visitorFetch } from "./auth/visitor-api";
 import { Button } from "./ui/button";
 import { StatCard } from "./ui/stat-card";
 import { ui } from "./ui/styles";
@@ -53,7 +54,7 @@ export default function EventSummary({
         if (!cid) throw new Error("Workspace belum tersedia.");
         const base = `${process.env.NEXT_PUBLIC_SERVICE_RECOGNIZE_CCTV || ""}/api/v1/event_visitor`;
         async function get<T>(path: string): Promise<T> {
-          const response = await fetch(`${base}${path}`, {
+          const response = await visitorFetch(`${base}${path}`, {
             signal: controller.signal,
           });
           if (!response.ok)

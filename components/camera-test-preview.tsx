@@ -1,4 +1,5 @@
 "use client";
+import { visitorFetch } from "./auth/visitor-api";
 import { Button } from "./ui/button";
 
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -76,7 +77,7 @@ export default function CameraTestPreview({
       } catch {
         /* An explicit source can be tested without company defaults. */
       }
-      const response = await fetch(`${API_BASE}/camera-stream`, {
+      const response = await visitorFetch(`${API_BASE}/camera-stream`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

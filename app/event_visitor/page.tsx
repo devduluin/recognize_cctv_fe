@@ -1,10 +1,11 @@
 "use client";
+import { visitorFetch, downloadVisitorReport } from "../../components/auth/visitor-api";
+import VisitorCameraStream from "../../components/visitor-camera-stream";
 import { Button, ButtonLink, buttonStyles } from "../../components/ui/button";
 import { Field, Select } from "../../components/ui/field";
 import { InfoRow, Page, PageHeading, Panel, Toolbar } from "../../components/ui/layout";
 import { cx, ui } from "../../components/ui/styles";
 import { RowMenu } from "../../components/ui/row-menu";
-/* eslint-disable @next/next/no-img-element -- MJPEG streams must use a native image element. */
 import { useState, useEffect, useRef, useCallback } from "react";
 import {
   Download,
@@ -80,7 +81,7 @@ export default function EventVisitorPage({
         const query = selectedEventId
           ? `&event_id=${encodeURIComponent(selectedEventId)}`
           : "";
-        const response = await fetch(
+        const response = await visitorFetch(
           `${API_BASE}/status?company_id=${encodeURIComponent(cid)}${query}`,
           { cache: "no-store", signal },
         );
@@ -117,7 +118,7 @@ export default function EventVisitorPage({
   }, [refreshStatus]);
   useEffect(() => {
     const controller = new AbortController();
-    fetch(`${EVENTS_API}?company_id=${encodeURIComponent(getCompanyId())}`, {
+    visitorFetch(`${EVENTS_API}?company_id=${encodeURIComponent(getCompanyId())}`, {
       signal: controller.signal,
     })
       .then((response) => {
@@ -153,7 +154,7 @@ export default function EventVisitorPage({
     try {
       if (!selectedEventId)
         throw new Error("Pilih event sebelum memulai monitoring.");
-      const response = await fetch(
+      const response = await visitorFetch(
         `${API_BASE}/${command}?company_id=${encodeURIComponent(getCompanyId())}&event_id=${encodeURIComponent(selectedEventId)}`,
         {
           method: "POST",
@@ -237,15 +238,20 @@ export default function EventVisitorPage({
             }
           >
             {["pdf", "excel", "csv"].map((format) => (
-              <a
+              <button
                 key={format}
-                href={`${EVENTS_API}/${encodeURIComponent(fixedEventId)}/report?company_id=${encodeURIComponent(getCompanyId())}&format=${format}`}
-                download
+                type="button"
+                onClick={() => {
+                  void downloadVisitorReport(
+                    `${EVENTS_API}/${encodeURIComponent(fixedEventId)}/report?company_id=${encodeURIComponent(getCompanyId())}&format=${format}`,
+                    `event-${fixedEventId}.${format === "excel" ? "xlsx" : format}`,
+                  ).catch((error) => setActionError(error.message));
+                }}
               >
                 {format === "excel"
                   ? "Excel (.xlsx)"
                   : `${format.toUpperCase()} (.${format})`}
-              </a>
+              </button>
             ))}
           </RowMenu>
         )}
@@ -432,11 +438,10 @@ export default function EventVisitorPage({
                     {/* Camera Stream Frame */}
                     <div className="relative aspect-video w-full overflow-hidden bg-black grid place-items-center">
                       {isRunning && !connectionError && !hasError ? (
-                        <img
+                        <VisitorCameraStream
                           key={`${streamKey}-${camId}`}
                           src={streamUrl}
-                          alt={camera.name}
-                          className="size-full object-contain"
+                          name={camera.name}
                           onError={() => {
                             setStreamErrors((prev) => ({ ...prev, [camId]: true }));
                             setTimeout(() => {

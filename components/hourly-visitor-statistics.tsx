@@ -1,4 +1,5 @@
 "use client";
+import { visitorFetch } from "./auth/visitor-api";
 import { useEffect, useId, useState } from "react";
 import {
   ClockArrowUp,
@@ -225,7 +226,7 @@ export default function HourlyVisitorStatistics({
   useEffect(() => {
     if (!effectiveCompanyId || eventId) return;
     const controller = new AbortController();
-    fetch(
+    visitorFetch(
       `${process.env.NEXT_PUBLIC_SERVICE_RECOGNIZE_CCTV || ""}/api/v1/events?company_id=${encodeURIComponent(effectiveCompanyId)}`,
       { cache: "no-store", signal: controller.signal },
     )
@@ -248,7 +249,7 @@ export default function HourlyVisitorStatistics({
         const eventQuery = activeEventId
           ? `&event_id=${encodeURIComponent(activeEventId)}`
           : "";
-        const response = await fetch(
+        const response = await visitorFetch(
           `${API_BASE}/statistics/hourly?date=${encodeURIComponent(date)}&company_id=${encodeURIComponent(effectiveCompanyId)}${eventQuery}`,
           { signal: controller.signal, cache: "no-store" },
         );

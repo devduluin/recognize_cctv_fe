@@ -1,4 +1,5 @@
 "use client";
+import { visitorFetch } from "../../components/auth/visitor-api";
 import { Button } from "../../components/ui/button";
 import { Field, Input, Select, DateRangePicker } from "../../components/ui/field";
 import { Page, PageHeading, Toolbar } from "../../components/ui/layout";
@@ -114,7 +115,7 @@ export default function EventsPage() {
     setLoading(true);
     setError("");
     try {
-      const response = await fetch(
+      const response = await visitorFetch(
         `${API_BASE}?company_id=${encodeURIComponent(companyId())}`,
         { cache: "no-store" },
       );
@@ -248,7 +249,7 @@ export default function EventsPage() {
         capacity: form.capacity ? Number(form.capacity) : null,
         company_id: companyId(),
       };
-      const response = await fetch(
+      const response = await visitorFetch(
         editingId
           ? `${API_BASE}/${encodeURIComponent(editingId)}?company_id=${encodeURIComponent(companyId())}`
           : API_BASE,
@@ -279,7 +280,7 @@ export default function EventsPage() {
   async function remove(id: string) {
     if (!confirm("Hapus event ini?")) return;
     try {
-      const response = await fetch(
+      const response = await visitorFetch(
         `${API_BASE}/${encodeURIComponent(id)}?company_id=${encodeURIComponent(companyId())}`,
         { method: "DELETE" },
       );
@@ -638,12 +639,11 @@ export default function EventsPage() {
                       const camera = cameras.find((c) => c.id === cameraId);
                       if (!camera) return null;
                       const source = camera.rtsp_url || camera.camera_source || "";
-                      const cfg = {
+                      const cfg = form.cameraSettings[cameraId] || {
                         linePosition: 50,
                         lineOrientation: "horizontal",
                         reverseDirection: false,
                         mirror: false,
-                        ...(form.cameraSettings[cameraId] || {}),
                       };
                       
                       const updateCam = <K extends keyof CameraSetting>(
