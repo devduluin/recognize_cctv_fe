@@ -8,6 +8,7 @@ import {
   Plus,
   Mars,
   Venus,
+  CircleHelp,
 } from "lucide-react";
 import { Button, ButtonLink } from "./ui/button";
 import { Field, Input, Select } from "./ui/field";
@@ -354,6 +355,11 @@ export default function HourlyVisitorStatistics({
       label: "Perempuan",
       value: current?.female_count.toLocaleString("id-ID") ?? "-",
       icon: Venus,
+    },
+    {
+      label: "Belum teridentifikasi (Unknown)",
+      value: current?.unknown_gender_count?.toLocaleString("id-ID") ?? "-",
+      icon: CircleHelp,
     },
   ];
   return (

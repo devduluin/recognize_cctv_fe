@@ -12,6 +12,7 @@ import {
   Venus,
   ClockArrowUp,
   RefreshCw,
+  CircleHelp,
 } from "lucide-react";
 import Modal from "./ui-modal";
 import {
@@ -107,7 +108,7 @@ export default function EventSummary({
   }, [events, refresh]);
   const totals = data?.totals;
   const totalGender = totals
-    ? totals.male_count + totals.female_count
+    ? totals.male_count + totals.female_count + (totals.unknown_gender_count || 0)
     : 0;
   const gender = (count = 0) =>
     `${count.toLocaleString("id-ID")} Orang (${totalGender ? Math.round((count / totalGender) * 100) : 0}%)`;
@@ -183,6 +184,11 @@ export default function EventSummary({
                   label: "Perempuan",
                   value: gender(totals.female_count),
                   icon: Venus,
+                },
+                {
+                  label: "Belum teridentifikasi (Unknown)",
+                  value: gender(totals.unknown_gender_count || 0),
+                  icon: CircleHelp,
                 },
                 {
                   label: "Jam paling ramai",

@@ -23,6 +23,7 @@ const API_BASE = `${process.env.NEXT_PUBLIC_SERVICE_RECOGNIZE_CCTV || ""}/api/v1
 type CameraSetting = {
   linePosition: number;
   lineOrientation: string;
+  lineAngle: number;
   reverseDirection: boolean;
   mirror: boolean;
 };
@@ -30,6 +31,7 @@ type CameraSetting = {
 type CameraDbSetting = {
   line_position?: number | null;
   line_orientation?: string | null;
+  line_angle?: number | null;
   reverse_direction?: boolean | null;
   mirror?: boolean | null;
 };
@@ -44,6 +46,7 @@ type VisitorEvent = {
   camera_settings?: Record<string, CameraDbSetting> | null;
   line_position?: number | null;
   line_orientation?: string | null;
+  line_angle?: number | null;
   reverse_direction?: boolean | null;
   event_date?: string | null;
   event_end_date?: string | null;
@@ -67,7 +70,7 @@ const initialForm = {
   cameraIds: [] as string[],
   cameraSettings: {} as Record<
     string,
-    { linePosition: number; lineOrientation: string; reverseDirection: boolean; mirror: boolean }
+    CameraSetting
   >,
   eventDate: "",
   eventEndDate: "",
@@ -176,6 +179,7 @@ export default function EventsPage() {
           settings[id] = {
             linePosition: cfg.line_position ? Math.round(cfg.line_position * 100) : 50,
             lineOrientation: cfg.line_orientation || "horizontal",
+            lineAngle: cfg.line_angle ?? 0,
             reverseDirection: cfg.reverse_direction || false,
             mirror: cfg.mirror || false,
           };
@@ -186,6 +190,7 @@ export default function EventsPage() {
           settings[id] = {
             linePosition: Math.round((event.line_position ?? 0.5) * 100),
             lineOrientation: event.line_orientation || "horizontal",
+            lineAngle: event.line_angle ?? 0,
             reverseDirection: event.reverse_direction || false,
             mirror: false,
           };
@@ -230,6 +235,7 @@ export default function EventsPage() {
           dbSettings[id] = {
             line_position: cfg.linePosition / 100,
             line_orientation: cfg.lineOrientation,
+            line_angle: cfg.lineAngle,
             reverse_direction: cfg.reverseDirection,
             mirror: cfg.mirror || false,
           };
@@ -599,6 +605,7 @@ export default function EventsPage() {
                                 newSettings[camera.id] = {
                                   linePosition: 50,
                                   lineOrientation: "horizontal",
+                                  lineAngle: 0,
                                   reverseDirection: false,
                                   mirror: false,
                                 };
@@ -642,6 +649,7 @@ export default function EventsPage() {
                       const cfg = form.cameraSettings[cameraId] || {
                         linePosition: 50,
                         lineOrientation: "horizontal",
+                        lineAngle: 0,
                         reverseDirection: false,
                         mirror: false,
                       };
@@ -683,6 +691,30 @@ export default function EventsPage() {
                                 onChange={(e) => updateCam("linePosition", Number(e.target.value))}
                               />
                             </Field>
+                            <Field>
+                              Kemiringan Garis ({cfg.lineAngle}°)
+                              <input
+                                type="range"
+                                min="-89"
+                                max="89"
+                                step="1"
+                                value={cfg.lineAngle}
+                                onChange={(e) => updateCam("lineAngle", Number(e.target.value))}
+                              />
+                              <Input
+                                aria-label="Kemiringan garis dalam derajat"
+                                type="number"
+                                min={-89}
+                                max={89}
+                                step={1}
+                                value={cfg.lineAngle}
+                                onChange={(e) => {
+                                  const angle = e.target.valueAsNumber;
+                                  if (Number.isFinite(angle)) updateCam("lineAngle", Math.max(-89, Math.min(89, angle)));
+                                }}
+                              />
+                              <span className="text-xs text-neutral-600">0° mengikuti orientasi; nilai positif memutar searah jarum jam.</span>
+                            </Field>
                             <div className="space-y-2 pt-1">
                               <label className="flex items-center gap-2 text-sm text-neutral-700 cursor-pointer">
                                 <input
@@ -711,6 +743,7 @@ export default function EventsPage() {
                               source={source}
                               position={cfg.linePosition}
                               orientation={cfg.lineOrientation}
+                              angle={cfg.lineAngle}
                               reversed={cfg.reverseDirection}
                               mirror={cfg.mirror}
                             />

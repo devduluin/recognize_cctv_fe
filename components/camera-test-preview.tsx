@@ -12,6 +12,7 @@ export default function CameraTestPreview({
   source,
   position,
   orientation,
+  angle = 0,
   reversed,
   mirror = false,
   autoStart = false,
@@ -21,6 +22,7 @@ export default function CameraTestPreview({
   source: string;
   position: number;
   orientation: string;
+  angle?: number;
   reversed: boolean;
   mirror?: boolean;
   autoStart?: boolean;
@@ -28,6 +30,7 @@ export default function CameraTestPreview({
   compact?: boolean;
 }) {
   const [preview, setPreview] = useState(false);
+  const [frameSize, setFrameSize] = useState({ width: 1920, height: 1080 });
   const [error, setError] = useState("");
   const [testing, setTesting] = useState(false);
   const [streaming, setStreaming] = useState(false);
@@ -136,6 +139,9 @@ export default function CameraTestPreview({
               if (target.height !== bitmap.height)
                 target.height = bitmap.height;
               target.getContext("2d")?.drawImage(bitmap, 0, 0);
+              const width = bitmap.width, height = bitmap.height;
+              setFrameSize((size) => size.width === width && size.height === height
+                ? size : { width, height });
               setPreview(true);
               setTesting(false);
               armTimeout();
@@ -181,14 +187,16 @@ export default function CameraTestPreview({
     };
   }, [autoStart, testCamera]);
 
-  const arrow =
-    orientation === "horizontal"
-      ? reversed
-        ? "↑"
-        : "↓"
-      : reversed
-        ? "←"
-        : "→";
+  const radians = angle * Math.PI / 180;
+  const horizontal = orientation === "horizontal";
+  const normal = horizontal
+    ? { x: -Math.sin(radians), y: Math.cos(radians) }
+    : { x: Math.cos(radians), y: Math.sin(radians) };
+  const anchor = horizontal
+    ? { x: frameSize.width / 2, y: frameSize.height * position / 100 }
+    : { x: frameSize.width * position / 100, y: frameSize.height / 2 };
+  const span = 2 * Math.hypot(frameSize.width, frameSize.height);
+  const zoneHalfWidth = (horizontal ? frameSize.height : frameSize.width) * 0.10;
   return (
     <div
       data-compact={compact}
@@ -214,21 +222,30 @@ export default function CameraTestPreview({
         {preview ? (
           <div className="relative h-full w-full">
             {!hideLineUI && (
-              <div
-                aria-label={`Garis ${orientation}, posisi ${position} persen, masuk ${arrow}`}
-                className={`pointer-events-none absolute bg-amber-400 ${orientation === "horizontal" ? "left-0 h-0.5 w-full" : "top-0 h-full w-0.5"}`}
-                style={
-                  orientation === "horizontal"
-                    ? { top: `${position}%` }
-                    : { left: `${position}%` }
-                }
+              <svg
+                role="img"
+                aria-label={`Dua garis ${orientation}, kemiringan ${angle} derajat, posisi ${position} persen. Masuk ${reversed ? "B ke A" : "A ke B"}.`}
+                className="pointer-events-none absolute inset-0 h-full w-full"
+                viewBox={`0 0 ${frameSize.width} ${frameSize.height}`}
+                preserveAspectRatio="xMidYMid meet"
               >
-                <span
-                  className={`absolute whitespace-nowrap rounded bg-amber-400 px-2 py-1 text-[10px] font-bold text-slate-950 shadow-md ${orientation === "horizontal" ? "right-2 bottom-1.5" : "left-1.5 top-2"}`}
-                >
-                  MASUK {arrow}
-                </span>
-              </div>
+                {[-zoneHalfWidth, zoneHalfWidth].map((offset, index) => {
+                  const x = anchor.x + normal.x * offset;
+                  const y = anchor.y + normal.y * offset;
+                  return (
+                    <g key={index}>
+                      <line
+                        x1={x - normal.y * span} y1={y + normal.x * span}
+                        x2={x + normal.y * span} y2={y - normal.x * span}
+                        stroke="#22c55e" strokeWidth={2} vectorEffect="non-scaling-stroke"
+                      />
+                      <text x={x + 8} y={y - 12} fill="white" stroke="black" strokeWidth={3} paintOrder="stroke" fontSize={32}>
+                        {index === 0 ? "A" : "B"}
+                      </text>
+                    </g>
+                  );
+                })}
+              </svg>
             )}
           </div>
         ) : (
