@@ -3,6 +3,7 @@ import { Button } from "./ui/button";
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Camera, Loader2, Square } from "lucide-react";
+import { getAuthHeaders } from "./auth/auth-api";
 
 const API_BASE =
   (process.env.NEXT_PUBLIC_SERVICE_RECOGNIZE_CCTV || "") + "/api/v1/events";
@@ -78,7 +79,7 @@ export default function CameraTestPreview({
       }
       const response = await fetch(`${API_BASE}/camera-stream`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: getAuthHeaders({ "Content-Type": "application/json" }),
         body: JSON.stringify({
           camera_source: source.trim() || null,
           company_id: companyId,

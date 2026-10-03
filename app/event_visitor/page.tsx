@@ -16,6 +16,7 @@ import {
   Video,
 } from "lucide-react";
 import HourlyVisitorStatistics from "../../components/hourly-visitor-statistics";
+import { getAuthHeaders, getAuthToken } from "../../components/auth/auth-api";
 const API_BASE = `${process.env.NEXT_PUBLIC_SERVICE_RECOGNIZE_CCTV || ""}/api/v1/event_visitor`;
 const EVENTS_API = `${process.env.NEXT_PUBLIC_SERVICE_RECOGNIZE_CCTV || ""}/api/v1/events`;
 type VisitorEvent = {
@@ -82,7 +83,7 @@ export default function EventVisitorPage({
           : "";
         const response = await fetch(
           `${API_BASE}/status?company_id=${encodeURIComponent(cid)}${query}`,
-          { cache: "no-store", signal },
+          { cache: "no-store", signal, headers: getAuthHeaders() },
         );
         if (!response.ok)
           throw new Error("Status kamera belum dapat dimuat. Coba lagi.");
@@ -104,21 +105,80 @@ export default function EventVisitorPage({
   );
   useEffect(() => {
     const controller = new AbortController();
-    const initial = setTimeout(() => {
-      setStatus(null);
-      void refreshStatus(controller.signal);
-    }, 0);
-    const timer = setInterval(() => refreshStatus(controller.signal), 3000);
+    let eventSource: EventSource | null = null;
+    let fallbackInterval: NodeJS.Timeout | null = null;
+
+    const cid = getCompanyId();
+    if (!cid) {
+      setConnectionError("Workspace belum tersedia.");
+      return;
+    }
+
+    setStatus(null);
+    void refreshStatus(controller.signal);
+
+    const token = getAuthToken();
+    const query = [
+      `company_id=${encodeURIComponent(cid)}`,
+      selectedEventId ? `event_id=${encodeURIComponent(selectedEventId)}` : "",
+      token ? `token=${encodeURIComponent(token)}` : "",
+    ]
+      .filter(Boolean)
+      .join("&");
+
+    const streamUrl = `${API_BASE}/status/stream?${query}`;
+
+    if (typeof EventSource !== "undefined") {
+      eventSource = new EventSource(streamUrl);
+
+      eventSource.onopen = () => {
+        setConnectionError("");
+      };
+
+      eventSource.onmessage = (event) => {
+        try {
+          const payload = JSON.parse(event.data);
+          if (payload?.result) {
+            setStatus(payload.result);
+            setConnectionError("");
+          }
+        } catch {
+          // ignore parse errors
+        }
+      };
+
+      eventSource.onerror = () => {
+        if (eventSource?.readyState === EventSource.CLOSED) {
+          if (!fallbackInterval) {
+            fallbackInterval = setInterval(
+              () => void refreshStatus(controller.signal),
+              5000,
+            );
+          }
+        }
+      };
+    } else {
+      fallbackInterval = setInterval(
+        () => void refreshStatus(controller.signal),
+        3000,
+      );
+    }
+
     return () => {
       controller.abort();
-      clearTimeout(initial);
-      clearInterval(timer);
+      if (eventSource) {
+        eventSource.close();
+      }
+      if (fallbackInterval) {
+        clearInterval(fallbackInterval);
+      }
     };
-  }, [refreshStatus]);
+  }, [selectedEventId, refreshStatus]);
   useEffect(() => {
     const controller = new AbortController();
     fetch(`${EVENTS_API}?company_id=${encodeURIComponent(getCompanyId())}`, {
       signal: controller.signal,
+      headers: getAuthHeaders(),
     })
       .then((response) => {
         if (!response.ok)
@@ -157,9 +217,9 @@ export default function EventVisitorPage({
         `${API_BASE}/${command}?company_id=${encodeURIComponent(getCompanyId())}&event_id=${encodeURIComponent(selectedEventId)}`,
         {
           method: "POST",
+          headers: getAuthHeaders(command === "start" ? { "Content-Type": "application/json" } : {}),
           ...(command === "start"
             ? {
-                headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ event_id: selectedEventId }),
               }
             : {}),
@@ -236,17 +296,21 @@ export default function EventVisitorPage({
               </span>
             }
           >
-            {["pdf", "excel", "csv"].map((format) => (
-              <a
-                key={format}
-                href={`${EVENTS_API}/${encodeURIComponent(fixedEventId)}/report?company_id=${encodeURIComponent(getCompanyId())}&format=${format}`}
-                download
-              >
-                {format === "excel"
-                  ? "Excel (.xlsx)"
-                  : `${format.toUpperCase()} (.${format})`}
-              </a>
-            ))}
+            {["pdf", "excel", "csv"].map((format) => {
+              const token = getAuthToken();
+              const tokenParam = token ? `&token=${encodeURIComponent(token)}` : "";
+              return (
+                <a
+                  key={format}
+                  href={`${EVENTS_API}/${encodeURIComponent(fixedEventId)}/report?company_id=${encodeURIComponent(getCompanyId())}&format=${format}${tokenParam}`}
+                  download
+                >
+                  {format === "excel"
+                    ? "Excel (.xlsx)"
+                    : `${format.toUpperCase()} (.${format})`}
+                </a>
+              );
+            })}
           </RowMenu>
         )}
       </PageHeading>
@@ -357,7 +421,9 @@ export default function EventVisitorPage({
                   camId && camId !== "default"
                     ? `&camera_id=${encodeURIComponent(camId)}`
                     : "";
-                const streamUrl = `${API_BASE}/stream?company_id=${encodeURIComponent(getCompanyId())}&event_id=${encodeURIComponent(selectedEventId)}${camQuery}`;
+                const token = getAuthToken();
+                const tokenQuery = token ? `&token=${encodeURIComponent(token)}` : "";
+                const streamUrl = `${API_BASE}/stream?company_id=${encodeURIComponent(getCompanyId())}&event_id=${encodeURIComponent(selectedEventId)}${camQuery}${tokenQuery}`;
                 const hasError = Boolean(streamErrors[camId]);
                 const isRunning = running && camera.running !== false;
 
@@ -478,7 +544,7 @@ export default function EventVisitorPage({
                   ? "Koneksi terputus. Angka terakhir belum diperbarui."
                   : !status
                     ? "Memuat statistik pengunjung…"
-                    : "Total event dari seluruh kamera · Diperbarui setiap 3 detik"}
+                    : "Total event dari seluruh kamera · Diperbarui real-time"}
               </p>
               <dl className="mt-4 divide-y divide-white/10">
                 {[

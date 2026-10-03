@@ -73,7 +73,10 @@ export default function CCTVSettingsPanel() {
   const [workers, setWorkers] = useState<WorkerStatus[]>([]);
   const [selectedCameraId, setSelectedCameraId] = useState<string | null>(null);
     const [settingsReady, setSettingsReady] = useState(false);
-      const [runtimeProgress, setRuntimeProgress] = useState(0);
+    const [settingsExists, setSettingsExists] = useState(false);
+    const [runtimeReady, setRuntimeReady] = useState(false);
+    const [runtimeInitializing, setRuntimeInitializing] = useState(false);
+    const [runtimeProgress, setRuntimeProgress] = useState(0);
   const [runtimeStage, setRuntimeStage] = useState("Idle");
   
   const [statusData, setStatusData] = useState<StatusData | null>(null);

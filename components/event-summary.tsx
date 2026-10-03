@@ -11,8 +11,10 @@ import {
   Venus,
   ClockArrowUp,
   RefreshCw,
+  HelpCircle,
 } from "lucide-react";
 import Modal from "./ui-modal";
+import { getAuthHeaders } from "./auth/auth-api";
 import {
   VisitorChart,
   todayWib,
@@ -55,6 +57,7 @@ export default function EventSummary({
         async function get<T>(path: string): Promise<T> {
           const response = await fetch(`${base}${path}`, {
             signal: controller.signal,
+            headers: getAuthHeaders(),
           });
           if (!response.ok)
             throw new Error("Rangkuman belum dapat dimuat. Coba lagi.");
@@ -106,7 +109,7 @@ export default function EventSummary({
   }, [events, refresh]);
   const totals = data?.totals;
   const totalGender = totals
-    ? totals.male_count + totals.female_count
+    ? totals.male_count + totals.female_count + (totals.unknown_gender_count || 0)
     : 0;
   const gender = (count = 0) =>
     `${count.toLocaleString("id-ID")} Orang (${totalGender ? Math.round((count / totalGender) * 100) : 0}%)`;
@@ -182,6 +185,11 @@ export default function EventSummary({
                   label: "Perempuan",
                   value: gender(totals.female_count),
                   icon: Venus,
+                },
+                {
+                  label: "Tidak Diketahui",
+                  value: gender(totals.unknown_gender_count || 0),
+                  icon: HelpCircle,
                 },
                 {
                   label: "Jam paling ramai",
