@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import HourlyVisitorStatistics from "../../components/hourly-visitor-statistics";
 import { getAuthHeaders, getAuthToken } from "../../components/auth/auth-api";
+import WebRTCPlayer from "../../components/camera/webrtc-player";
 const API_BASE = `${process.env.NEXT_PUBLIC_SERVICE_RECOGNIZE_CCTV || ""}/api/v1/event_visitor`;
 const EVENTS_API = `${process.env.NEXT_PUBLIC_SERVICE_RECOGNIZE_CCTV || ""}/api/v1/events`;
 type VisitorEvent = {
@@ -45,7 +46,19 @@ type Status = {
   timezone?: string;
   last_visitor_at: string | null;
   last_error?: string;
-  cameras?: { camera_id: string; name: string; running: boolean; last_error?: string }[];
+  cameras?: {
+    camera_id: string;
+    name: string;
+    running: boolean;
+    last_error?: string;
+    mediamtx_path?: string;
+    stream_urls?: {
+      webrtc_whep?: string;
+      webrtc_player?: string;
+      hls?: string;
+      rtsp_internal?: string;
+    };
+  }[];
 };
 function getCompanyId() {
   try {
@@ -485,14 +498,20 @@ export default function EventVisitorPage({
 
                     {/* Camera Stream Frame */}
                     <div className="relative aspect-video w-full overflow-hidden bg-black grid place-items-center">
-                      {isRunning && !connectionError && !hasError ? (
-                        <img
+                      {isRunning && !connectionError ? (
+                        <WebRTCPlayer
                           key={`${streamKey}-${camId}`}
-                          src={streamUrl}
-                          alt={camera.name}
-                          className="size-full object-contain"
-                          onError={() => {
-                            setStreamErrors((prev) => ({ ...prev, [camId]: true }));
+                          whepUrl={camera.stream_urls?.webrtc_whep}
+                          hlsUrl={camera.stream_urls?.hls}
+                          fallbackStreamUrl={streamUrl}
+                          cameraName={camera.name}
+                          className="size-full"
+                          onStatusChange={(s) => {
+                            if (s === "error") {
+                              setStreamErrors((prev) => ({ ...prev, [camId]: true }));
+                            } else {
+                              setStreamErrors((prev) => ({ ...prev, [camId]: false }));
+                            }
                           }}
                         />
                       ) : (
