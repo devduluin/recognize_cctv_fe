@@ -118,6 +118,12 @@ export default function CCTVSettingsPanel() {
     }
   };
 
+  const selectDummyVideo = (sampleName: string, filename: string) => {
+    if (!cameraName) setCameraName(sampleName);
+    const base = (process.env.NEXT_PUBLIC_SERVICE_RECOGNIZE_CCTV || "").replace(/\/+$/, "");
+    setCameraSource(base ? `${base}/samples/${filename}` : `./samples/${filename}`);
+  };
+
   const api = async (path: string, options: ApiOptions = {}) => {
     const response = await fetch(`${API_BASE}${path}`, {
       headers: { "Content-Type": "application/json", ...(options.headers || {}) },
@@ -773,6 +779,27 @@ export default function CCTVSettingsPanel() {
                                   className="px-2.5 py-1 rounded-md border border-slate-200 bg-white hover:bg-slate-100 text-slate-700 font-medium shadow-sm transition"
                                 >
                                   Gerbang Event
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => selectDummyVideo("Sample CAVIAR Crossing", "cctv-footage-crossingpaths1cor.mp4")}
+                                  className="px-2.5 py-1 rounded-md border border-slate-200 bg-white hover:bg-slate-100 text-slate-700 font-medium shadow-sm transition"
+                                >
+                                  CAVIAR Crossing
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => selectDummyVideo("Sample CAVIAR Tiga Orang", "cctv-footage-threepastshop1cor.mp4")}
+                                  className="px-2.5 py-1 rounded-md border border-slate-200 bg-white hover:bg-slate-100 text-slate-700 font-medium shadow-sm transition"
+                                >
+                                  CAVIAR 3 Orang
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => selectDummyVideo("Sample CAVIAR Keluar Toko", "cctv-footage-oneleaveshop2cor.mp4")}
+                                  className="px-2.5 py-1 rounded-md border border-slate-200 bg-white hover:bg-slate-100 text-slate-700 font-medium shadow-sm transition"
+                                >
+                                  CAVIAR Keluar Toko
                                 </button>
                                 <button 
                                   type="button"
