@@ -7,6 +7,7 @@ import { LayoutGrid, Maximize2, Camera, ScanFace, Activity, Settings, Play, Squa
 import { motion, AnimatePresence } from "framer-motion";
 
 import { MetricCard, MonitorStatus, monitorButton } from "../../components/monitoring-ui";
+import WebRTCPlayer from "../../components/camera/webrtc-player";
 
 const API_BASE = (process.env.NEXT_PUBLIC_SERVICE_RECOGNIZE_CCTV || "") + "/api/v1/cctv";
 
@@ -77,6 +78,19 @@ export default function LivePreview() {
     }
     try {
       const data = await api(`/cameras/${encodeURIComponent(cid)}`);
+      try {
+        const streamData = await api(`/stream-urls?company_id=${encodeURIComponent(cid)}`);
+        if (Array.isArray(streamData) && Array.isArray(data)) {
+          const urlMap = new Map(streamData.map((s) => [s.camera_id, s.stream_urls]));
+          data.forEach((cam) => {
+            if (urlMap.has(cam.id) && urlMap.get(cam.id)) {
+              cam.stream_urls = urlMap.get(cam.id);
+            }
+          });
+        }
+      } catch {
+        // Fallback to existing stream_urls if any
+      }
       setCameras(Array.isArray(data) ? data : []);
       if (!quiet) showToast("Daftar kamera dimuat");
     } catch (error) {
@@ -295,7 +309,13 @@ export default function LivePreview() {
 
                     <div className="relative aspect-video bg-slate-950 rounded-xl overflow-hidden border border-slate-800">
                       {isRunning ? (
-                        <img src={`${API_BASE}/stream?camera_id=${encodeURIComponent(camera.id)}&company_id=${encodeURIComponent(companyId)}`} alt="Stream" className="w-full h-full object-contain" />
+                        <WebRTCPlayer
+                          whepUrl={camera.stream_urls?.webrtc_whep}
+                          hlsUrl={camera.stream_urls?.hls}
+                          fallbackStreamUrl={`${API_BASE}/stream?camera_id=${encodeURIComponent(camera.id)}&company_id=${encodeURIComponent(companyId)}`}
+                          cameraName={camera.name}
+                          className="size-full"
+                        />
                       ) : (
                         <div className="absolute inset-0 flex flex-col items-center justify-center text-slate-400 gap-2">
                           <span className="flex h-12 w-12 items-center justify-center rounded-xl border border-white/10 bg-white/5"><Video size={24} strokeWidth={1.5} /></span>
