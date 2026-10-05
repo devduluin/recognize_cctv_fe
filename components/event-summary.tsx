@@ -12,9 +12,10 @@ import {
   Venus,
   ClockArrowUp,
   RefreshCw,
-  CircleHelp,
+  HelpCircle,
 } from "lucide-react";
 import Modal from "./ui-modal";
+import { getAuthHeaders } from "./auth/auth-api";
 import {
   VisitorChart,
   todayWib,
@@ -57,6 +58,7 @@ export default function EventSummary({
         async function get<T>(path: string): Promise<T> {
           const response = await visitorFetch(`${base}${path}`, {
             signal: controller.signal,
+            headers: getAuthHeaders(),
           });
           if (!response.ok)
             throw new Error("Rangkuman belum dapat dimuat. Coba lagi.");
@@ -188,7 +190,7 @@ export default function EventSummary({
                 {
                   label: "Belum teridentifikasi (Unknown)",
                   value: gender(totals.unknown_gender_count || 0),
-                  icon: CircleHelp,
+                  icon: HelpCircle,
                 },
                 {
                   label: "Jam paling ramai",

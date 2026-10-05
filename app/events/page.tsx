@@ -13,11 +13,22 @@ import {
   type FormEvent,
 } from "react";
 import Link from "next/link";
-import { Plus, Search, ChevronsUpDown } from "lucide-react";
+import {
+  Plus,
+  Search,
+  ChevronsUpDown,
+  Play,
+  Eye,
+  Pencil,
+  Trash2,
+  Loader2,
+  CheckCircle2,
+} from "lucide-react";
 import CameraTestPreview from "../../components/camera-test-preview";
 import Modal from "../../components/ui-modal";
 import EventSummary from "../../components/event-summary";
 import { todayWib } from "../../components/hourly-visitor-statistics";
+import { getAuthHeaders } from "../../components/auth/auth-api";
 const API_BASE = `${process.env.NEXT_PUBLIC_SERVICE_RECOGNIZE_CCTV || ""}/api/v1/events`;
 
 type CameraSetting = {
@@ -27,6 +38,8 @@ type CameraSetting = {
   lineAngle: number;
   reverseDirection: boolean;
   mirror: boolean;
+  twoLineCounting?: boolean;
+  zoneWidthRatio?: number;
 };
 
 type CameraDbSetting = {
@@ -36,6 +49,8 @@ type CameraDbSetting = {
   line_angle?: number | null;
   reverse_direction?: boolean | null;
   mirror?: boolean | null;
+  two_line_counting?: boolean | null;
+  zone_width_ratio?: number | null;
 };
 
 type VisitorEvent = {
@@ -70,10 +85,7 @@ const initialForm = {
   name: "",
   location: "",
   cameraIds: [] as string[],
-  cameraSettings: {} as Record<
-    string,
-    CameraSetting
-  >,
+  cameraSettings: {} as Record<string, CameraSetting>,
   eventDate: "",
   eventEndDate: "",
   eventStart: "",
@@ -112,6 +124,12 @@ export default function EventsPage() {
   const [isOpen, setIsOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [formError, setFormError] = useState("");
+  const [startingId, setStartingId] = useState<string | null>(null);
+  const [actionAlert, setActionAlert] = useState<{
+    type: "success" | "error";
+    message: string;
+  } | null>(null);
+
   const update = <K extends keyof typeof initialForm>(
     key: K,
     value: (typeof initialForm)[K],
@@ -122,7 +140,7 @@ export default function EventsPage() {
     try {
       const response = await visitorFetch(
         `${API_BASE}?company_id=${encodeURIComponent(companyId())}`,
-        { cache: "no-store" },
+        { cache: "no-store", headers: getAuthHeaders() },
       );
       if (!response.ok) throw new Error("Daftar event belum dapat dimuat.");
       const payload = await response.json();
@@ -135,11 +153,54 @@ export default function EventsPage() {
       setLoading(false);
     }
   }, []);
+
+  const startEvent = useCallback(async (eventId: string, eventName: string) => {
+    setStartingId(eventId);
+    setActionAlert(null);
+    try {
+      const cid = companyId();
+      if (!cid) throw new Error("Workspace belum tersedia. Lengkapi akun Anda.");
+      const response = await fetch(
+        `${process.env.NEXT_PUBLIC_SERVICE_RECOGNIZE_CCTV || ""}/api/v1/event_visitor/start?company_id=${encodeURIComponent(cid)}&event_id=${encodeURIComponent(eventId)}`,
+        {
+          method: "POST",
+          headers: getAuthHeaders({ "Content-Type": "application/json" }),
+          body: JSON.stringify({ event_id: eventId }),
+        },
+      );
+      const payload = await response.json().catch(() => null);
+      if (!response.ok) {
+        throw new Error(
+          typeof payload?.detail === "string"
+            ? payload.detail
+            : typeof payload?.message === "string"
+              ? payload.message
+              : "Gagal memulai event.",
+        );
+      }
+      setActionAlert({
+        type: "success",
+        message: `Event "${eventName}" berhasil dimulai! Monitoring kamera sedang aktif.`,
+      });
+      setEvents((prev) =>
+        prev.map((e) => (e.id === eventId ? { ...e, status: "running" } : e)),
+      );
+      void load();
+    } catch (err) {
+      setActionAlert({
+        type: "error",
+        message: err instanceof Error ? err.message : "Gagal memulai event.",
+      });
+    } finally {
+      setStartingId(null);
+    }
+  }, [load]);
   useEffect(() => {
     const initial = setTimeout(() => {
       void load();
       fetch(
         `${process.env.NEXT_PUBLIC_SERVICE_RECOGNIZE_CCTV || ""}/api/v1/cctv/cameras/${encodeURIComponent(companyId())}`,
+        { headers: getAuthHeaders() },
       )
         .then((response) => response.json())
         .then((payload) =>
@@ -185,6 +246,8 @@ export default function EventsPage() {
             lineAngle: cfg.line_angle ?? 0,
             reverseDirection: cfg.reverse_direction || false,
             mirror: cfg.mirror || false,
+            twoLineCounting: cfg.two_line_counting ?? true,
+            zoneWidthRatio: cfg.zone_width_ratio ?? 0.20,
           };
         }
       }
@@ -197,6 +260,8 @@ export default function EventsPage() {
             lineAngle: event.line_angle ?? 0,
             reverseDirection: event.reverse_direction || false,
             mirror: false,
+            twoLineCounting: true,
+            zoneWidthRatio: 0.20,
           };
         }
       }
@@ -243,6 +308,8 @@ export default function EventsPage() {
             line_angle: cfg.lineAngle,
             reverse_direction: cfg.reverseDirection,
             mirror: cfg.mirror || false,
+            two_line_counting: cfg.twoLineCounting ?? true,
+            zone_width_ratio: cfg.zoneWidthRatio ?? 0.20,
           };
         }
       }
@@ -266,7 +333,7 @@ export default function EventsPage() {
           : API_BASE,
         {
           method: editingId ? "PUT" : "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: getAuthHeaders({ "Content-Type": "application/json" }),
           body: JSON.stringify(payload),
         },
       );
@@ -293,7 +360,7 @@ export default function EventsPage() {
     try {
       const response = await visitorFetch(
         `${API_BASE}/${encodeURIComponent(id)}?company_id=${encodeURIComponent(companyId())}`,
-        { method: "DELETE" },
+        { method: "DELETE", headers: getAuthHeaders() },
       );
       if (!response.ok) throw new Error("Event belum dapat dihapus.");
       setSelected((previous) => previous.filter((value) => value !== id));
@@ -352,6 +419,31 @@ export default function EventsPage() {
             Coba lagi
           </button>
         </p>
+      )}
+      {actionAlert && (
+        <div
+          role="alert"
+          className={cx(
+            "mb-4 flex items-center justify-between rounded-lg px-4 py-3 text-sm",
+            actionAlert.type === "success"
+              ? "border border-emerald-200 bg-emerald-50 text-emerald-800"
+              : "border border-rose-200 bg-rose-50 text-rose-800",
+          )}
+        >
+          <div className="flex items-center gap-2">
+            {actionAlert.type === "success" ? (
+              <CheckCircle2 size={16} className="text-emerald-600 shrink-0" />
+            ) : null}
+            <span>{actionAlert.message}</span>
+          </div>
+          <button
+            type="button"
+            onClick={() => setActionAlert(null)}
+            className="text-xs font-semibold underline hover:opacity-80 cursor-pointer ml-4"
+          >
+            Tutup
+          </button>
+        </div>
       )}
       <TableContainer>
         {loading ? (
@@ -431,7 +523,7 @@ export default function EventsPage() {
                     </button>
                   </th>
                 ))}
-                <th>Action</th>
+                <th className="min-w-[290px]">Aksi</th>
               </tr>
             </thead>
             <tbody>
@@ -491,19 +583,63 @@ export default function EventsPage() {
                       {event.status || "not started"}
                     </StatusBadge>
                   </td>
-                  <td>
-                    <RowMenu triggerAriaLabel={`Aksi ${event.name}`}>
-                      <Link href={`/events/${event.id}`}>Detail Event</Link>
-                      <button onClick={() => open(event)}>
-                        Edit Event
-                      </button>
-                      <button
-                        className="text-red-700"
-                        onClick={() => remove(event.id)}
+                  <td className="whitespace-nowrap">
+                    <div className="flex items-center gap-1.5 py-0.5">
+                      {event.status === "running" ? (
+                        <Link
+                          href={`/events/${event.id}`}
+                          className="inline-flex items-center gap-1 rounded-md bg-emerald-50 px-2.5 py-1.5 text-xs font-semibold text-emerald-700 border border-emerald-200 hover:bg-emerald-100 transition-colors"
+                          title="Event sedang berlangsung, buka live monitoring"
+                        >
+                          <span className="size-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                          Live Monitor
+                        </Link>
+                      ) : (
+                        <button
+                          type="button"
+                          disabled={startingId === event.id}
+                          onClick={() => startEvent(event.id, event.name)}
+                          className="inline-flex items-center gap-1 rounded-md bg-emerald-600 px-2.5 py-1.5 text-xs font-medium text-white hover:bg-emerald-700 disabled:opacity-50 transition-colors cursor-pointer"
+                          title="Mulai monitoring event ini langsung dari tabel"
+                        >
+                          {startingId === event.id ? (
+                            <Loader2 size={13} className="animate-spin" />
+                          ) : (
+                            <Play size={13} fill="currentColor" />
+                          )}
+                          Mulai Event
+                        </button>
+                      )}
+
+                      <Link
+                        href={`/events/${event.id}`}
+                        className="inline-flex items-center gap-1 rounded-md border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50 hover:text-slate-900 transition-colors"
+                        title="Lihat detail event"
                       >
-                        Hapus Event
+                        <Eye size={13} />
+                        Detail
+                      </Link>
+
+                      <button
+                        type="button"
+                        onClick={() => open(event)}
+                        className="inline-flex items-center gap-1 rounded-md border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50 hover:text-slate-900 transition-colors cursor-pointer"
+                        title="Edit event"
+                      >
+                        <Pencil size={13} />
+                        Edit
                       </button>
-                    </RowMenu>
+
+                      <button
+                        type="button"
+                        onClick={() => remove(event.id)}
+                        className="inline-flex items-center gap-1 rounded-md border border-rose-200 bg-rose-50 px-2.5 py-1.5 text-xs font-medium text-rose-700 hover:bg-rose-100 transition-colors cursor-pointer"
+                        title="Hapus event"
+                      >
+                        <Trash2 size={13} />
+                        Hapus
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -652,13 +788,16 @@ export default function EventsPage() {
                       const camera = cameras.find((c) => c.id === cameraId);
                       if (!camera) return null;
                       const source = camera.rtsp_url || camera.camera_source || "";
-                      const cfg = form.cameraSettings[cameraId] || {
-                        countingDirection: "in" as const,
-                        linePosition: 50,
-                        lineOrientation: "horizontal",
-                        lineAngle: 0,
-                        reverseDirection: false,
-                        mirror: false,
+                      const camSetting = form.cameraSettings[cameraId];
+                      const cfg = {
+                        linePosition: camSetting?.linePosition ?? 50,
+                        lineOrientation: camSetting?.lineOrientation ?? "horizontal",
+                        lineAngle: camSetting?.lineAngle ?? 0,
+                        countingDirection: camSetting?.countingDirection ?? "in",
+                        reverseDirection: camSetting?.reverseDirection ?? false,
+                        mirror: camSetting?.mirror ?? false,
+                        twoLineCounting: camSetting?.twoLineCounting ?? true,
+                        zoneWidthRatio: camSetting?.zoneWidthRatio ?? 0.20,
                       };
                       
                       const updateCam = <K extends keyof CameraSetting>(
@@ -738,6 +877,15 @@ export default function EventsPage() {
                               <label className="flex items-center gap-2 text-sm text-neutral-700 cursor-pointer">
                                 <input
                                   type="checkbox"
+                                  checked={Boolean(cfg.twoLineCounting)}
+                                  onChange={(e) => updateCam("twoLineCounting", e.target.checked)}
+                                  className="size-4 rounded border-neutral-300 text-navy focus:ring-navy"
+                                />
+                                Gunakan 2 Garis & Crossing Zone (A & B)
+                              </label>
+                              <label className="flex items-center gap-2 text-sm text-neutral-700 cursor-pointer">
+                                <input
+                                  type="checkbox"
                                   checked={Boolean(cfg.reverseDirection)}
                                   disabled={cfg.countingDirection !== "auto"}
                                   onChange={(e) => updateCam("reverseDirection", e.target.checked)}
@@ -766,6 +914,8 @@ export default function EventsPage() {
                               angle={cfg.lineAngle}
                               reversed={cfg.reverseDirection}
                               countingDirection={cfg.countingDirection}
+                              twoLineCounting={cfg.twoLineCounting}
+                              zoneWidthRatio={cfg.zoneWidthRatio}
                               mirror={cfg.mirror}
                             />
                           </div>

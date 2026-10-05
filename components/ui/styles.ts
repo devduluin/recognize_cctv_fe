@@ -13,7 +13,7 @@ export const ui = {
   panel: "min-w-0 rounded-2xl border border-line bg-white p-6 shadow-[0_1px_2px_#14264126] max-[600px]:p-[18px] [&_h2]:text-base [&_h2]:font-semibold",
   panelHeading: "mb-5 flex items-start justify-between gap-4",
   panelDescription: "mt-[3px] text-xs leading-[1.4] text-muted",
-  statGrid: "mt-[38px] mb-7 grid grid-cols-1 gap-[18px] max-[600px]:mt-6 min-[600px]:grid-cols-2 min-[1200px]:grid-cols-4",
+  statGrid: "mt-[38px] mb-7 grid grid-cols-1 gap-[18px] max-[600px]:mt-6 min-[600px]:grid-cols-2 min-[900px]:grid-cols-3 min-[1200px]:grid-cols-5",
   summaryGrid: "mt-5 mb-3.5 grid grid-cols-1 gap-[18px] min-[600px]:grid-cols-2 min-[700px]:grid-cols-3",
   sectionHeading: "mb-5 flex flex-wrap items-end justify-between gap-4 [&_h2]:text-[18px] [&_h2]:font-semibold [&_h2]:leading-[1.4]",
   chartPanel: "overflow-hidden rounded-[14px] border border-line [&_h3]:px-5 [&_h3]:pt-6 [&_h3]:pb-4 [&_h3]:text-base [&_h3]:font-semibold",

@@ -1,6 +1,5 @@
 "use client";
 import { visitorFetch, downloadVisitorReport } from "../../components/auth/visitor-api";
-import VisitorCameraStream from "../../components/visitor-camera-stream";
 import { Button, ButtonLink, buttonStyles } from "../../components/ui/button";
 import { Field, Select } from "../../components/ui/field";
 import { InfoRow, Page, PageHeading, Panel, Toolbar } from "../../components/ui/layout";
@@ -12,11 +11,15 @@ import {
   Maximize,
   Pause,
   Play,
+  Radio,
   RefreshCw,
+  Sliders,
   Square,
   Video,
 } from "lucide-react";
 import HourlyVisitorStatistics from "../../components/hourly-visitor-statistics";
+import { getAuthHeaders, getAuthToken } from "../../components/auth/auth-api";
+import WebRTCPlayer, { DetectionBox, StreamMode } from "../../components/camera/webrtc-player";
 const API_BASE = `${process.env.NEXT_PUBLIC_SERVICE_RECOGNIZE_CCTV || ""}/api/v1/event_visitor`;
 const EVENTS_API = `${process.env.NEXT_PUBLIC_SERVICE_RECOGNIZE_CCTV || ""}/api/v1/events`;
 type VisitorEvent = {
@@ -45,7 +48,34 @@ type Status = {
   timezone?: string;
   last_visitor_at: string | null;
   last_error?: string;
-  cameras?: { camera_id: string; name: string; running: boolean; last_error?: string }[];
+  line_position?: number;
+  line_orientation?: string;
+  line_angle?: number;
+  reverse_direction?: boolean;
+  two_line_counting?: boolean;
+  zone_width_ratio?: number;
+  mirror?: boolean;
+  cameras?: {
+    camera_id: string;
+    name: string;
+    running: boolean;
+    last_error?: string;
+    mediamtx_path?: string;
+    line_position?: number;
+    line_orientation?: string;
+    line_angle?: number;
+    reverse_direction?: boolean;
+    two_line_counting?: boolean;
+    zone_width_ratio?: number;
+    mirror?: boolean;
+    stream_urls?: {
+      webrtc_whep?: string;
+      webrtc_player?: string;
+      hls?: string;
+      rtsp_internal?: string;
+    };
+    detections?: DetectionBox[];
+  }[];
 };
 function getCompanyId() {
   try {
@@ -71,6 +101,9 @@ export default function EventVisitorPage({
   const [connectionError, setConnectionError] = useState("");
   const [actionError, setActionError] = useState("");
   const [streamErrors, setStreamErrors] = useState<Record<string, boolean>>({});
+  const [cameraModes, setCameraModes] = useState<Record<string, StreamMode>>({});
+  const [cameraAiDetection, setCameraAiDetection] = useState<Record<string, boolean>>({});
+  const [cameraDetections, setCameraDetections] = useState<Record<string, DetectionBox[]>>({});
   const [streamKey, setStreamKey] = useState(0);
   const stage = useRef<HTMLDivElement>(null);
   const refreshStatus = useCallback(
@@ -83,7 +116,7 @@ export default function EventVisitorPage({
           : "";
         const response = await visitorFetch(
           `${API_BASE}/status?company_id=${encodeURIComponent(cid)}${query}`,
-          { cache: "no-store", signal },
+          { cache: "no-store", signal, headers: getAuthHeaders() },
         );
         if (!response.ok)
           throw new Error("Status kamera belum dapat dimuat. Coba lagi.");
@@ -105,21 +138,126 @@ export default function EventVisitorPage({
   );
   useEffect(() => {
     const controller = new AbortController();
-    const initial = setTimeout(() => {
-      setStatus(null);
-      void refreshStatus(controller.signal);
-    }, 0);
-    const timer = setInterval(() => refreshStatus(controller.signal), 3000);
+    let eventSource: EventSource | null = null;
+    let fallbackInterval: NodeJS.Timeout | null = null;
+
+    const cid = getCompanyId();
+    if (!cid) {
+      setConnectionError("Workspace belum tersedia.");
+      return;
+    }
+
+    setStatus(null);
+    void refreshStatus(controller.signal);
+
+    const token = getAuthToken();
+    const query = [
+      `company_id=${encodeURIComponent(cid)}`,
+      selectedEventId ? `event_id=${encodeURIComponent(selectedEventId)}` : "",
+      token ? `token=${encodeURIComponent(token)}` : "",
+    ]
+      .filter(Boolean)
+      .join("&");
+
+    const streamUrl = `${API_BASE}/status/stream?${query}`;
+
+    if (typeof EventSource !== "undefined") {
+      eventSource = new EventSource(streamUrl);
+
+      eventSource.onopen = () => {
+        setConnectionError("");
+      };
+
+      eventSource.onmessage = (event) => {
+        try {
+          const payload = JSON.parse(event.data);
+          if (payload?.result) {
+            setStatus(payload.result);
+            setConnectionError("");
+          }
+        } catch {
+          // ignore parse errors
+        }
+      };
+
+      eventSource.onerror = () => {
+        if (eventSource?.readyState === EventSource.CLOSED) {
+          if (!fallbackInterval) {
+            fallbackInterval = setInterval(
+              () => void refreshStatus(controller.signal),
+              5000,
+            );
+          }
+        }
+      };
+    } else {
+      fallbackInterval = setInterval(
+        () => void refreshStatus(controller.signal),
+        3000,
+      );
+    }
+
     return () => {
       controller.abort();
-      clearTimeout(initial);
-      clearInterval(timer);
+      if (eventSource) {
+        eventSource.close();
+      }
+      if (fallbackInterval) {
+        clearInterval(fallbackInterval);
+      }
     };
-  }, [refreshStatus]);
+  }, [selectedEventId, refreshStatus]);
+
+  // Live AI detection boxes SSE stream (<100ms updates)
+  useEffect(() => {
+    if (!selectedEventId || !status?.running) {
+      setCameraDetections({});
+      return;
+    }
+    const cid = getCompanyId();
+    if (!cid) return;
+    const token = getAuthToken();
+    const query = [
+      `company_id=${encodeURIComponent(cid)}`,
+      `event_id=${encodeURIComponent(selectedEventId)}`,
+      token ? `token=${encodeURIComponent(token)}` : "",
+    ]
+      .filter(Boolean)
+      .join("&");
+
+    const detUrl = `${API_BASE}/detections/stream?${query}`;
+    let es: EventSource | null = null;
+    try {
+      es = new EventSource(detUrl);
+      es.onmessage = (event) => {
+        try {
+          const payload = JSON.parse(event.data);
+          if (payload?.cameras) {
+            setCameraDetections(payload.cameras);
+          }
+        } catch {
+          // ignore parse errors
+        }
+      };
+      es.onerror = () => {
+        // EventSource will auto-reconnect
+      };
+    } catch {
+      // ignore
+    }
+
+    return () => {
+      if (es) {
+        es.close();
+      }
+    };
+  }, [selectedEventId, status?.running]);
+
   useEffect(() => {
     const controller = new AbortController();
     visitorFetch(`${EVENTS_API}?company_id=${encodeURIComponent(getCompanyId())}`, {
       signal: controller.signal,
+      headers: getAuthHeaders(),
     })
       .then((response) => {
         if (!response.ok)
@@ -158,9 +296,9 @@ export default function EventVisitorPage({
         `${API_BASE}/${command}?company_id=${encodeURIComponent(getCompanyId())}&event_id=${encodeURIComponent(selectedEventId)}`,
         {
           method: "POST",
+          headers: getAuthHeaders(command === "start" ? { "Content-Type": "application/json" } : {}),
           ...(command === "start"
             ? {
-                headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ event_id: selectedEventId }),
               }
             : {}),
@@ -364,7 +502,9 @@ export default function EventVisitorPage({
                   camId && camId !== "default"
                     ? `&camera_id=${encodeURIComponent(camId)}`
                     : "";
-                const streamUrl = `${API_BASE}/stream?company_id=${encodeURIComponent(getCompanyId())}&event_id=${encodeURIComponent(selectedEventId)}${camQuery}`;
+                const token = getAuthToken();
+                const tokenQuery = token ? `&token=${encodeURIComponent(token)}` : "";
+                const streamUrl = `${API_BASE}/stream?company_id=${encodeURIComponent(getCompanyId())}&event_id=${encodeURIComponent(selectedEventId)}${camQuery}${tokenQuery}`;
                 const hasError = Boolean(streamErrors[camId]);
                 const isRunning = running && camera.running !== false;
 
@@ -385,6 +525,44 @@ export default function EventVisitorPage({
                         </span>
                       </div>
                       <div className="flex items-center gap-2">
+                        {/* Tab Realtime dan AI Detection di sebelah Live */}
+                        {isRunning && (
+                          <div className="flex items-center rounded-lg bg-black/60 p-0.5 border border-white/15 backdrop-blur-sm">
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setCameraAiDetection((prev) => ({ ...prev, [camId]: false }));
+                              }}
+                              className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-[11px] font-semibold transition ${
+                                !(cameraAiDetection[camId] ?? true)
+                                  ? "bg-cyan-500 text-white shadow-sm"
+                                  : "text-slate-300 hover:text-white hover:bg-white/10"
+                              }`}
+                              title="Tampilan Bersih Realtime (tanpa kotak deteksi)"
+                            >
+                              <Radio className="size-3 text-emerald-400 animate-pulse" />
+                              <span>Realtime</span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setCameraAiDetection((prev) => ({ ...prev, [camId]: true }));
+                              }}
+                              className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-[11px] font-semibold transition ${
+                                cameraAiDetection[camId] ?? true
+                                  ? "bg-amber-500 text-slate-950 font-bold shadow-sm"
+                                  : "text-slate-300 hover:text-white hover:bg-white/10"
+                              }`}
+                              title="AI Detection (Bounding Box: Biru=Pria, Pink=Wanita, Kuning=Unknown)"
+                            >
+                              <Sliders className="size-3" />
+                              <span>AI Detection</span>
+                            </button>
+                          </div>
+                        )}
+
                         <span
                           className={`inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-medium ${
                             isRunning && !hasError && !connectionError
@@ -439,16 +617,40 @@ export default function EventVisitorPage({
                     {/* Camera Stream Frame */}
                     <div className="relative aspect-video w-full overflow-hidden bg-black grid place-items-center">
                       {isRunning && !connectionError && !hasError ? (
-                        <VisitorCameraStream
+                        <WebRTCPlayer
                           key={`${streamKey}-${camId}`}
-                          src={streamUrl}
-                          name={camera.name}
-                          onError={() => {
-                            setStreamErrors((prev) => ({ ...prev, [camId]: true }));
-                            setTimeout(() => {
-                              setStreamErrors((prev) => ({ ...prev, [camId]: false }));
-                              setStreamKey((k) => k + 1);
-                            }, 3000);
+                          whepUrl={camera.stream_urls?.webrtc_whep}
+                          webrtcPlayerUrl={camera.stream_urls?.webrtc_player}
+                          hlsUrl={camera.stream_urls?.hls}
+                          fallbackStreamUrl={streamUrl}
+                          preferredMode={cameraModes[camId] || "webrtc"}
+                          detections={cameraDetections[camId] || camera.detections || []}
+                          showDetections={cameraAiDetection[camId] ?? true}
+                          onToggleDetections={(enabled) => {
+                            setCameraAiDetection((prev) => ({ ...prev, [camId]: enabled }));
+                          }}
+                          hideInternalSwitcher
+                          onModeChange={(m) => {
+                            setCameraModes((prev) => ({ ...prev, [camId]: m }));
+                          }}
+                          cameraName={camera.name}
+                          className="size-full"
+                          lineConfig={{
+                            linePosition: camera.line_position ?? status?.line_position ?? 0.5,
+                            lineOrientation: camera.line_orientation ?? status?.line_orientation ?? "horizontal",
+                            lineAngle: camera.line_angle ?? status?.line_angle ?? 0.0,
+                            reverseDirection: camera.reverse_direction ?? status?.reverse_direction ?? false,
+                            twoLineCounting: camera.two_line_counting ?? status?.two_line_counting ?? true,
+                            zoneWidthRatio: camera.zone_width_ratio ?? status?.zone_width_ratio ?? 0.20,
+                            mirror: camera.mirror ?? status?.mirror ?? false,
+                          }}
+                          onStatusChange={(s) => {
+                            const isErr = s === "error";
+                            setStreamErrors((prev) =>
+                              prev[camId] === isErr
+                                ? prev
+                                : { ...prev, [camId]: isErr },
+                            );
                           }}
                         />
                       ) : (
@@ -500,7 +702,7 @@ export default function EventVisitorPage({
                   ? "Koneksi terputus. Angka terakhir belum diperbarui."
                   : !status
                     ? "Memuat statistik pengunjung…"
-                    : "Total event dari seluruh kamera · Diperbarui setiap 3 detik"}
+                    : "Total event dari seluruh kamera · Diperbarui real-time"}
               </p>
               <dl className="mt-4 divide-y divide-white/10">
                 {[
