@@ -21,6 +21,7 @@ import { todayWib } from "../../components/hourly-visitor-statistics";
 const API_BASE = `${process.env.NEXT_PUBLIC_SERVICE_RECOGNIZE_CCTV || ""}/api/v1/events`;
 
 type CameraSetting = {
+  countingDirection: "auto" | "in" | "out";
   linePosition: number;
   lineOrientation: string;
   lineAngle: number;
@@ -29,6 +30,7 @@ type CameraSetting = {
 };
 
 type CameraDbSetting = {
+  counting_direction?: "auto" | "in" | "out" | null;
   line_position?: number | null;
   line_orientation?: string | null;
   line_angle?: number | null;
@@ -177,6 +179,7 @@ export default function EventsPage() {
       if (event.camera_settings) {
         for (const [id, cfg] of Object.entries(event.camera_settings)) {
           settings[id] = {
+            countingDirection: cfg.counting_direction || "auto",
             linePosition: cfg.line_position ? Math.round(cfg.line_position * 100) : 50,
             lineOrientation: cfg.line_orientation || "horizontal",
             lineAngle: cfg.line_angle ?? 0,
@@ -188,6 +191,7 @@ export default function EventsPage() {
       for (const id of defaultIds) {
         if (!settings[id]) {
           settings[id] = {
+            countingDirection: "auto",
             linePosition: Math.round((event.line_position ?? 0.5) * 100),
             lineOrientation: event.line_orientation || "horizontal",
             lineAngle: event.line_angle ?? 0,
@@ -233,6 +237,7 @@ export default function EventsPage() {
         const cfg = form.cameraSettings[id];
         if (cfg) {
           dbSettings[id] = {
+            counting_direction: cfg.countingDirection,
             line_position: cfg.linePosition / 100,
             line_orientation: cfg.lineOrientation,
             line_angle: cfg.lineAngle,
@@ -603,6 +608,7 @@ export default function EventsPage() {
                               const newSettings = { ...form.cameraSettings };
                               if (e.target.checked && !newSettings[camera.id]) {
                                 newSettings[camera.id] = {
+                                  countingDirection: "in",
                                   linePosition: 50,
                                   lineOrientation: "horizontal",
                                   lineAngle: 0,
@@ -647,6 +653,7 @@ export default function EventsPage() {
                       if (!camera) return null;
                       const source = camera.rtsp_url || camera.camera_source || "";
                       const cfg = form.cameraSettings[cameraId] || {
+                        countingDirection: "in" as const,
                         linePosition: 50,
                         lineOrientation: "horizontal",
                         lineAngle: 0,
@@ -671,6 +678,18 @@ export default function EventsPage() {
                         <div key={cameraId} className="grid items-start gap-6 sm:grid-cols-2 rounded-xl border border-neutral-200 bg-white p-5 shadow-sm">
                           <div className="space-y-4">
                             <h4 className="font-semibold text-neutral-800">{camera.name}</h4>
+                            <Field>
+                              Peran Kamera pada Event Ini
+                              <Select
+                                value={cfg.countingDirection}
+                                onChange={(e) => updateCam("countingDirection", e.target.value as CameraSetting["countingDirection"])}
+                              >
+                                <option value="in">Masuk (IN)</option>
+                                <option value="out">Keluar (OUT)</option>
+                                <option value="auto">Otomatis sesuai arah lintasan</option>
+                              </Select>
+                              <span className="text-xs text-neutral-600">Berlaku hanya untuk event ini; event lain dapat memakai peran berbeda.</span>
+                            </Field>
                             <Field>
                               Orientasi Garis
                               <Select
@@ -720,10 +739,11 @@ export default function EventsPage() {
                                 <input
                                   type="checkbox"
                                   checked={Boolean(cfg.reverseDirection)}
+                                  disabled={cfg.countingDirection !== "auto"}
                                   onChange={(e) => updateCam("reverseDirection", e.target.checked)}
                                   className="size-4 rounded border-neutral-300 text-navy focus:ring-navy"
                                 />
-                                Balik arah masuk/keluar
+                                Balik arah masuk/keluar (mode otomatis)
                               </label>
                               <label className="flex items-center gap-2 text-sm text-neutral-700 cursor-pointer">
                                 <input
@@ -745,6 +765,7 @@ export default function EventsPage() {
                               orientation={cfg.lineOrientation}
                               angle={cfg.lineAngle}
                               reversed={cfg.reverseDirection}
+                              countingDirection={cfg.countingDirection}
                               mirror={cfg.mirror}
                             />
                           </div>

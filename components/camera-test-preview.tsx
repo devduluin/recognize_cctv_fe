@@ -14,6 +14,7 @@ export default function CameraTestPreview({
   orientation,
   angle = 0,
   reversed,
+  countingDirection = "auto",
   mirror = false,
   autoStart = false,
   hideLineUI = false,
@@ -24,6 +25,7 @@ export default function CameraTestPreview({
   orientation: string;
   angle?: number;
   reversed: boolean;
+  countingDirection?: "auto" | "in" | "out";
   mirror?: boolean;
   autoStart?: boolean;
   hideLineUI?: boolean;
@@ -224,7 +226,7 @@ export default function CameraTestPreview({
             {!hideLineUI && (
               <svg
                 role="img"
-                aria-label={`Dua garis ${orientation}, kemiringan ${angle} derajat, posisi ${position} persen. Masuk ${reversed ? "B ke A" : "A ke B"}.`}
+                aria-label={`Dua garis ${orientation}, kemiringan ${angle} derajat, posisi ${position} persen. ${countingDirection === "auto" ? `Masuk ${reversed ? "B ke A" : "A ke B"}.` : `Lintasan lengkap dihitung sebagai ${countingDirection === "in" ? "masuk" : "keluar"}.`}`}
                 className="pointer-events-none absolute inset-0 h-full w-full"
                 viewBox={`0 0 ${frameSize.width} ${frameSize.height}`}
                 preserveAspectRatio="xMidYMid meet"
