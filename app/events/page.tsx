@@ -35,6 +35,8 @@ type CameraSetting = {
   lineOrientation: string;
   reverseDirection: boolean;
   mirror: boolean;
+  twoLineCounting?: boolean;
+  zoneWidthRatio?: number;
 };
 
 type CameraDbSetting = {
@@ -42,6 +44,8 @@ type CameraDbSetting = {
   line_orientation?: string | null;
   reverse_direction?: boolean | null;
   mirror?: boolean | null;
+  two_line_counting?: boolean | null;
+  zone_width_ratio?: number | null;
 };
 
 type VisitorEvent = {
@@ -75,10 +79,7 @@ const initialForm = {
   name: "",
   location: "",
   cameraIds: [] as string[],
-  cameraSettings: {} as Record<
-    string,
-    { linePosition: number; lineOrientation: string; reverseDirection: boolean; mirror: boolean }
-  >,
+  cameraSettings: {} as Record<string, CameraSetting>,
   eventDate: "",
   eventEndDate: "",
   eventStart: "",
@@ -237,6 +238,8 @@ export default function EventsPage() {
             lineOrientation: cfg.line_orientation || "horizontal",
             reverseDirection: cfg.reverse_direction || false,
             mirror: cfg.mirror || false,
+            twoLineCounting: cfg.two_line_counting ?? true,
+            zoneWidthRatio: cfg.zone_width_ratio ?? 0.20,
           };
         }
       }
@@ -247,6 +250,8 @@ export default function EventsPage() {
             lineOrientation: event.line_orientation || "horizontal",
             reverseDirection: event.reverse_direction || false,
             mirror: false,
+            twoLineCounting: true,
+            zoneWidthRatio: 0.20,
           };
         }
       }
@@ -291,6 +296,8 @@ export default function EventsPage() {
             line_orientation: cfg.lineOrientation,
             reverse_direction: cfg.reverseDirection,
             mirror: cfg.mirror || false,
+            two_line_counting: cfg.twoLineCounting ?? true,
+            zone_width_ratio: cfg.zoneWidthRatio ?? 0.20,
           };
         }
       }
@@ -773,6 +780,8 @@ export default function EventsPage() {
                         lineOrientation: camSetting?.lineOrientation ?? "horizontal",
                         reverseDirection: camSetting?.reverseDirection ?? false,
                         mirror: camSetting?.mirror ?? false,
+                        twoLineCounting: camSetting?.twoLineCounting ?? true,
+                        zoneWidthRatio: camSetting?.zoneWidthRatio ?? 0.20,
                       };
                       
                       const updateCam = <K extends keyof CameraSetting>(
@@ -816,6 +825,15 @@ export default function EventsPage() {
                               <label className="flex items-center gap-2 text-sm text-neutral-700 cursor-pointer">
                                 <input
                                   type="checkbox"
+                                  checked={Boolean(cfg.twoLineCounting)}
+                                  onChange={(e) => updateCam("twoLineCounting", e.target.checked)}
+                                  className="size-4 rounded border-neutral-300 text-navy focus:ring-navy"
+                                />
+                                Gunakan 2 Garis & Crossing Zone (A & B)
+                              </label>
+                              <label className="flex items-center gap-2 text-sm text-neutral-700 cursor-pointer">
+                                <input
+                                  type="checkbox"
                                   checked={Boolean(cfg.reverseDirection)}
                                   onChange={(e) => updateCam("reverseDirection", e.target.checked)}
                                   className="size-4 rounded border-neutral-300 text-navy focus:ring-navy"
@@ -841,6 +859,8 @@ export default function EventsPage() {
                               position={cfg.linePosition}
                               orientation={cfg.lineOrientation}
                               reversed={cfg.reverseDirection}
+                              twoLineCounting={cfg.twoLineCounting}
+                              zoneWidthRatio={cfg.zoneWidthRatio}
                               mirror={cfg.mirror}
                             />
                           </div>

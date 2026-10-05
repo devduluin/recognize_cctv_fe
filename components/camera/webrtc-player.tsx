@@ -1,10 +1,12 @@
 "use client";
 
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Hls from "hls.js";
 import {
   AlertCircle,
   CheckCircle2,
+  Eye,
+  EyeOff,
   Loader2,
   Maximize2,
   Minimize2,
@@ -14,7 +16,9 @@ import {
   Volume2,
   VolumeX,
 } from "lucide-react";
+import CountingLineOverlay, { LineConfig } from "./counting-line-overlay";
 
+export type { LineConfig };
 export type StreamMode = "webrtc" | "hls" | "mjpeg";
 
 export interface StreamUrls {
@@ -26,6 +30,7 @@ export interface StreamUrls {
 
 export interface WebRTCPlayerProps {
   whepUrl?: string;
+  webrtcPlayerUrl?: string;
   hlsUrl?: string;
   fallbackStreamUrl?: string;
   cameraName?: string;
@@ -33,12 +38,14 @@ export interface WebRTCPlayerProps {
   muted?: boolean;
   className?: string;
   preferredMode?: StreamMode;
+  lineConfig?: LineConfig;
   onModeChange?: (mode: StreamMode) => void;
   onStatusChange?: (status: "connecting" | "live" | "error") => void;
 }
 
 export default function WebRTCPlayer({
   whepUrl,
+  webrtcPlayerUrl,
   hlsUrl,
   fallbackStreamUrl,
   cameraName = "CCTV Camera",
@@ -46,6 +53,7 @@ export default function WebRTCPlayer({
   muted = true,
   className = "",
   preferredMode = "webrtc",
+  lineConfig,
   onModeChange,
   onStatusChange,
 }: WebRTCPlayerProps) {
@@ -56,12 +64,19 @@ export default function WebRTCPlayer({
   const whepResourceUrlRef = useRef<string | null>(null);
 
   const [activeMode, setActiveMode] = useState<StreamMode>(preferredMode);
+  const [showOverlay, setShowOverlay] = useState<boolean>(true);
   const [status, setStatus] = useState<"connecting" | "live" | "error">("connecting");
   const [errorMessage, setErrorMessage] = useState<string>("");
   const [isMuted, setIsMuted] = useState<boolean>(muted);
   const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
   const [showSettings, setShowSettings] = useState<boolean>(false);
   const [retryNonce, setRetryNonce] = useState<number>(0);
+
+  // Stable callback refs to prevent unnecessary useEffect re-triggers from parent renders
+  const onStatusChangeRef = useRef(onStatusChange);
+  onStatusChangeRef.current = onStatusChange;
+  const onModeChangeRef = useRef(onModeChange);
+  onModeChangeRef.current = onModeChange;
 
   // Clean up all active streams (WebRTC & HLS)
   const cleanupStreams = useCallback(() => {
@@ -85,7 +100,6 @@ export default function WebRTCPlayer({
 
     if (whepResourceUrlRef.current) {
       try {
-        // Send WHEP DELETE if session is terminating
         fetch(whepResourceUrlRef.current, { method: "DELETE" }).catch(() => {});
       } catch {
         // Ignore
@@ -100,28 +114,28 @@ export default function WebRTCPlayer({
     }
   }, []);
 
-  // Update status safely
+  // Update status safely (stable reference)
   const updateStatus = useCallback(
     (newStatus: "connecting" | "live" | "error", err?: string) => {
       setStatus(newStatus);
       if (err) setErrorMessage(err);
       else setErrorMessage("");
-      onStatusChange?.(newStatus);
+      onStatusChangeRef.current?.(newStatus);
     },
-    [onStatusChange]
+    []
   );
 
-  // Switch mode safely
+  // Switch mode safely (stable reference)
   const switchMode = useCallback(
     (newMode: StreamMode) => {
       setActiveMode(newMode);
-      onModeChange?.(newMode);
+      onModeChangeRef.current?.(newMode);
       setRetryNonce((n) => n + 1);
     },
-    [onModeChange]
+    []
   );
 
-  // WebRTC WHEP connection initialization
+  // WebRTC WHEP connection initialization using native HTML5 Video
   const startWebRTC = useCallback(async () => {
     if (!whepUrl) {
       if (hlsUrl) {
@@ -162,15 +176,14 @@ export default function WebRTCPlayer({
         const state = pc.connectionState;
         if (state === "connected") {
           updateStatus("live");
-        } else if (state === "failed" || state === "disconnected") {
-          // If WebRTC fails, automatically attempt HLS fallback
+        } else if (state === "failed") {
+          console.warn("WebRTC failed, falling back to HLS...");
           if (hlsUrl) {
-            console.warn("WebRTC disconnected or failed, falling back to HLS...");
             switchMode("hls");
           } else if (fallbackStreamUrl) {
             switchMode("mjpeg");
           } else {
-            updateStatus("error", "Koneksi WebRTC terputus");
+            updateStatus("error", "Koneksi WebRTC gagal");
           }
         }
       };
@@ -179,15 +192,30 @@ export default function WebRTCPlayer({
       const offer = await pc.createOffer();
       await pc.setLocalDescription(offer);
 
+      // Wait for ICE candidates gathering (important for MediaMTX non-trickle WHEP)
+      if (pc.iceGatheringState !== "complete") {
+        await new Promise<void>((resolve) => {
+          function checkState() {
+            if (pc.iceGatheringState === "complete") {
+              pc.removeEventListener("icegatheringstatechange", checkState);
+              resolve();
+            }
+          }
+          pc.addEventListener("icegatheringstatechange", checkState);
+          setTimeout(resolve, 1200);
+        });
+      }
+
       // Send SDP offer via WHEP POST
+      const sdpToSend = pc.localDescription?.sdp || offer.sdp;
       const res = await fetch(whepUrl, {
         method: "POST",
         headers: { "Content-Type": "application/sdp" },
-        body: offer.sdp,
+        body: sdpToSend,
       });
 
       if (!res.ok) {
-        throw new Error(`WHEP endpoint error (HTTP ${res.status})`);
+        throw new Error(`WHEP endpoint HTTP ${res.status}`);
       }
 
       // Store location header for session termination if provided
@@ -232,6 +260,10 @@ export default function WebRTCPlayer({
         lowLatencyMode: true,
         liveSyncDurationCount: 3,
         enableWorker: true,
+        manifestLoadingMaxRetry: 10,
+        manifestLoadingRetryDelay: 1500,
+        levelLoadingMaxRetry: 10,
+        levelLoadingRetryDelay: 1500,
       });
       hlsRef.current = hls;
 
@@ -243,11 +275,22 @@ export default function WebRTCPlayer({
         updateStatus("live");
       });
 
+      let errorCount = 0;
       hls.on(Hls.Events.ERROR, (_, data) => {
         if (data.fatal) {
           switch (data.type) {
             case Hls.ErrorTypes.NETWORK_ERROR:
-              hls.startLoad();
+              errorCount++;
+              if (errorCount > 8 && fallbackStreamUrl) {
+                cleanupStreams();
+                switchMode("mjpeg");
+              } else {
+                setTimeout(() => {
+                  if (hlsRef.current) {
+                    hls.startLoad();
+                  }
+                }, 1500);
+              }
               break;
             case Hls.ErrorTypes.MEDIA_ERROR:
               hls.recoverMediaError();
@@ -321,8 +364,8 @@ export default function WebRTCPlayer({
   const toggleMute = () => {
     if (videoRef.current) {
       videoRef.current.muted = !isMuted;
-      setIsMuted(!isMuted);
     }
+    setIsMuted(!isMuted);
   };
 
   return (
@@ -330,7 +373,7 @@ export default function WebRTCPlayer({
       ref={containerRef}
       className={`group relative overflow-hidden rounded-xl border border-white/10 bg-[#080d18] shadow-lg select-none ${className}`}
     >
-      {/* Video Display (WebRTC & HLS) */}
+      {/* Video Display (Native WebRTC & HLS via HTML5 Video) */}
       <video
         ref={videoRef}
         autoPlay={autoPlay}
@@ -341,7 +384,7 @@ export default function WebRTCPlayer({
         }`}
       />
 
-      {/* MJPEG Fallback Display */}
+      {/* MJPEG Fallback Display (for AI YOLO detection bounding boxes) */}
       {activeMode === "mjpeg" && fallbackStreamUrl && (
         <img
           src={fallbackStreamUrl}
@@ -350,6 +393,11 @@ export default function WebRTCPlayer({
           onLoad={() => updateStatus("live")}
           onError={() => updateStatus("error", "MJPEG stream gagal dimuat")}
         />
+      )}
+
+      {/* Line Crossing Overlay (WebRTC / HLS mode) */}
+      {showOverlay && activeMode !== "mjpeg" && lineConfig && (
+        <CountingLineOverlay config={lineConfig} />
       )}
 
       {/* Status Overlay: Connecting */}
@@ -401,26 +449,64 @@ export default function WebRTCPlayer({
         </div>
       )}
 
-      {/* Top Header Badge */}
-      <div className="absolute top-2 left-2 right-2 flex items-center justify-between pointer-events-none">
-        {/* Stream protocol indicator */}
-        <div className="flex items-center gap-1.5 rounded-md bg-black/60 px-2 py-0.5 backdrop-blur-md border border-white/10 text-[11px] pointer-events-auto">
-          {status === "live" ? (
-            <span className="flex items-center gap-1 text-emerald-400 font-medium">
-              <span className="size-1.5 rounded-full bg-emerald-400 animate-pulse" />
-              {activeMode === "webrtc" ? "WebRTC (<300ms)" : activeMode === "hls" ? "HLS Live" : "MJPEG"}
-            </span>
-          ) : (
-            <span className="flex items-center gap-1 text-amber-400 font-medium">
-              <span className="size-1.5 rounded-full bg-amber-400" />
-              {status.toUpperCase()}
-            </span>
+      {/* Top Header Badge & Mode Controls */}
+      <div className="absolute top-2 left-2 right-2 flex items-center justify-between pointer-events-none z-10">
+        {/* Stream protocol indicator / Mode switcher */}
+        <div className="flex items-center gap-1.5 pointer-events-auto">
+          {/* Quick Stream Mode Switcher */}
+          <div className="flex items-center rounded-lg bg-black/75 p-0.5 border border-white/15 backdrop-blur-md shadow-lg">
+            <button
+              type="button"
+              onClick={() => switchMode("webrtc")}
+              className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-[11px] font-semibold transition ${
+                activeMode === "webrtc"
+                  ? "bg-cyan-500 text-white shadow-sm"
+                  : "text-slate-300 hover:text-white hover:bg-white/10"
+              }`}
+              title="WebRTC Realtime (<300ms latency) dengan overlay garis deteksi"
+            >
+              <Radio className="size-3 text-emerald-400 animate-pulse" />
+              <span>Realtime</span>
+            </button>
+
+            {fallbackStreamUrl && (
+              <button
+                type="button"
+                onClick={() => switchMode("mjpeg")}
+                className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-[11px] font-semibold transition ${
+                  activeMode === "mjpeg"
+                    ? "bg-amber-500 text-slate-950 font-bold shadow-sm"
+                    : "text-slate-300 hover:text-white hover:bg-white/10"
+                }`}
+                title="AI Detection (Bounding Box: Biru=Pria, Pink=Wanita, Kuning=Unknown, Hijau=Crossing)"
+              >
+                <Sliders className="size-3" />
+                <span>AI Detection</span>
+              </button>
+            )}
+          </div>
+
+          {/* Toggle Lines Button (only relevant in WebRTC/HLS mode where lines are an overlay) */}
+          {activeMode !== "mjpeg" && lineConfig && (
+            <button
+              type="button"
+              onClick={() => setShowOverlay(!showOverlay)}
+              className={`inline-flex items-center gap-1 rounded-lg px-2 py-1 text-[11px] font-semibold backdrop-blur-md border transition ${
+                showOverlay
+                  ? "bg-black/75 border-emerald-500/40 text-emerald-300 hover:bg-black/90"
+                  : "bg-black/50 border-white/10 text-slate-400 hover:text-slate-300"
+              }`}
+              title={showOverlay ? "Sembunyikan Garis Deteksi" : "Tampilkan Garis Deteksi"}
+            >
+              {showOverlay ? <Eye className="size-3 text-emerald-400" /> : <EyeOff className="size-3 text-slate-400" />}
+              <span className="hidden sm:inline">Garis {showOverlay ? "ON" : "OFF"}</span>
+            </button>
           )}
         </div>
 
         {/* Action Controls */}
-        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-auto">
-          {/* Protocol Switcher Toggle */}
+        <div className="flex items-center gap-1 opacity-80 hover:opacity-100 transition-opacity duration-200 pointer-events-auto">
+          {/* Protocol Switcher Dropdown (HLS / Advanced) */}
           <div className="relative">
             <button
               type="button"
@@ -474,7 +560,7 @@ export default function WebRTCPlayer({
                       activeMode === "mjpeg" ? "bg-cyan-500/20 text-cyan-300 font-medium" : "text-slate-300 hover:bg-white/5"
                     }`}
                   >
-                    <span>MJPEG (Legacy)</span>
+                    <span>MJPEG (YOLO Box)</span>
                     {activeMode === "mjpeg" && <CheckCircle2 className="size-3 text-cyan-400" />}
                   </button>
                 )}

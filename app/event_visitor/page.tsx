@@ -46,12 +46,26 @@ type Status = {
   timezone?: string;
   last_visitor_at: string | null;
   last_error?: string;
+  line_position?: number;
+  line_orientation?: string;
+  line_angle?: number;
+  reverse_direction?: boolean;
+  two_line_counting?: boolean;
+  zone_width_ratio?: number;
+  mirror?: boolean;
   cameras?: {
     camera_id: string;
     name: string;
     running: boolean;
     last_error?: string;
     mediamtx_path?: string;
+    line_position?: number;
+    line_orientation?: string;
+    line_angle?: number;
+    reverse_direction?: boolean;
+    two_line_counting?: boolean;
+    zone_width_ratio?: number;
+    mirror?: boolean;
     stream_urls?: {
       webrtc_whep?: string;
       webrtc_player?: string;
@@ -502,16 +516,23 @@ export default function EventVisitorPage({
                         <WebRTCPlayer
                           key={`${streamKey}-${camId}`}
                           whepUrl={camera.stream_urls?.webrtc_whep}
+                          webrtcPlayerUrl={camera.stream_urls?.webrtc_player}
                           hlsUrl={camera.stream_urls?.hls}
                           fallbackStreamUrl={streamUrl}
                           cameraName={camera.name}
                           className="size-full"
+                          lineConfig={{
+                            linePosition: camera.line_position ?? status?.line_position ?? 0.5,
+                            lineOrientation: camera.line_orientation ?? status?.line_orientation ?? "horizontal",
+                            lineAngle: camera.line_angle ?? status?.line_angle ?? 0.0,
+                            reverseDirection: camera.reverse_direction ?? status?.reverse_direction ?? false,
+                            twoLineCounting: camera.two_line_counting ?? status?.two_line_counting ?? true,
+                            zoneWidthRatio: camera.zone_width_ratio ?? status?.zone_width_ratio ?? 0.20,
+                            mirror: camera.mirror ?? status?.mirror ?? false,
+                          }}
                           onStatusChange={(s) => {
-                            if (s === "error") {
-                              setStreamErrors((prev) => ({ ...prev, [camId]: true }));
-                            } else {
-                              setStreamErrors((prev) => ({ ...prev, [camId]: false }));
-                            }
+                            const isErr = s === "error";
+                            setStreamErrors((prev) => (prev[camId] === isErr ? prev : { ...prev, [camId]: isErr }));
                           }}
                         />
                       ) : (

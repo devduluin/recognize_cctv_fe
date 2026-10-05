@@ -311,6 +311,7 @@ export default function LivePreview() {
                       {isRunning ? (
                         <WebRTCPlayer
                           whepUrl={camera.stream_urls?.webrtc_whep}
+                          webrtcPlayerUrl={camera.stream_urls?.webrtc_player}
                           hlsUrl={camera.stream_urls?.hls}
                           fallbackStreamUrl={`${API_BASE}/stream?camera_id=${encodeURIComponent(camera.id)}&company_id=${encodeURIComponent(companyId)}`}
                           cameraName={camera.name}

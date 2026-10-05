@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useId, useState } from "react";
+import { useEffect, useId, useMemo, useState } from "react";
 import {
   ClockArrowUp,
   RefreshCw,
@@ -88,7 +88,8 @@ function CustomHourlyTooltip({
   payload,
 }: {
   active?: boolean;
-  payload?: HourlyTooltipPayloadItem[];
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  payload?: readonly any[];
 }) {
   if (active && payload && payload.length) {
     const data = payload[0].payload;
@@ -129,9 +130,9 @@ export function VisitorChart({
   return (
     <div className={ui.chartPanel}>
       <div className="p-5">
-        <div className="h-[340px] w-full">
+        <div className="h-[340px] w-full min-h-[340px]">
           {mounted ? (
-            <ResponsiveContainer width="100%" height="100%">
+            <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0} debounce={50}>
               <AreaChart
                 data={hours}
                 margin={{ top: 20, right: 25, left: -10, bottom: 5 }}
@@ -156,7 +157,7 @@ export function VisitorChart({
                   tick={{ fill: "#64748b", fontSize: 12 }}
                   allowDecimals={false}
                 />
-                <RechartsTooltip content={<CustomHourlyTooltip />} />
+                <RechartsTooltip content={CustomHourlyTooltip} />
                 <Area
                   type="monotone"
                   dataKey="in_count"
@@ -321,14 +322,18 @@ export function GenderBarChart({
     },
   ];
 
-  const hourlyData = (hours ?? []).map((h) => ({
-    hour: h.hour,
-    label: h.label,
-    male_count: h.male_count ?? 0,
-    female_count: h.female_count ?? 0,
-    unknown_count: h.unknown_count ?? 0,
-    in_count: h.in_count,
-  }));
+  const hourlyData = useMemo(
+    () =>
+      (hours ?? []).map((h) => ({
+        hour: h.hour,
+        label: h.label,
+        male_count: h.male_count ?? 0,
+        female_count: h.female_count ?? 0,
+        unknown_count: h.unknown_count ?? 0,
+        in_count: h.in_count,
+      })),
+    [hours],
+  );
 
   return (
     <div className={ui.chartPanel}>
@@ -367,9 +372,9 @@ export function GenderBarChart({
       </div>
 
       <div className="p-5">
-        <div className="h-[340px] w-full">
+        <div className="h-[340px] w-full min-h-[340px]">
           {mounted ? (
-            <ResponsiveContainer width="100%" height="100%">
+            <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0} debounce={50}>
               {viewMode === "hourly" ? (
                 <BarChart
                   data={hourlyData}
@@ -389,7 +394,7 @@ export function GenderBarChart({
                     tick={{ fill: "#64748b", fontSize: 12 }}
                     allowDecimals={false}
                   />
-                  <RechartsTooltip content={<CustomCombinedTooltip />} />
+                  <RechartsTooltip content={CustomCombinedTooltip} />
                   <RechartsLegend
                     wrapperStyle={{ paddingTop: 10 }}
                     formatter={(value) => (
@@ -544,7 +549,8 @@ function CustomCombinedTooltip({
   payload,
 }: {
   active?: boolean;
-  payload?: CombinedTooltipPayloadItem[];
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  payload?: readonly any[];
 }) {
   if (active && payload && payload.length) {
     const data = payload[0].payload;
@@ -607,14 +613,18 @@ export function CombinedVisitorChart({
     setMounted(true);
   }, []);
 
-  const chartData = hours.map((hour) => ({
-    hour: hour.hour,
-    label: hour.label,
-    in_count: hour.in_count,
-    male_count: hour.male_count ?? 0,
-    female_count: hour.female_count ?? 0,
-    unknown_count: hour.unknown_count ?? 0,
-  }));
+  const chartData = useMemo(
+    () =>
+      (hours ?? []).map((hour) => ({
+        hour: hour.hour,
+        label: hour.label,
+        in_count: hour.in_count,
+        male_count: hour.male_count ?? 0,
+        female_count: hour.female_count ?? 0,
+        unknown_count: hour.unknown_count ?? 0,
+      })),
+    [hours],
+  );
 
   return (
     <div className={ui.chartPanel}>
@@ -649,9 +659,9 @@ export function CombinedVisitorChart({
       </div>
 
       <div className="p-5">
-        <div className="h-[360px] w-full">
+        <div className="h-[360px] w-full min-h-[360px]">
           {mounted ? (
-            <ResponsiveContainer width="100%" height="100%">
+            <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0} debounce={50}>
               <ComposedChart
                 data={chartData}
                 margin={{ top: 20, right: 25, left: -10, bottom: 5 }}
@@ -670,7 +680,7 @@ export function CombinedVisitorChart({
                   tick={{ fill: "#64748b", fontSize: 12 }}
                   allowDecimals={false}
                 />
-                <RechartsTooltip content={<CustomCombinedTooltip />} />
+                <RechartsTooltip content={CustomCombinedTooltip} />
                 <RechartsLegend
                   wrapperStyle={{ paddingTop: 15 }}
                   formatter={(value) => (
@@ -789,7 +799,7 @@ export default function HourlyVisitorStatistics({
   const [refresh, setRefresh] = useState(0);
   const [availableEvents, setAvailableEvents] = useState<EventOption[]>([]);
   const [selectedEventId, setSelectedEventId] = useState("");
-  const effectiveCompanyId = resolveCompanyId(companyId);
+  const effectiveCompanyId = useMemo(() => resolveCompanyId(companyId), [companyId]);
   const activeEventId = eventId || selectedEventId;
   const key = `${effectiveCompanyId}:${activeEventId}:${date}`;
   useEffect(() => {
@@ -849,7 +859,7 @@ export default function HourlyVisitorStatistics({
         }
       }
     }
-    timer = setTimeout(load, 0);
+    load();
     return () => {
       controller.abort();
       clearTimeout(timer);
