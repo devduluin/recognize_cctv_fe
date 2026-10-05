@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
-import { Maximize, RefreshCw, Video } from "lucide-react";
+import { Maximize, RefreshCw, Video, Radio, Sliders } from "lucide-react";
 import WebRTCPlayer, { StreamUrls } from "./webrtc-player";
 
 export interface CameraStreamCellProps {
@@ -29,6 +29,7 @@ export default function CameraStreamCell({
 }: CameraStreamCellProps) {
   const [streamError, setStreamError] = useState(false);
   const [reloadKey, setReloadKey] = useState(0);
+  const [mode, setMode] = useState<"webrtc" | "mjpeg">("webrtc");
 
   const camId = camera.camera_id;
   const urls = camera.stream_urls;
@@ -67,6 +68,36 @@ export default function CameraStreamCell({
           </span>
         </div>
         <div className="flex items-center gap-2">
+          {isRunning && mjpegStreamUrl && (
+            <div className="flex items-center rounded-lg bg-black/60 p-0.5 border border-white/15">
+              <button
+                type="button"
+                onClick={() => setMode("webrtc")}
+                className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-[11px] font-semibold transition ${
+                  mode === "webrtc"
+                    ? "bg-cyan-500 text-white shadow-sm"
+                    : "text-slate-300 hover:text-white hover:bg-white/10"
+                }`}
+                title="WebRTC Realtime (<300ms latency)"
+              >
+                <Radio className="size-3 text-emerald-400 animate-pulse" />
+                <span>Realtime</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setMode("mjpeg")}
+                className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-[11px] font-semibold transition ${
+                  mode === "mjpeg"
+                    ? "bg-amber-500 text-slate-950 font-bold shadow-sm"
+                    : "text-slate-300 hover:text-white hover:bg-white/10"
+                }`}
+                title="AI Detection (Bounding Box)"
+              >
+                <Sliders className="size-3" />
+                <span>AI Detection</span>
+              </button>
+            </div>
+          )}
           <button
             type="button"
             className="rounded p-1 text-slate-400 transition-colors hover:bg-white/10 hover:text-white"
@@ -86,6 +117,11 @@ export default function CameraStreamCell({
             whepUrl={whepUrl}
             hlsUrl={hlsUrl}
             fallbackStreamUrl={mjpegStreamUrl}
+            preferredMode={mode}
+            hideInternalSwitcher
+            onModeChange={(m) => {
+              if (m === "webrtc" || m === "mjpeg") setMode(m);
+            }}
             cameraName={camera.name}
             className="size-full"
             onStatusChange={(status) => {

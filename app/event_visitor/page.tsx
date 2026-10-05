@@ -11,13 +11,15 @@ import {
   Maximize,
   Pause,
   Play,
+  Radio,
   RefreshCw,
+  Sliders,
   Square,
   Video,
 } from "lucide-react";
 import HourlyVisitorStatistics from "../../components/hourly-visitor-statistics";
 import { getAuthHeaders, getAuthToken } from "../../components/auth/auth-api";
-import WebRTCPlayer from "../../components/camera/webrtc-player";
+import WebRTCPlayer, { DetectionBox, StreamMode } from "../../components/camera/webrtc-player";
 const API_BASE = `${process.env.NEXT_PUBLIC_SERVICE_RECOGNIZE_CCTV || ""}/api/v1/event_visitor`;
 const EVENTS_API = `${process.env.NEXT_PUBLIC_SERVICE_RECOGNIZE_CCTV || ""}/api/v1/events`;
 type VisitorEvent = {
@@ -72,6 +74,7 @@ type Status = {
       hls?: string;
       rtsp_internal?: string;
     };
+    detections?: DetectionBox[];
   }[];
 };
 function getCompanyId() {
@@ -98,6 +101,9 @@ export default function EventVisitorPage({
   const [connectionError, setConnectionError] = useState("");
   const [actionError, setActionError] = useState("");
   const [streamErrors, setStreamErrors] = useState<Record<string, boolean>>({});
+  const [cameraModes, setCameraModes] = useState<Record<string, StreamMode>>({});
+  const [cameraAiDetection, setCameraAiDetection] = useState<Record<string, boolean>>({});
+  const [cameraDetections, setCameraDetections] = useState<Record<string, DetectionBox[]>>({});
   const [streamKey, setStreamKey] = useState(0);
   const stage = useRef<HTMLDivElement>(null);
   const refreshStatus = useCallback(
@@ -201,6 +207,52 @@ export default function EventVisitorPage({
       }
     };
   }, [selectedEventId, refreshStatus]);
+
+  // Live AI detection boxes SSE stream (<100ms updates)
+  useEffect(() => {
+    if (!selectedEventId || !status?.running) {
+      setCameraDetections({});
+      return;
+    }
+    const cid = getCompanyId();
+    if (!cid) return;
+    const token = getAuthToken();
+    const query = [
+      `company_id=${encodeURIComponent(cid)}`,
+      `event_id=${encodeURIComponent(selectedEventId)}`,
+      token ? `token=${encodeURIComponent(token)}` : "",
+    ]
+      .filter(Boolean)
+      .join("&");
+
+    const detUrl = `${API_BASE}/detections/stream?${query}`;
+    let es: EventSource | null = null;
+    try {
+      es = new EventSource(detUrl);
+      es.onmessage = (event) => {
+        try {
+          const payload = JSON.parse(event.data);
+          if (payload?.cameras) {
+            setCameraDetections(payload.cameras);
+          }
+        } catch {
+          // ignore parse errors
+        }
+      };
+      es.onerror = () => {
+        // EventSource will auto-reconnect
+      };
+    } catch {
+      // ignore
+    }
+
+    return () => {
+      if (es) {
+        es.close();
+      }
+    };
+  }, [selectedEventId, status?.running]);
+
   useEffect(() => {
     const controller = new AbortController();
     fetch(`${EVENTS_API}?company_id=${encodeURIComponent(getCompanyId())}`, {
@@ -471,6 +523,44 @@ export default function EventVisitorPage({
                         </span>
                       </div>
                       <div className="flex items-center gap-2">
+                        {/* Tab Realtime dan AI Detection di sebelah Live */}
+                        {isRunning && (
+                          <div className="flex items-center rounded-lg bg-black/60 p-0.5 border border-white/15 backdrop-blur-sm">
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setCameraAiDetection((prev) => ({ ...prev, [camId]: false }));
+                              }}
+                              className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-[11px] font-semibold transition ${
+                                !(cameraAiDetection[camId] ?? true)
+                                  ? "bg-cyan-500 text-white shadow-sm"
+                                  : "text-slate-300 hover:text-white hover:bg-white/10"
+                              }`}
+                              title="Tampilan Bersih Realtime (tanpa kotak deteksi)"
+                            >
+                              <Radio className="size-3 text-emerald-400 animate-pulse" />
+                              <span>Realtime</span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setCameraAiDetection((prev) => ({ ...prev, [camId]: true }));
+                              }}
+                              className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-[11px] font-semibold transition ${
+                                cameraAiDetection[camId] ?? true
+                                  ? "bg-amber-500 text-slate-950 font-bold shadow-sm"
+                                  : "text-slate-300 hover:text-white hover:bg-white/10"
+                              }`}
+                              title="AI Detection (Bounding Box: Biru=Pria, Pink=Wanita, Kuning=Unknown)"
+                            >
+                              <Sliders className="size-3" />
+                              <span>AI Detection</span>
+                            </button>
+                          </div>
+                        )}
+
                         <span
                           className={`inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-medium ${
                             isRunning && !hasError && !connectionError
@@ -519,6 +609,16 @@ export default function EventVisitorPage({
                           webrtcPlayerUrl={camera.stream_urls?.webrtc_player}
                           hlsUrl={camera.stream_urls?.hls}
                           fallbackStreamUrl={streamUrl}
+                          preferredMode={cameraModes[camId] || "webrtc"}
+                          detections={cameraDetections[camId] || camera.detections || []}
+                          showDetections={cameraAiDetection[camId] ?? true}
+                          onToggleDetections={(enabled) => {
+                            setCameraAiDetection((prev) => ({ ...prev, [camId]: enabled }));
+                          }}
+                          hideInternalSwitcher
+                          onModeChange={(m) => {
+                            setCameraModes((prev) => ({ ...prev, [camId]: m }));
+                          }}
                           cameraName={camera.name}
                           className="size-full"
                           lineConfig={{

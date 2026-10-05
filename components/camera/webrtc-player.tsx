@@ -17,8 +17,9 @@ import {
   VolumeX,
 } from "lucide-react";
 import CountingLineOverlay, { LineConfig } from "./counting-line-overlay";
+import DetectionBoxesOverlay, { DetectionBox } from "./detection-boxes-overlay";
 
-export type { LineConfig };
+export type { LineConfig, DetectionBox };
 export type StreamMode = "webrtc" | "hls" | "mjpeg";
 
 export interface StreamUrls {
@@ -39,6 +40,10 @@ export interface WebRTCPlayerProps {
   className?: string;
   preferredMode?: StreamMode;
   lineConfig?: LineConfig;
+  hideInternalSwitcher?: boolean;
+  detections?: DetectionBox[];
+  showDetections?: boolean;
+  onToggleDetections?: (enabled: boolean) => void;
   onModeChange?: (mode: StreamMode) => void;
   onStatusChange?: (status: "connecting" | "live" | "error") => void;
 }
@@ -54,6 +59,10 @@ export default function WebRTCPlayer({
   className = "",
   preferredMode = "webrtc",
   lineConfig,
+  hideInternalSwitcher = false,
+  detections,
+  showDetections = true,
+  onToggleDetections,
   onModeChange,
   onStatusChange,
 }: WebRTCPlayerProps) {
@@ -71,6 +80,23 @@ export default function WebRTCPlayer({
   const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
   const [showSettings, setShowSettings] = useState<boolean>(false);
   const [retryNonce, setRetryNonce] = useState<number>(0);
+  const [internalShowDetections, setInternalShowDetections] = useState<boolean>(
+    showDetections ?? true
+  );
+
+  useEffect(() => {
+    if (showDetections !== undefined) {
+      setInternalShowDetections(showDetections);
+    }
+  }, [showDetections]);
+
+  const handleToggleDetections = useCallback(
+    (enabled: boolean) => {
+      setInternalShowDetections(enabled);
+      onToggleDetections?.(enabled);
+    },
+    [onToggleDetections]
+  );
 
   // Stable callback refs to prevent unnecessary useEffect re-triggers from parent renders
   const onStatusChangeRef = useRef(onStatusChange);
@@ -134,6 +160,13 @@ export default function WebRTCPlayer({
     },
     []
   );
+
+  // Sync activeMode when preferredMode prop changes from parent
+  useEffect(() => {
+    if (preferredMode && preferredMode !== activeMode) {
+      switchMode(preferredMode);
+    }
+  }, [preferredMode, switchMode]);
 
   // WebRTC WHEP connection initialization using native HTML5 Video
   const startWebRTC = useCallback(async () => {
@@ -400,6 +433,11 @@ export default function WebRTCPlayer({
         <CountingLineOverlay config={lineConfig} />
       )}
 
+      {/* AI Detection Bounding Boxes Overlay (WebRTC / HLS mode) */}
+      {internalShowDetections && activeMode !== "mjpeg" && detections && detections.length > 0 && (
+        <DetectionBoxesOverlay detections={detections} mirror={lineConfig?.mirror} />
+      )}
+
       {/* Status Overlay: Connecting */}
       {status === "connecting" && (
         <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/60 backdrop-blur-[2px] transition-all">
@@ -454,37 +492,37 @@ export default function WebRTCPlayer({
         {/* Stream protocol indicator / Mode switcher */}
         <div className="flex items-center gap-1.5 pointer-events-auto">
           {/* Quick Stream Mode Switcher */}
-          <div className="flex items-center rounded-lg bg-black/75 p-0.5 border border-white/15 backdrop-blur-md shadow-lg">
-            <button
-              type="button"
-              onClick={() => switchMode("webrtc")}
-              className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-[11px] font-semibold transition ${
-                activeMode === "webrtc"
-                  ? "bg-cyan-500 text-white shadow-sm"
-                  : "text-slate-300 hover:text-white hover:bg-white/10"
-              }`}
-              title="WebRTC Realtime (<300ms latency) dengan overlay garis deteksi"
-            >
-              <Radio className="size-3 text-emerald-400 animate-pulse" />
-              <span>Realtime</span>
-            </button>
-
-            {fallbackStreamUrl && (
+          {!hideInternalSwitcher && (
+            <div className="flex items-center rounded-lg bg-black/75 p-0.5 border border-white/15 backdrop-blur-md shadow-lg">
               <button
                 type="button"
-                onClick={() => switchMode("mjpeg")}
+                onClick={() => handleToggleDetections(false)}
                 className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-[11px] font-semibold transition ${
-                  activeMode === "mjpeg"
+                  !internalShowDetections
+                    ? "bg-cyan-500 text-white shadow-sm"
+                    : "text-slate-300 hover:text-white hover:bg-white/10"
+                }`}
+                title="Tampilan Bersih Realtime (tanpa box deteksi)"
+              >
+                <Radio className="size-3 text-emerald-400 animate-pulse" />
+                <span>Realtime</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => handleToggleDetections(true)}
+                className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-[11px] font-semibold transition ${
+                  internalShowDetections
                     ? "bg-amber-500 text-slate-950 font-bold shadow-sm"
                     : "text-slate-300 hover:text-white hover:bg-white/10"
                 }`}
-                title="AI Detection (Bounding Box: Biru=Pria, Pink=Wanita, Kuning=Unknown, Hijau=Crossing)"
+                title="AI Detection (Bounding Box: Biru=Pria, Pink=Wanita, Kuning=Unknown)"
               >
                 <Sliders className="size-3" />
                 <span>AI Detection</span>
               </button>
-            )}
-          </div>
+            </div>
+          )}
 
           {/* Toggle Lines Button (only relevant in WebRTC/HLS mode where lines are an overlay) */}
           {activeMode !== "mjpeg" && lineConfig && (

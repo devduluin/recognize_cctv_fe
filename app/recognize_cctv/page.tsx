@@ -3,7 +3,7 @@
 
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import Link from "next/link";
-import { LayoutGrid, Maximize2, Camera, ScanFace, Activity, Settings, Play, Square, RotateCw, ArrowRight, Power, Video,  } from "lucide-react";
+import { LayoutGrid, Maximize2, Camera, ScanFace, Activity, Settings, Play, Square, RotateCw, ArrowRight, Power, Video, Radio, Sliders } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
 import { MetricCard, MonitorStatus, monitorButton } from "../../components/monitoring-ui";
@@ -19,7 +19,8 @@ export default function LivePreview() {
   const [setupReady, setSetupReady] = useState(false);
   const [cameras, setCameras] = useState([]);
   const [workers, setWorkers] = useState([]);
-    const [systemReady, setSystemReady] = useState(false);
+  const [cameraModes, setCameraModes] = useState<Record<string, "webrtc" | "mjpeg">>({});
+  const [systemReady, setSystemReady] = useState(false);
       
   const [status, setStatus] = useState(null);
   const [attendance, setAttendance] = useState({});
@@ -296,9 +297,41 @@ export default function LivePreview() {
                         <h3 className="text-base font-medium text-slate-100">{camera.name || "Unnamed Camera"}</h3>
                         <p className="text-xs text-slate-400 mt-1 break-all">{camera.camera_source || "-"}</p>
                       </div>
-                      <span className={`px-2 py-1 text-[10px] font-bold uppercase tracking-wider rounded-md border ${isRunning ? "bg-emerald-500/10 text-emerald-300 border-emerald-500/20" : worker?.error ? "bg-red-500/10 text-red-300 border-red-500/20" : "bg-slate-800 text-slate-500 border-white/10"}`}>
-                        {statusLabel}
-                      </span>
+                      <div className="flex items-center gap-2">
+                        {isActive && (
+                          <div className="flex items-center rounded-lg bg-black/60 p-0.5 border border-white/15">
+                            <button
+                              type="button"
+                              onClick={() => setCameraModes((prev) => ({ ...prev, [camera.id]: "webrtc" }))}
+                              className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-[11px] font-semibold transition ${
+                                (cameraModes[camera.id] || "webrtc") === "webrtc"
+                                  ? "bg-cyan-500 text-white shadow-sm"
+                                  : "text-slate-300 hover:text-white hover:bg-white/10"
+                              }`}
+                              title="WebRTC Realtime (<300ms latency)"
+                            >
+                              <Radio className="size-3 text-emerald-400 animate-pulse" />
+                              <span>Realtime</span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setCameraModes((prev) => ({ ...prev, [camera.id]: "mjpeg" }))}
+                              className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-[11px] font-semibold transition ${
+                                cameraModes[camera.id] === "mjpeg"
+                                  ? "bg-amber-500 text-slate-950 font-bold shadow-sm"
+                                  : "text-slate-300 hover:text-white hover:bg-white/10"
+                              }`}
+                              title="AI Detection (Bounding Box)"
+                            >
+                              <Sliders className="size-3" />
+                              <span>AI Detection</span>
+                            </button>
+                          </div>
+                        )}
+                        <span className={`px-2 py-1 text-[10px] font-bold uppercase tracking-wider rounded-md border ${isRunning ? "bg-emerald-500/10 text-emerald-300 border-emerald-500/20" : worker?.error ? "bg-red-500/10 text-red-300 border-red-500/20" : "bg-slate-800 text-slate-500 border-white/10"}`}>
+                          {statusLabel}
+                        </span>
+                      </div>
                     </div>
 
                     <div className="flex">
@@ -314,6 +347,13 @@ export default function LivePreview() {
                           webrtcPlayerUrl={camera.stream_urls?.webrtc_player}
                           hlsUrl={camera.stream_urls?.hls}
                           fallbackStreamUrl={`${API_BASE}/stream?camera_id=${encodeURIComponent(camera.id)}&company_id=${encodeURIComponent(companyId)}`}
+                          preferredMode={cameraModes[camera.id] || "webrtc"}
+                          hideInternalSwitcher
+                          onModeChange={(m) => {
+                            if (m === "webrtc" || m === "mjpeg") {
+                              setCameraModes((prev) => ({ ...prev, [camera.id]: m }));
+                            }
+                          }}
                           cameraName={camera.name}
                           className="size-full"
                         />
