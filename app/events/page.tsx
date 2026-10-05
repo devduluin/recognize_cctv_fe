@@ -3,7 +3,7 @@ import { visitorFetch } from "../../components/auth/visitor-api";
 import { Button } from "../../components/ui/button";
 import { Field, Input, Select, DateRangePicker } from "../../components/ui/field";
 import { Page, PageHeading, Toolbar } from "../../components/ui/layout";
-import { DataTable, StatusBadge, TableContainer, RowMenu } from "../../components/ui/data-table";
+import { DataTable, StatusBadge, TableContainer } from "../../components/ui/data-table";
 import { cx, ui } from "../../components/ui/styles";
 import {
   useState,
@@ -23,6 +23,8 @@ import {
   Trash2,
   Loader2,
   CheckCircle2,
+  Camera,
+  ChevronDown,
 } from "lucide-react";
 import CameraTestPreview from "../../components/camera-test-preview";
 import Modal from "../../components/ui-modal";
@@ -71,6 +73,7 @@ type VisitorEvent = {
   event_end?: string | null;
   auto_run?: boolean;
   capacity?: number | null;
+  allow_duplicate?: boolean;
   status?: string;
   visitor_count?: number;
   created_at?: string;
@@ -92,6 +95,7 @@ const initialForm = {
   eventEnd: "",
   autoRun: true,
   capacity: "",
+  allowDuplicate: false,
 };
 function companyId() {
   try {
@@ -266,7 +270,7 @@ export default function EventsPage() {
         }
       }
     }
-    
+
     setForm(
       event
         ? {
@@ -280,6 +284,7 @@ export default function EventsPage() {
             eventEnd: event.event_end || "",
             autoRun: event.auto_run !== false,
             capacity: event.capacity == null ? "" : String(event.capacity),
+            allowDuplicate: event.allow_duplicate === true,
           }
         : { ...initialForm, eventDate: todayWib(), eventEndDate: todayWib() },
     );
@@ -325,6 +330,7 @@ export default function EventsPage() {
         event_end: form.eventEnd,
         auto_run: form.autoRun,
         capacity: form.capacity ? Number(form.capacity) : null,
+        allow_duplicate: form.allowDuplicate,
         company_id: companyId(),
       };
       const response = await visitorFetch(
@@ -650,296 +656,280 @@ export default function EventsPage() {
       {isOpen && (
         <Modal
           title={editingId ? "Edit Event" : "Buat Event Baru"}
+          description={editingId ? "Sesuaikan jadwal, aturan penghitungan, dan kamera untuk event ini." : "Tentukan jadwal dan kamera untuk mulai menghitung pengunjung."}
+          className="overflow-hidden open:flex open:flex-col"
           onClose={() => setIsOpen(false)}
           busy={busy}
         >
-          <form onSubmit={save}>
-            <fieldset disabled={busy}>
-              <div className={ui.modalBody}>
-                {formError && (
-                  <p role="alert" className={ui.error}>
-                    {formError}
-                  </p>
-                )}
-                <div className={ui.formGrid}>
-                  <Field>
-                    Nama Event
-                    <Input
-                      autoFocus
-                      required
-                      placeholder="Masukkan nama event"
-                      value={form.name}
-                      onChange={(e) => update("name", e.target.value)}
-                    />
-                  </Field>
-                  <Field>
-                    Kapasitas Event (Opsional)
-                    <Input
-                      type="number"
-                      min="1"
-                      placeholder="Masukkan jumlah kapasitas"
-                      value={form.capacity}
-                      onChange={(e) => update("capacity", e.target.value)}
-                    />
-                  </Field>
-                  <Field>
-                    Lokasi Event
-                    <Input
-                      placeholder="Masukkan lokasi event"
-                      value={form.location}
-                      onChange={(e) => update("location", e.target.value)}
-                    />
-                  </Field>
-                  <Field>
-                    Tanggal Event
-                    <DateRangePicker
-                      startDate={form.eventDate}
-                      endDate={form.eventEndDate}
-                      onChange={(start, end) => {
-                        update("eventDate", start);
-                        update("eventEndDate", end);
-                      }}
-                    />
-                  </Field>
-                  <Field>
-                    Mulai
-                    <Input
-                      type="time"
-                      required
-                      value={form.eventStart}
-                      onChange={(e) => update("eventStart", e.target.value)}
-                    />
-                  </Field>
-                  <Field>
-                    Selesai
-                    <Input
-                      type="time"
-                      required
-                      value={form.eventEnd}
-                      onChange={(e) => update("eventEnd", e.target.value)}
-                    />
-                  </Field>
-                </div>
-              </div>
-              <div className={cx(ui.formSection, "space-y-4")}>
-                <h3>Kamera & Garis Hitung</h3>
-                <Field>
-                  Pilih Kamera Terdaftar
-                  {cameras.length > 0 ? (
-                    <div className="mt-1 flex flex-col gap-2 rounded-lg border border-neutral-200 bg-white p-3 max-h-48 overflow-y-auto">
-                      {cameras.map((camera) => (
-                        <label
-                          key={camera.id}
-                          className="flex items-center gap-3 text-sm cursor-pointer"
-                        >
-                          <input
-                            type="checkbox"
-                            className="h-4 w-4 rounded border-gray-300"
-                            checked={form.cameraIds.includes(camera.id)}
-                            onChange={(e) => {
-                              const ids = e.target.checked
-                                ? [...form.cameraIds, camera.id]
-                                : form.cameraIds.filter((id) => id !== camera.id);
-                              
-                              const newSettings = { ...form.cameraSettings };
-                              if (e.target.checked && !newSettings[camera.id]) {
-                                newSettings[camera.id] = {
-                                  countingDirection: "in",
-                                  linePosition: 50,
-                                  lineOrientation: "horizontal",
-                                  lineAngle: 0,
-                                  reverseDirection: false,
-                                  mirror: false,
-                                };
-                              }
-                              
-                              setForm({
-                                ...form,
-                                cameraIds: ids,
-                                cameraSettings: newSettings,
-                              });
-                            }}
-                          />
-                          <span className="font-medium text-gray-700">{camera.name}</span>
-                        </label>
-                      ))}
+          <form onSubmit={save} className="flex min-h-0 flex-1 flex-col [&_[data-slot=input]]:border-[#8994a4]">
+            <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
+              <fieldset disabled={busy} className="min-w-0">
+                <div className="space-y-7 px-6 py-6 max-[600px]:space-y-6 max-[600px]:p-4">
+                  {formError && <p role="alert" className={ui.error}>{formError}</p>}
+                  <section aria-labelledby="event-details-heading">
+                    <h3 id="event-details-heading" className="text-base font-semibold">Informasi event</h3>
+                    <p className="mt-1 mb-4 text-sm text-neutral-600">Nama dan lokasi yang tampil pada daftar event.</p>
+                    <div className="grid gap-4 min-[600px]:grid-cols-2">
+                      <Field className="min-[600px]:col-span-2">
+                        Nama event <span className="sr-only">(wajib)</span>
+                        <Input autoFocus required placeholder="Contoh: Pameran Akhir Tahun" value={form.name} onChange={(e) => update("name", e.target.value)} />
+                      </Field>
+                      <Field>
+                        Lokasi
+                        <Input placeholder="Contoh: Aula utama" value={form.location} onChange={(e) => update("location", e.target.value)} />
+                      </Field>
+                      <Field>
+                        <span>Kapasitas <span className="font-normal text-neutral-600">(opsional)</span></span>
+                        <Input type="number" min="1" placeholder="Jumlah pengunjung" value={form.capacity} onChange={(e) => update("capacity", e.target.value)} />
+                      </Field>
                     </div>
-                  ) : (
-                    <p className="text-sm text-neutral-500">Belum ada kamera terdaftar.</p>
-                  )}
-                </Field>
-                <div className="mt-4">
-                  <label className="flex items-center gap-2">
-                    <input
-                      type="checkbox"
-                      checked={form.autoRun}
-                      onChange={(e) => update("autoRun", e.target.checked)}
-                    />
-                    Jalankan otomatis sesuai jadwal
-                  </label>
+                  </section>
+                  <section aria-labelledby="event-schedule-heading" className="border-t border-neutral-200 pt-6">
+                    <h3 id="event-schedule-heading" className="mb-4 text-base font-semibold">Jadwal monitoring</h3>
+                    <div className="grid gap-4 min-[600px]:grid-cols-2">
+                      <fieldset className="min-w-0 min-[600px]:col-span-2">
+                        <legend className="mb-1.5 text-neutral-700">Tanggal event</legend>
+                        <DateRangePicker className="[&>button]:border-[#8994a4]" startDate={form.eventDate} endDate={form.eventEndDate} onChange={(start, end) => {
+                          update("eventDate", start);
+                          update("eventEndDate", end);
+                        }} />
+                      </fieldset>
+                      <Field>
+                        Jam mulai
+                        <Input type="time" required value={form.eventStart} onChange={(e) => update("eventStart", e.target.value)} />
+                      </Field>
+                      <Field>
+                        Jam selesai
+                        <Input type="time" required value={form.eventEnd} onChange={(e) => update("eventEnd", e.target.value)} />
+                      </Field>
+                    </div>
+                    <label className="mt-4 flex min-h-11 cursor-pointer items-start gap-3 rounded-lg bg-neutral-50 p-3">
+                      <input type="checkbox" className="mt-0.5 size-4 shrink-0 accent-navy" checked={form.autoRun} onChange={(e) => update("autoRun", e.target.checked)} />
+                      <span className="min-w-0">
+                        <span className="block font-medium">Jalankan otomatis</span>
+                        <span className="mt-0.5 block text-xs leading-relaxed text-neutral-600">Monitoring dimulai dan dihentikan sesuai jadwal event.</span>
+                      </span>
+                    </label>
+                  </section>
+                  <section aria-labelledby="event-counting-heading" className="border-t border-neutral-200 pt-6">
+                    <h3 id="event-counting-heading" className="mb-4 text-base font-semibold">Aturan penghitungan</h3>
+                    <label className="flex min-h-11 cursor-pointer items-start gap-3 rounded-lg bg-neutral-50 p-3">
+                      <input type="checkbox" className="mt-0.5 size-4 shrink-0 accent-navy focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-navy" checked={form.allowDuplicate} onChange={(e) => update("allowDuplicate", e.target.checked)} />
+                      <span className="min-w-0">
+                        <span className="block font-medium">Izinkan pengunjung duplikat</span>
+                        <span className="mt-0.5 block text-xs leading-relaxed text-neutral-600">{form.allowDuplicate ? "Setiap lintasan masuk dan keluar menyimpan foto dan menambah hitungan." : "Hanya masuk dan keluar pertama per orang yang disimpan. Lintasan berulang tidak menyimpan foto atau menambah hitungan."}</span>
+                      </span>
+                    </label>
+                  </section>
+                  <section aria-labelledby="event-cameras-heading" className="border-t border-neutral-200 pt-6">
+                    <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+                      <div>
+                        <h3 id="event-cameras-heading" className="text-base font-semibold">Kamera event</h3>
+                        <p className="mt-1 text-sm text-neutral-600">Pilih kamera, lalu tentukan peran dan garis hitungnya.</p>
+                      </div>
+                      <span className="text-sm font-medium text-navy">{form.cameraIds.length} dipilih</span>
+                    </div>
+                    {cameras.length > 0 ? (
+                      <div className="grid max-h-60 gap-2 overflow-y-auto p-1 min-[600px]:grid-cols-2">
+                        {cameras.map((camera) => {
+                          const selected = form.cameraIds.includes(camera.id);
+                          return (
+                            <label key={camera.id} className={cx("flex min-h-14 cursor-pointer items-center gap-3 rounded-lg border px-3 py-3 transition-colors", selected ? "border-navy bg-[#f0f4f8]" : "border-neutral-300 bg-white hover:border-neutral-500")}>
+                              <input type="checkbox" className="size-4 shrink-0 accent-navy" checked={selected} onChange={(e) => {
+                                const ids = e.target.checked ? [...form.cameraIds, camera.id] : form.cameraIds.filter((id) => id !== camera.id);
+                                const newSettings = { ...form.cameraSettings };
+                                if (e.target.checked && !newSettings[camera.id]) {
+                                  newSettings[camera.id] = { countingDirection: "in", linePosition: 50, lineOrientation: "horizontal", lineAngle: 0, reverseDirection: false, mirror: false };
+                                }
+                                setForm({ ...form, cameraIds: ids, cameraSettings: newSettings });
+                              }} />
+                              <span className="min-w-0">
+                                <span className="block break-words font-medium text-neutral-800">{camera.name}</span>
+                                <span className="mt-0.5 block text-xs text-neutral-600">{/^\d+$/.test(camera.rtsp_url || camera.camera_source || "") ? "Kamera lokal" : "Kamera jaringan"}</span>
+                              </span>
+                            </label>
+                          );
+                        })}
+                      </div>
+                    ) : (
+                      <div className="rounded-lg border border-dashed border-neutral-300 p-4 text-sm text-neutral-600">
+                        Belum ada kamera terdaftar. <Link href="/master-cctv" className="font-medium text-navy underline">Tambahkan kamera</Link> untuk mengatur monitoring.
+                      </div>
+                    )}
+                  </section>
                 </div>
-              </div>
-              
-              {form.cameraIds.length > 0 && (
-                <div className={cx(ui.formSection, "bg-neutral-50")}>
-                  <h3 className="mb-4">Pengaturan Per Kamera</h3>
-                  <div className="flex flex-col gap-6">
-                    {form.cameraIds.map((cameraId) => {
-                      const camera = cameras.find((c) => c.id === cameraId);
-                      if (!camera) return null;
-                      const source = camera.rtsp_url || camera.camera_source || "";
-                      const camSetting = form.cameraSettings[cameraId];
-                      const cfg = {
-                        linePosition: camSetting?.linePosition ?? 50,
-                        lineOrientation: camSetting?.lineOrientation ?? "horizontal",
-                        lineAngle: camSetting?.lineAngle ?? 0,
-                        countingDirection: camSetting?.countingDirection ?? "in",
-                        reverseDirection: camSetting?.reverseDirection ?? false,
-                        mirror: camSetting?.mirror ?? false,
-                        twoLineCounting: camSetting?.twoLineCounting ?? true,
-                        zoneWidthRatio: camSetting?.zoneWidthRatio ?? 0.20,
-                      };
-                      
-                      const updateCam = <K extends keyof CameraSetting>(
-                        key: K,
-                        value: CameraSetting[K]
-                      ) => {
-                        setForm({
-                          ...form,
-                          cameraSettings: {
-                            ...form.cameraSettings,
-                            [cameraId]: { ...cfg, [key]: value },
-                          },
-                        });
-                      };
 
-                      return (
-                        <div key={cameraId} className="grid items-start gap-6 sm:grid-cols-2 rounded-xl border border-neutral-200 bg-white p-5 shadow-sm">
-                          <div className="space-y-4">
-                            <h4 className="font-semibold text-neutral-800">{camera.name}</h4>
-                            <Field>
-                              Peran Kamera pada Event Ini
-                              <Select
-                                value={cfg.countingDirection}
-                                onChange={(e) => updateCam("countingDirection", e.target.value as CameraSetting["countingDirection"])}
-                              >
-                                <option value="in">Masuk (IN)</option>
-                                <option value="out">Keluar (OUT)</option>
-                                <option value="auto">Otomatis sesuai arah lintasan</option>
-                              </Select>
-                              <span className="text-xs text-neutral-600">Berlaku hanya untuk event ini; event lain dapat memakai peran berbeda.</span>
-                            </Field>
-                            <Field>
-                              Orientasi Garis
-                              <Select
-                                value={cfg.lineOrientation}
-                                onChange={(e) => updateCam("lineOrientation", e.target.value)}
-                              >
-                                <option value="horizontal">Horizontal</option>
-                                <option value="vertical">Vertikal</option>
-                              </Select>
-                            </Field>
-                            <Field>
-                              Posisi Garis ({cfg.linePosition}%)
-                              <input
-                                type="range"
-                                min="10"
-                                max="90"
-                                value={cfg.linePosition}
-                                onChange={(e) => updateCam("linePosition", Number(e.target.value))}
-                              />
-                            </Field>
-                            <Field>
-                              Kemiringan Garis ({cfg.lineAngle}°)
-                              <input
-                                type="range"
-                                min="-89"
-                                max="89"
-                                step="1"
-                                value={cfg.lineAngle}
-                                onChange={(e) => updateCam("lineAngle", Number(e.target.value))}
-                              />
-                              <Input
-                                aria-label="Kemiringan garis dalam derajat"
-                                type="number"
-                                min={-89}
-                                max={89}
-                                step={1}
-                                value={cfg.lineAngle}
-                                onChange={(e) => {
-                                  const angle = e.target.valueAsNumber;
-                                  if (Number.isFinite(angle)) updateCam("lineAngle", Math.max(-89, Math.min(89, angle)));
-                                }}
-                              />
-                              <span className="text-xs text-neutral-600">0° mengikuti orientasi; nilai positif memutar searah jarum jam.</span>
-                            </Field>
-                            <div className="space-y-2 pt-1">
-                              <label className="flex items-center gap-2 text-sm text-neutral-700 cursor-pointer">
+                {form.cameraIds.length > 0 && (
+                  <div className="border-t border-neutral-200 bg-neutral-50 px-6 py-6 max-[600px]:p-4">
+                    <h3 className="mb-1 text-base font-semibold">Garis hitung per kamera</h3>
+                    <p className="mb-4 text-sm text-neutral-600">Peran kamera berlaku khusus untuk event ini.</p>
+                    <div className="flex flex-col gap-3">
+                      {form.cameraIds.map((cameraId, cameraIndex) => {
+                        const camera = cameras.find((c) => c.id === cameraId);
+                        if (!camera) return null;
+                        const source = camera.rtsp_url || camera.camera_source || "";
+                        const camSetting = form.cameraSettings[cameraId];
+                        const cfg = {
+                          linePosition: camSetting?.linePosition ?? 50,
+                          lineOrientation: camSetting?.lineOrientation ?? "horizontal",
+                          lineAngle: camSetting?.lineAngle ?? 0,
+                          countingDirection: camSetting?.countingDirection ?? "in",
+                          reverseDirection: camSetting?.reverseDirection ?? false,
+                          mirror: camSetting?.mirror ?? false,
+                          twoLineCounting: camSetting?.twoLineCounting ?? true,
+                          zoneWidthRatio: camSetting?.zoneWidthRatio ?? 0.20,
+                        };
+
+                        const updateCam = <K extends keyof CameraSetting>(
+                          key: K,
+                          value: CameraSetting[K]
+                        ) => {
+                          setForm({
+                            ...form,
+                            cameraSettings: {
+                              ...form.cameraSettings,
+                              [cameraId]: { ...cfg, [key]: value },
+                            },
+                          });
+                        };
+
+                        return (
+                          <details key={cameraId} open={cameraIndex === 0} className="group rounded-xl border border-neutral-300 bg-white">
+                            <summary className="flex min-h-14 cursor-pointer list-none items-center gap-3 rounded-xl px-4 py-4 [&::-webkit-details-marker]:hidden">
+                              <Camera size={18} className="shrink-0 text-neutral-600" aria-hidden="true" />
+                              <span className="min-w-0 flex-1 break-words font-semibold text-neutral-800">{camera.name}</span>
+                              <span className="rounded bg-[#f0f4f8] px-2 py-1 text-xs font-medium text-navy">{cfg.countingDirection === "in" ? "Masuk" : cfg.countingDirection === "out" ? "Keluar" : "Otomatis"}</span>
+                              <ChevronDown size={18} className="shrink-0 text-neutral-600 transition-transform group-open:rotate-180" aria-hidden="true" />
+                            </summary>
+                            <div className="grid min-w-0 items-start gap-6 border-t border-neutral-200 p-4 min-[800px]:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
+                            <div className="min-w-0 space-y-4">
+                              <Field>
+                                Peran kamera
+                                <Select
+                                  value={cfg.countingDirection}
+                                  onChange={(e) => updateCam("countingDirection", e.target.value as CameraSetting["countingDirection"])}
+                                >
+                                  <option value="in">Masuk (IN)</option>
+                                  <option value="out">Keluar (OUT)</option>
+                                  <option value="auto">Otomatis sesuai arah lintasan</option>
+                                </Select>
+                              </Field>
+                              <Field>
+                                Orientasi Garis
+                                <Select
+                                  value={cfg.lineOrientation}
+                                  onChange={(e) => updateCam("lineOrientation", e.target.value)}
+                                >
+                                  <option value="horizontal">Horizontal</option>
+                                  <option value="vertical">Vertikal</option>
+                                </Select>
+                              </Field>
+                              <Field>
+                                Posisi Garis ({cfg.linePosition}%)
                                 <input
-                                  type="checkbox"
-                                  checked={Boolean(cfg.twoLineCounting)}
-                                  onChange={(e) => updateCam("twoLineCounting", e.target.checked)}
-                                  className="size-4 rounded border-neutral-300 text-navy focus:ring-navy"
+                                  type="range"
+                                  className="min-h-11 w-full cursor-pointer accent-navy"
+                                  min="10"
+                                  max="90"
+                                  value={cfg.linePosition}
+                                  onChange={(e) => updateCam("linePosition", Number(e.target.value))}
                                 />
-                                Gunakan 2 Garis & Crossing Zone (A & B)
-                              </label>
-                              <label className="flex items-center gap-2 text-sm text-neutral-700 cursor-pointer">
+                              </Field>
+                              <Field>
+                                Kemiringan Garis ({cfg.lineAngle}°)
                                 <input
-                                  type="checkbox"
-                                  checked={Boolean(cfg.reverseDirection)}
-                                  disabled={cfg.countingDirection !== "auto"}
-                                  onChange={(e) => updateCam("reverseDirection", e.target.checked)}
-                                  className="size-4 rounded border-neutral-300 text-navy focus:ring-navy"
+                                  type="range"
+                                  className="min-h-11 w-full cursor-pointer accent-navy"
+                                  min="-89"
+                                  max="89"
+                                  step="1"
+                                  value={cfg.lineAngle}
+                                  onChange={(e) => updateCam("lineAngle", Number(e.target.value))}
                                 />
-                                Balik arah masuk/keluar (mode otomatis)
-                              </label>
-                              <label className="flex items-center gap-2 text-sm text-neutral-700 cursor-pointer">
-                                <input
-                                  type="checkbox"
-                                  checked={Boolean(cfg.mirror)}
-                                  onChange={(e) => updateCam("mirror", e.target.checked)}
-                                  className="size-4 rounded border-neutral-300 text-navy focus:ring-navy"
+                                <Input
+                                  aria-label="Kemiringan garis dalam derajat"
+                                  type="number"
+                                  min={-89}
+                                  max={89}
+                                  step={1}
+                                  value={cfg.lineAngle}
+                                  onChange={(e) => {
+                                    const angle = e.target.valueAsNumber;
+                                    if (Number.isFinite(angle)) updateCam("lineAngle", Math.max(-89, Math.min(89, angle)));
+                                  }}
                                 />
-                                Mirror kamera (balik horizontal)
-                              </label>
+                                <span className="text-xs text-neutral-600">0° mengikuti orientasi; nilai positif memutar searah jarum jam.</span>
+                              </Field>
+                              <div className="space-y-2 pt-1">
+                                <label className="flex min-h-11 cursor-pointer items-center gap-3 text-sm text-neutral-700">
+                                  <input
+                                    type="checkbox"
+                                    checked={Boolean(cfg.twoLineCounting)}
+                                    onChange={(e) => updateCam("twoLineCounting", e.target.checked)}
+                                    className="size-4 rounded border-neutral-300 text-navy focus:ring-navy"
+                                  />
+                                  Gunakan 2 Garis & Crossing Zone (A & B)
+                                </label>
+                                <label className="flex min-h-11 cursor-pointer items-center gap-3 text-sm text-neutral-700">
+                                  <input
+                                    type="checkbox"
+                                    checked={Boolean(cfg.reverseDirection)}
+                                    disabled={cfg.countingDirection !== "auto"}
+                                    onChange={(e) => updateCam("reverseDirection", e.target.checked)}
+                                    className="size-4 rounded border-neutral-300 text-navy focus:ring-navy"
+                                  />
+                                  Balik arah masuk/keluar (mode otomatis)
+                                </label>
+                                <label className="flex min-h-11 cursor-pointer items-center gap-3 text-sm text-neutral-700">
+                                  <input
+                                    type="checkbox"
+                                    checked={Boolean(cfg.mirror)}
+                                    onChange={(e) => updateCam("mirror", e.target.checked)}
+                                    className="size-4 rounded border-neutral-300 text-navy focus:ring-navy"
+                                  />
+                                  Mirror kamera (balik horizontal)
+                                </label>
+                              </div>
                             </div>
-                          </div>
-                          <div>
-                            <p className="mb-2 text-sm font-medium text-neutral-600">Preview Garis</p>
-                            <CameraTestPreview
-                              compact
-                              source={source}
-                              position={cfg.linePosition}
-                              orientation={cfg.lineOrientation}
-                              angle={cfg.lineAngle}
-                              reversed={cfg.reverseDirection}
-                              countingDirection={cfg.countingDirection}
-                              twoLineCounting={cfg.twoLineCounting}
-                              zoneWidthRatio={cfg.zoneWidthRatio}
-                              mirror={cfg.mirror}
-                            />
-                          </div>
-                        </div>
-                      );
-                    })}
+                            <div className="min-w-0">
+                              <p className="mb-2 text-sm font-medium text-neutral-700">Preview garis</p>
+                              <CameraTestPreview
+                                compact
+                                source={source}
+                                position={cfg.linePosition}
+                                orientation={cfg.lineOrientation}
+                                angle={cfg.lineAngle}
+                                reversed={cfg.reverseDirection}
+                                countingDirection={cfg.countingDirection}
+                                twoLineCounting={cfg.twoLineCounting}
+                                zoneWidthRatio={cfg.zoneWidthRatio}
+                                mirror={cfg.mirror}
+                              />
+                            </div>
+                            </div>
+                          </details>
+                        );
+                      })}
+                    </div>
                   </div>
-                </div>
-              )}
-            </fieldset>
-            <footer className={ui.modalFooter}>
+                )}
+              </fieldset>
+            </div>
+            <footer className={cx(ui.modalFooter, "shrink-0 items-center bg-white max-[600px]:flex-wrap")}>
+              <span className="mr-auto text-xs text-neutral-600 max-[600px]:w-full">{form.cameraIds.length ? `${form.cameraIds.length} kamera untuk event ini` : "Belum ada kamera dipilih"}</span>
               <Button
                 type="button"
                 onClick={() => setIsOpen(false)}
                 disabled={busy}
               >
-                Cancel
+                Batal
               </Button>
               <Button
                 variant="primary"
                 type="submit"
                 disabled={busy || !form.name.trim()}
               >
-                {busy ? "Menyimpan…" : "Simpan Event"}
+                {busy ? "Menyimpan…" : editingId ? "Simpan Perubahan" : "Buat Event"}
               </Button>
             </footer>
           </form>

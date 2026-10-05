@@ -25,6 +25,7 @@ import {
 type Totals = {
   in_count: number;
   out_count: number;
+  total_count: number;
   male_count: number;
   female_count: number;
   unknown_gender_count: number;
@@ -78,6 +79,7 @@ export default function EventSummary({
         const totals: Totals = {
           in_count: 0,
           out_count: 0,
+          total_count: 0,
           male_count: 0,
           female_count: 0,
           unknown_gender_count: 0,
@@ -174,7 +176,7 @@ export default function EventSummary({
                 },
                 {
                   label: "Di dalam area",
-                  value: `${Math.max(0, totals.in_count - totals.out_count).toLocaleString("id-ID")} Orang`,
+                  value: `${Math.max(0, totals.total_count).toLocaleString("id-ID")} Orang`,
                   icon: MapPinHouse,
                 },
                 {

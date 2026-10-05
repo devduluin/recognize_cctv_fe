@@ -9,12 +9,16 @@ export default function Modal({
   children,
   size = "",
   busy = false,
+  description,
+  className,
 }: {
   title: string;
   onClose: () => void;
   children: ReactNode;
   size?: "" | "small" | "medium";
   busy?: boolean;
+  description?: string;
+  className?: string;
 }) {
   const ref = useRef<HTMLDialogElement>(null);
   const titleId = useId();
@@ -33,7 +37,7 @@ export default function Modal({
   return (
     <dialog
       ref={ref}
-      className={cx("m-auto max-h-[calc(100dvh-40px)] rounded-2xl border-0 bg-white p-0 text-foreground shadow-[0_4px_10px_#0002] backdrop:bg-[#0005]", size === "small" ? "w-[min(470px,calc(100vw-32px))]" : size === "medium" ? "w-[min(854px,calc(100vw-32px))]" : "w-[min(1000px,calc(100vw-32px))]")}
+      className={cx("m-auto max-h-[calc(100dvh-40px)] rounded-2xl border-0 bg-white p-0 text-foreground shadow-[0_4px_10px_#0002] backdrop:bg-[#0005]", size === "small" ? "w-[min(470px,calc(100vw-32px))]" : size === "medium" ? "w-[min(854px,calc(100vw-32px))]" : "w-[min(1000px,calc(100vw-32px))]", className)}
       aria-labelledby={titleId}
       onCancel={(event) => {
         event.preventDefault();
@@ -52,8 +56,11 @@ export default function Modal({
         }
       }}
     >
-      <header className="flex items-center justify-between gap-4 border-b border-[#e5e5e5] px-6 py-5 max-[600px]:p-4">
-        <h2 id={titleId} className="text-[18px] font-semibold text-[#383838]">{title}</h2>
+      <header className="flex shrink-0 items-start justify-between gap-4 border-b border-[#e5e5e5] px-6 py-5 max-[600px]:p-4">
+        <div className="min-w-0">
+          <h2 id={titleId} className="text-[18px] font-semibold text-[#383838]">{title}</h2>
+          {description && <p className="mt-1 text-sm leading-relaxed text-neutral-600">{description}</p>}
+        </div>
         <Button
           icon
           className="border-0! text-[#929cad]!"

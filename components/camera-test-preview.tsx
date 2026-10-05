@@ -335,18 +335,18 @@ export default function CameraTestPreview({
             {testing ? (
               <>
                 <div className="relative flex h-12 w-12 items-center justify-center">
-                  <Loader2 size={24} className="animate-spin text-[#0c2e73]" />
+                  <Loader2 size={24} className="animate-spin text-slate-300" />
                 </div>
-                <p role="status" className="text-xs font-medium text-slate-600">
+                <p role="status" className="text-xs font-medium text-slate-300">
                   Menghubungkan...
                 </p>
               </>
             ) : (
               <>
-                <div className="flex h-12 w-12 items-center justify-center text-[#0c2e73]">
+                <div className="flex h-12 w-12 items-center justify-center text-slate-300">
                   <Camera size={34} />
                 </div>
-                <p className="text-lg font-semibold text-neutral-700">
+                <p className="text-lg font-semibold text-slate-200">
                   Preview Kamera
                 </p>
               </>

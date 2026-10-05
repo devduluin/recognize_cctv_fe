@@ -17,6 +17,7 @@ import {
   Square,
   Video,
 } from "lucide-react";
+import VisitorRecords from "../../components/visitor-records";
 import HourlyVisitorStatistics from "../../components/hourly-visitor-statistics";
 import { getAuthHeaders, getAuthToken } from "../../components/auth/auth-api";
 import WebRTCPlayer, { DetectionBox, StreamMode } from "../../components/camera/webrtc-player";
@@ -339,10 +340,7 @@ export default function EventVisitorPage({
     cameraList.length === 1
       ? "grid-cols-1"
       : "grid-cols-1 md:grid-cols-2";
-  const inside = Math.max(
-    0,
-    (status?.in_count || 0) - (status?.out_count || 0),
-  );
+  const inside = Math.max(0, status?.total_count || 0);
   const value = (count?: number) =>
     status ? `${(count || 0).toLocaleString("id-ID")} Orang` : "-";
   const demographics = [
@@ -876,6 +874,9 @@ export default function EventVisitorPage({
             ))}
           </Panel>
         </div>
+      </div>
+      <div className="pt-2">
+        <VisitorRecords key={selectedEventId} companyId={getCompanyId()} eventId={selectedEventId} version={`${status?.in_count}:${status?.out_count}:${status?.last_visitor_at}`} />
       </div>
       <div className="pt-2">
         <HourlyVisitorStatistics
