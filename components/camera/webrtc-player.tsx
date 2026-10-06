@@ -70,6 +70,7 @@ export default function WebRTCPlayer({
   const containerRef = useRef<HTMLDivElement | null>(null);
   const pcRef = useRef<RTCPeerConnection | null>(null);
   const whepAbortRef = useRef<AbortController | null>(null);
+  const webrtcTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const hlsRef = useRef<Hls | null>(null);
   const whepResourceUrlRef = useRef<string | null>(null);
 
@@ -107,6 +108,8 @@ export default function WebRTCPlayer({
 
   // Clean up all active streams (WebRTC & HLS)
   const cleanupStreams = useCallback(() => {
+    if (webrtcTimerRef.current !== null) clearTimeout(webrtcTimerRef.current);
+    webrtcTimerRef.current = null;
     whepAbortRef.current?.abort();
     whepAbortRef.current = null;
     if (pcRef.current) {
@@ -173,14 +176,18 @@ export default function WebRTCPlayer({
 
   // WebRTC WHEP connection initialization using native HTML5 Video
   const startWebRTC = useCallback(async () => {
-    if (!whepUrl) {
-      if (hlsUrl) {
-        switchMode("hls");
-      } else if (fallbackStreamUrl) {
+    const fallback = (message: string) => {
+      cleanupStreams();
+      if (fallbackStreamUrl) {
         switchMode("mjpeg");
+      } else if (hlsUrl) {
+        switchMode("hls");
       } else {
-        updateStatus("error", "URL WebRTC (WHEP) tidak tersedia");
+        updateStatus("error", message);
       }
+    };
+    if (!whepUrl) {
+      fallback("URL WebRTC (WHEP) tidak tersedia");
       return;
     }
 
@@ -189,6 +196,9 @@ export default function WebRTCPlayer({
     const controller = new AbortController();
     whepAbortRef.current = controller;
     const isCurrent = () => !controller.signal.aborted && whepAbortRef.current === controller;
+    webrtcTimerRef.current = setTimeout(() => {
+      if (isCurrent()) fallback("Koneksi WebRTC melewati batas waktu.");
+    }, 8000);
 
     try {
       const pc = new RTCPeerConnection({
@@ -216,16 +226,11 @@ export default function WebRTCPlayer({
         if (!isCurrent()) return;
         const state = pc.connectionState;
         if (state === "connected") {
+          if (webrtcTimerRef.current !== null) clearTimeout(webrtcTimerRef.current);
+          webrtcTimerRef.current = null;
           updateStatus("live");
         } else if (state === "failed") {
-          console.warn("WebRTC failed, falling back to HLS...");
-          if (hlsUrl) {
-            switchMode("hls");
-          } else if (fallbackStreamUrl) {
-            switchMode("mjpeg");
-          } else {
-            updateStatus("error", "Koneksi WebRTC gagal");
-          }
+          fallback("Koneksi WebRTC gagal");
         }
       };
 
@@ -276,14 +281,7 @@ export default function WebRTCPlayer({
       await pc.setRemoteDescription(new RTCSessionDescription({ type: "answer", sdp: answerSdp }));
     } catch (err) {
       if (!isCurrent()) return;
-      console.warn("Failed starting WebRTC:", err);
-      if (hlsUrl) {
-        switchMode("hls");
-      } else if (fallbackStreamUrl) {
-        switchMode("mjpeg");
-      } else {
-        updateStatus("error", err instanceof Error ? err.message : "Gagal menghubungkan WebRTC");
-      }
+      fallback(err instanceof Error ? err.message : "Gagal menghubungkan WebRTC");
     }
   }, [whepUrl, hlsUrl, fallbackStreamUrl, cleanupStreams, updateStatus, switchMode]);
 
@@ -386,13 +384,13 @@ export default function WebRTCPlayer({
       startHLS();
     } else {
       cleanupStreams();
-      updateStatus("live");
+      updateStatus(fallbackStreamUrl ? "connecting" : "error", fallbackStreamUrl ? undefined : "URL stream backend tidak tersedia");
     }
 
     return () => {
       cleanupStreams();
     };
-  }, [activeMode, retryNonce, startWebRTC, startHLS, cleanupStreams, updateStatus]);
+  }, [activeMode, retryNonce, startWebRTC, startHLS, cleanupStreams, updateStatus, fallbackStreamUrl]);
 
   // Handle Fullscreen
   const toggleFullscreen = async () => {
