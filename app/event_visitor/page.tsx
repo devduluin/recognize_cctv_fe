@@ -10,6 +10,7 @@ import {
   Download,
   Maximize,
   Pause,
+  Pencil,
   Play,
   Radio,
   RefreshCw,
@@ -18,6 +19,8 @@ import {
   Video,
 } from "lucide-react";
 import VisitorRecords from "../../components/visitor-records";
+import EventsManager from "../../components/events/events-manager";
+import { toast } from "../../components/ui/toast";
 import Modal from "../../components/ui-modal";
 import HourlyVisitorStatistics from "../../components/hourly-visitor-statistics";
 import { getAuthHeaders, getAuthToken } from "../../components/auth/auth-api";
@@ -59,8 +62,12 @@ type Status = {
   mirror?: boolean;
   cameras?: {
     camera_id: string;
+    counting_direction?: string;
     name: string;
     running: boolean;
+    connection_state?: "online" | "connecting" | "reconnecting" | "stopped";
+    reconnect_attempts?: number;
+    last_frame_at?: string | null;
     last_error?: string;
     mediamtx_path?: string;
     line_position?: number;
@@ -100,6 +107,8 @@ export default function EventVisitorPage({
   const [selectedEventId, setSelectedEventId] = useState(fixedEventId);
   const [busy, setBusy] = useState(false);
   const [resetOpen, setResetOpen] = useState(false);
+  const [editOpen, setEditOpen] = useState(false);
+  const [eventVersion, setEventVersion] = useState(0);
   const [resetVersion, setResetVersion] = useState(0);
   const [resetError, setResetError] = useState("");
   const [status, setStatus] = useState<Status | null>(null);
@@ -110,6 +119,19 @@ export default function EventVisitorPage({
   const [cameraAiDetection, setCameraAiDetection] = useState<Record<string, boolean>>({});
   const [cameraDetections, setCameraDetections] = useState<Record<string, DetectionBox[]>>({});
   const [streamKey, setStreamKey] = useState(0);
+  const cameraRetryKey = (status?.cameras || []).filter((camera) => streamErrors[camera.camera_id] && camera.running && (!camera.connection_state || camera.connection_state === "online")).map((camera) => camera.camera_id).join(",");
+  useEffect(() => {
+    if (!cameraRetryKey) return;
+    const retryIds = cameraRetryKey.split(",");
+    const timer = setTimeout(() => {
+      setStreamErrors((previous) => {
+        const next = { ...previous };
+        retryIds.forEach((id) => { next[id] = false; });
+        return next;
+      });
+    }, 3000);
+    return () => clearTimeout(timer);
+  }, [cameraRetryKey]);
   const stage = useRef<HTMLDivElement>(null);
   const refreshStatus = useCallback(
     async (signal?: AbortSignal) => {
@@ -285,7 +307,7 @@ export default function EventVisitorPage({
       controller.abort();
       clearTimeout(initial);
     };
-  }, [fixedEventId]);
+  }, [fixedEventId, eventVersion]);
   async function action(command: "start" | "pause" | "stop") {
     if (
       command === "stop" &&
@@ -318,11 +340,12 @@ export default function EventVisitorPage({
         );
       setStreamErrors({});
       setStreamKey((key) => key + 1);
+      toast.success({ start: "Monitoring dimulai.", pause: "Monitoring dijeda.", stop: "Monitoring dihentikan." }[command]);
       await refreshStatus();
     } catch (error) {
-      setActionError(
-        error instanceof Error ? error.message : "Perintah gagal.",
-      );
+      const message = error instanceof Error ? error.message : "Perintah gagal.";
+      setActionError(message);
+      toast.error(message);
     } finally {
       setBusy(false);
     }
@@ -375,9 +398,12 @@ export default function EventVisitorPage({
       setResetVersion((value) => value + 1);
       setStreamKey((value) => value + 1);
       setResetOpen(false);
+      toast.success("Data event berhasil direset.");
       await refreshStatus();
     } catch (error) {
-      setResetError(error instanceof Error ? error.message : "Reset event gagal.");
+      const message = error instanceof Error ? error.message : "Reset event gagal.";
+      setResetError(message);
+      toast.error(message);
     } finally {
       setBusy(false);
     }
@@ -407,6 +433,10 @@ export default function EventVisitorPage({
         </div>
         {fixedEventId && (
           <div className="flex flex-wrap items-center gap-2">
+          <Button type="button" variant="outline" disabled={busy} onClick={() => setEditOpen(true)}>
+            <Pencil size={16} /> Edit Event
+          </Button>
+          {editOpen && <EventsManager editEventId={fixedEventId} onClose={() => setEditOpen(false)} onSaved={() => { setEventVersion((value) => value + 1); void refreshStatus(); }} />}
           <Button type="button" variant="outline" disabled={busy} onClick={() => { setResetError(""); setResetOpen(true); }}>
             <RefreshCw size={16} /> Reset Event
           </Button>
@@ -438,6 +468,11 @@ export default function EventVisitorPage({
           </div>
         )}
       </PageHeading>
+      {status && (status.in_count || 0) === 0 && cameraList.every((camera) => camera.counting_direction === "out") && (
+        <p role="status" className="mb-4 rounded-lg border border-amber-300 bg-amber-50 p-4 text-sm text-amber-950">
+          Event ini belum memiliki catatan Masuk. Keluar hanya dihitung untuk pengunjung yang sudah masuk di event yang sama. Gunakan satu event untuk kamera Masuk dan Keluar.
+        </p>
+      )}
       {!fixedEventId && (
         <Toolbar>
           <Field>
@@ -679,6 +714,7 @@ export default function EventVisitorPage({
                           cameraName={camera.name}
                           className="size-full"
                           lineConfig={{
+                            countingDirection: camera.counting_direction,
                             linePosition: camera.line_position ?? status?.line_position ?? 0.5,
                             lineOrientation: camera.line_orientation ?? status?.line_orientation ?? "horizontal",
                             lineAngle: camera.line_angle ?? status?.line_angle ?? 0.0,
@@ -722,6 +758,11 @@ export default function EventVisitorPage({
                         </div>
                       )}
 
+                      {isRunning && camera.connection_state && camera.connection_state !== "online" && (
+                        <p role="status" className="border-t border-white/10 bg-[#101c30] px-3 py-2 text-xs text-amber-200">
+                          {camera.connection_state === "reconnecting" ? "Kamera terputus. Menghubungkan kembali otomatis…" : camera.connection_state === "stopped" ? "Kamera offline. Hentikan lalu mulai monitoring untuk mencoba kembali." : "Menunggu gambar kamera…"}
+                        </p>
+                      )}
                       {camera.last_error && (
                         <div className="absolute inset-x-2 bottom-2 rounded border border-rose-800 bg-rose-950/80 px-2 py-1 text-[11px] text-rose-200">
                           {camera.last_error}

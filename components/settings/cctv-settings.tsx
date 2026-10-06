@@ -334,7 +334,6 @@ export default function CCTVSettingsPanel() {
     return () => {
       cancelled = true;
       if (interval) clearInterval(interval);
-      if (toastTimer.current) clearTimeout(toastTimer.current);
     };
   }, [refreshStatus, urlCompanyId]);
 
@@ -782,6 +781,13 @@ export default function CCTVSettingsPanel() {
                                   className="px-2.5 py-1 rounded-md border border-slate-200 bg-white hover:bg-slate-100 text-slate-700 font-medium shadow-sm transition"
                                 >
                                   Gerbang Event
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => selectDummyVideo("Tes Sample", "tes-sample.mp4")}
+                                  className="px-2.5 py-1 rounded-md border border-slate-200 bg-white hover:bg-slate-100 text-slate-700 font-medium shadow-sm transition"
+                                >
+                                  Tes Sample
                                 </button>
                                 <button
                                   type="button"

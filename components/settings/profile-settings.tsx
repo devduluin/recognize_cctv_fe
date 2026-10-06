@@ -6,6 +6,7 @@ import { Field, Input } from "../ui/field";
 import { InfoRow, Panel } from "../ui/layout";
 import { cx, ui } from "../ui/styles";
 import Modal from "../ui-modal";
+import { toast } from "../ui/toast";
 import { dashboardProfileRequest, defaultDashboardProfile } from "../dashboard-profile";
 type User = {
   id: string;
@@ -96,10 +97,11 @@ export default function ProfileSettings({
       window.dispatchEvent(new Event("profile-changed"));
       setEditing(false);
       setNotice("Perubahan berhasil disimpan.");
+      toast.success(dashboard ? "Profil dashboard disimpan." : "Profil akun disimpan.");
     } catch (error) {
-      setError(
-        error instanceof Error ? error.message : "Perubahan gagal disimpan.",
-      );
+      const message = error instanceof Error ? error.message : "Perubahan gagal disimpan.";
+      setError(message);
+      toast.error(message);
     } finally {
       setBusy(false);
     }

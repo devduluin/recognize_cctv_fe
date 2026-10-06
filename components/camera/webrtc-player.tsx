@@ -393,8 +393,12 @@ export default function WebRTCPlayer({
     };
   }, [activeMode, retryNonce, startWebRTC, startHLS, cleanupStreams, updateStatus, fallbackStreamUrl]);
 
+  const mjpegUrl = fallbackStreamUrl
+    ? `${fallbackStreamUrl}${fallbackStreamUrl.includes("?") ? "&" : "?"}annotated=${internalShowDetections}`
+    : undefined;
+
   useEffect(() => {
-    if (activeMode !== "mjpeg" || !fallbackStreamUrl) return;
+    if (activeMode !== "mjpeg" || !mjpegUrl) return;
     let receivedFrame = false;
     const checkFrame = () => {
       const image = mjpegRef.current;
@@ -414,7 +418,7 @@ export default function WebRTCPlayer({
       clearInterval(poll);
       clearTimeout(timeout);
     };
-  }, [activeMode, fallbackStreamUrl, retryNonce, updateStatus]);
+  }, [activeMode, mjpegUrl, retryNonce, updateStatus]);
 
   // Handle Fullscreen
   const toggleFullscreen = async () => {
@@ -458,9 +462,9 @@ export default function WebRTCPlayer({
       {/* MJPEG Fallback Display (for AI YOLO detection bounding boxes) */}
       {activeMode === "mjpeg" && fallbackStreamUrl && (
         <img
-          key={`${fallbackStreamUrl}:${retryNonce}`}
+          key={`${mjpegUrl}:${retryNonce}`}
           ref={mjpegRef}
-          src={fallbackStreamUrl}
+          src={mjpegUrl}
           alt={cameraName}
           className="absolute inset-0 h-full w-full object-contain"
           onLoad={() => updateStatus("live")}
