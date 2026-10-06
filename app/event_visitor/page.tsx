@@ -18,6 +18,7 @@ import {
   Video,
 } from "lucide-react";
 import VisitorRecords from "../../components/visitor-records";
+import Modal from "../../components/ui-modal";
 import HourlyVisitorStatistics from "../../components/hourly-visitor-statistics";
 import { getAuthHeaders, getAuthToken } from "../../components/auth/auth-api";
 import WebRTCPlayer, { DetectionBox, StreamMode } from "../../components/camera/webrtc-player";
@@ -98,6 +99,9 @@ export default function EventVisitorPage({
   const [events, setEvents] = useState<VisitorEvent[]>([]);
   const [selectedEventId, setSelectedEventId] = useState(fixedEventId);
   const [busy, setBusy] = useState(false);
+  const [resetOpen, setResetOpen] = useState(false);
+  const [resetVersion, setResetVersion] = useState(0);
+  const [resetError, setResetError] = useState("");
   const [status, setStatus] = useState<Status | null>(null);
   const [connectionError, setConnectionError] = useState("");
   const [actionError, setActionError] = useState("");
@@ -355,8 +359,44 @@ export default function EventVisitorPage({
       <span>{content}</span>
     </InfoRow>
   );
+  const resetEvent = async () => {
+    if (busy || !fixedEventId) return;
+    setBusy(true);
+    setResetError("");
+    try {
+      const response = await visitorFetch(`${EVENTS_API}/${encodeURIComponent(fixedEventId)}/reset`, { method: "POST" });
+      if (!response.ok) {
+        const body = await response.json().catch(() => ({}));
+        throw new Error(typeof body.detail === "string" ? body.detail : "Event belum dapat direset. Coba lagi.");
+      }
+      setStatus(null);
+      setCameraDetections({});
+      setStreamErrors({});
+      setResetVersion((value) => value + 1);
+      setStreamKey((value) => value + 1);
+      setResetOpen(false);
+      await refreshStatus();
+    } catch (error) {
+      setResetError(error instanceof Error ? error.message : "Reset event gagal.");
+    } finally {
+      setBusy(false);
+    }
+  };
   return (
     <Page className="space-y-6">
+      {resetOpen && (
+        <Modal title="Reset data event?" size="small" busy={busy} onClose={() => setResetOpen(false)}>
+          <div className="space-y-4 p-6">
+            <p>Monitoring akan dihentikan. Semua hitungan, riwayat capture, foto, dan identitas pengunjung event ini akan dihapus permanen.</p>
+            <p className="text-sm text-neutral-600">Nama, jadwal, pengaturan, dan kamera event tetap tersimpan. Jadwal otomatis yang aktif dapat menjalankan monitoring kembali.</p>
+            {resetError && <p role="alert" className={ui.error}>{resetError}</p>}
+            <div className="flex flex-wrap justify-end gap-2">
+              <Button type="button" disabled={busy} onClick={() => setResetOpen(false)}>Batal</Button>
+              <Button type="button" variant="stop" disabled={busy} onClick={() => void resetEvent()}>{busy ? "Mereset…" : "Hapus Data dan Reset"}</Button>
+            </div>
+          </div>
+        </Modal>
+      )}
       <PageHeading>
         <div>
           <p className={ui.eyebrow}>MANAJEMEN EVENT</p>
@@ -366,6 +406,10 @@ export default function EventVisitorPage({
           </p>
         </div>
         {fixedEventId && (
+          <div className="flex flex-wrap items-center gap-2">
+          <Button type="button" variant="outline" disabled={busy} onClick={() => { setResetError(""); setResetOpen(true); }}>
+            <RefreshCw size={16} /> Reset Event
+          </Button>
           <RowMenu
             trigger={
               <span className={cx(buttonStyles({ variant: "outline", className: "w-auto! h-auto!" }), "inline-flex items-center gap-2")}>
@@ -391,6 +435,7 @@ export default function EventVisitorPage({
               </button>
             ))}
           </RowMenu>
+          </div>
         )}
       </PageHeading>
       {!fixedEventId && (
@@ -876,10 +921,11 @@ export default function EventVisitorPage({
         </div>
       </div>
       <div className="pt-2">
-        <VisitorRecords key={selectedEventId} companyId={getCompanyId()} eventId={selectedEventId} version={`${status?.in_count}:${status?.out_count}:${status?.last_visitor_at}`} />
+        <VisitorRecords key={`${selectedEventId}:${resetVersion}`} companyId={getCompanyId()} eventId={selectedEventId} version={`${status?.in_count}:${status?.out_count}:${status?.last_visitor_at}`} />
       </div>
       <div className="pt-2">
-        <HourlyVisitorStatistics
+      <HourlyVisitorStatistics
+          key={`${selectedEventId}:${resetVersion}`}
           companyId={getCompanyId()}
           eventId={selectedEventId}
         />

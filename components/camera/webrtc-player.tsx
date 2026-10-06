@@ -69,6 +69,7 @@ export default function WebRTCPlayer({
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
   const pcRef = useRef<RTCPeerConnection | null>(null);
+  const whepAbortRef = useRef<AbortController | null>(null);
   const hlsRef = useRef<Hls | null>(null);
   const whepResourceUrlRef = useRef<string | null>(null);
 
@@ -106,6 +107,8 @@ export default function WebRTCPlayer({
 
   // Clean up all active streams (WebRTC & HLS)
   const cleanupStreams = useCallback(() => {
+    whepAbortRef.current?.abort();
+    whepAbortRef.current = null;
     if (pcRef.current) {
       try {
         pcRef.current.close();
@@ -183,6 +186,9 @@ export default function WebRTCPlayer({
 
     cleanupStreams();
     updateStatus("connecting");
+    const controller = new AbortController();
+    whepAbortRef.current = controller;
+    const isCurrent = () => !controller.signal.aborted && whepAbortRef.current === controller;
 
     try {
       const pc = new RTCPeerConnection({
@@ -198,6 +204,7 @@ export default function WebRTCPlayer({
       pc.addTransceiver("audio", { direction: "recvonly" });
 
       pc.ontrack = (event) => {
+        if (!isCurrent()) return;
         if (videoRef.current && event.streams[0]) {
           videoRef.current.srcObject = event.streams[0];
           videoRef.current.play().catch(() => {});
@@ -206,6 +213,7 @@ export default function WebRTCPlayer({
       };
 
       pc.onconnectionstatechange = () => {
+        if (!isCurrent()) return;
         const state = pc.connectionState;
         if (state === "connected") {
           updateStatus("live");
@@ -223,7 +231,9 @@ export default function WebRTCPlayer({
 
       // Create offer
       const offer = await pc.createOffer();
+      if (!isCurrent()) return;
       await pc.setLocalDescription(offer);
+      if (!isCurrent()) return;
 
       // Wait for ICE candidates gathering (important for MediaMTX non-trickle WHEP)
       if (pc.iceGatheringState !== "complete") {
@@ -239,13 +249,17 @@ export default function WebRTCPlayer({
         });
       }
 
+      if (!isCurrent()) return;
       // Send SDP offer via WHEP POST
       const sdpToSend = pc.localDescription?.sdp || offer.sdp;
       const res = await fetch(whepUrl, {
         method: "POST",
         headers: { "Content-Type": "application/sdp" },
         body: sdpToSend,
+        signal: controller.signal,
       });
+
+      if (!isCurrent()) return;
 
       if (!res.ok) {
         throw new Error(`WHEP endpoint HTTP ${res.status}`);
@@ -258,8 +272,10 @@ export default function WebRTCPlayer({
       }
 
       const answerSdp = await res.text();
+      if (!isCurrent() || pc.signalingState === "closed") return;
       await pc.setRemoteDescription(new RTCSessionDescription({ type: "answer", sdp: answerSdp }));
     } catch (err) {
+      if (!isCurrent()) return;
       console.warn("Failed starting WebRTC:", err);
       if (hlsUrl) {
         switchMode("hls");

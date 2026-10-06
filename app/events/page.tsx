@@ -713,11 +713,12 @@ export default function EventsPage() {
                   </section>
                   <section aria-labelledby="event-counting-heading" className="border-t border-neutral-200 pt-6">
                     <h3 id="event-counting-heading" className="mb-4 text-base font-semibold">Aturan penghitungan</h3>
-                    <label className="flex min-h-11 cursor-pointer items-start gap-3 rounded-lg bg-neutral-50 p-3">
-                      <input type="checkbox" className="mt-0.5 size-4 shrink-0 accent-navy focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-navy" checked={form.allowDuplicate} onChange={(e) => update("allowDuplicate", e.target.checked)} />
+                    <label className={cx("flex min-h-11 cursor-pointer items-start gap-3 rounded-lg border p-4 transition-colors focus-within:ring-2 focus-within:ring-navy focus-within:ring-offset-2", form.allowDuplicate ? "border-navy bg-[#f0f4f8]" : "border-neutral-300 bg-white hover:border-neutral-500")}>
+                      <input type="checkbox" aria-describedby="repeat-visits-description" className="mt-0.5 size-5 shrink-0 accent-navy focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-navy" checked={form.allowDuplicate} onChange={(e) => update("allowDuplicate", e.target.checked)} />
                       <span className="min-w-0">
-                        <span className="block font-medium">Izinkan pengunjung duplikat</span>
-                        <span className="mt-0.5 block text-xs leading-relaxed text-neutral-600">{form.allowDuplicate ? "Setiap lintasan masuk dan keluar menyimpan foto dan menambah hitungan." : "Hanya masuk dan keluar pertama per orang yang disimpan. Lintasan berulang tidak menyimpan foto atau menambah hitungan."}</span>
+                        <span className="block font-medium">Catat kunjungan berulang</span>
+                        <span id="repeat-visits-description" className="mt-1 block text-sm leading-relaxed text-neutral-600">{form.allowDuplicate ? "Aktif: orang yang sama masuk lagi akan menambah hitungan dan menyimpan foto baru." : "Nonaktif: hanya masuk dan keluar pertama per orang yang dicatat. Masuk lagi tidak menambah hitungan atau menyimpan foto baru."}</span>
+                        <span className="mt-2 block text-xs leading-relaxed text-neutral-600">Matikan jika Anda ingin menghitung setiap orang hanya sekali selama event.</span>
                       </span>
                     </label>
                   </section>
