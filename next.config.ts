@@ -1,6 +1,9 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  turbopack: {
+    root: __dirname,
+  },
   async rewrites() {
     const recognizeCctvBase = process.env.NEXT_PUBLIC_SERVICE_RECOGNIZE_CCTV || "http://127.0.0.1:8000";
     return [

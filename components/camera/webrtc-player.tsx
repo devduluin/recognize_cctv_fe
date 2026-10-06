@@ -67,6 +67,7 @@ export default function WebRTCPlayer({
   onStatusChange,
 }: WebRTCPlayerProps) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
+  const mjpegRef = useRef<HTMLImageElement | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
   const pcRef = useRef<RTCPeerConnection | null>(null);
   const whepAbortRef = useRef<AbortController | null>(null);
@@ -392,6 +393,29 @@ export default function WebRTCPlayer({
     };
   }, [activeMode, retryNonce, startWebRTC, startHLS, cleanupStreams, updateStatus, fallbackStreamUrl]);
 
+  useEffect(() => {
+    if (activeMode !== "mjpeg" || !fallbackStreamUrl) return;
+    let receivedFrame = false;
+    const checkFrame = () => {
+      const image = mjpegRef.current;
+      if (image && image.naturalWidth > 0 && image.naturalHeight > 0) {
+        receivedFrame = true;
+        updateStatus("live");
+        clearInterval(poll);
+        clearTimeout(timeout);
+      }
+    };
+    const poll = setInterval(checkFrame, 100);
+    const timeout = setTimeout(() => {
+      clearInterval(poll);
+      if (!receivedFrame) updateStatus("error", "Belum menerima gambar kamera. Pastikan monitoring dan kamera aktif, lalu coba lagi.");
+    }, 12000);
+    return () => {
+      clearInterval(poll);
+      clearTimeout(timeout);
+    };
+  }, [activeMode, fallbackStreamUrl, retryNonce, updateStatus]);
+
   // Handle Fullscreen
   const toggleFullscreen = async () => {
     if (!containerRef.current) return;
@@ -434,6 +458,8 @@ export default function WebRTCPlayer({
       {/* MJPEG Fallback Display (for AI YOLO detection bounding boxes) */}
       {activeMode === "mjpeg" && fallbackStreamUrl && (
         <img
+          key={`${fallbackStreamUrl}:${retryNonce}`}
+          ref={mjpegRef}
           src={fallbackStreamUrl}
           alt={cameraName}
           className="absolute inset-0 h-full w-full object-contain"
