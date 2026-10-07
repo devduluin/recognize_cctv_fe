@@ -1,90 +1,69 @@
-name: Build and Deploy Frontend
-
+name: Production readiness and deploy
 on:
+  pull_request:
+  push:
+    branches: [main, master]
   workflow_dispatch:
-
+permissions:
+  contents: read
 concurrency:
-  group: recognize_cctv_fe-staging-deploy
+  group: visitor-frontend-${{ github.ref }}
   cancel-in-progress: false
-
 jobs:
-  deploy:
-    runs-on: ubuntu-latest
-
+  checks:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v7
-
-      - name: Check SSH Port
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci
+      - run: npm run lint
+      - run: npx tsc --noEmit
+      - run: npm run build -- --webpack
+        env:
+          NEXT_PUBLIC_SERVICE_RECOGNIZE_CCTV: https://api.example.com
+          NEXT_PUBLIC_APP_MODE: multi_tenant
+      - name: Build production image
+        run: docker build --build-arg NEXT_PUBLIC_SERVICE_RECOGNIZE_CCTV=https://api.example.com --build-arg NEXT_PUBLIC_APP_MODE=multi_tenant -t recognize-cctv-fe-ci .
+      - name: Validate Compose
+        run: ENV_FILE=.env.example docker compose --env-file .env.example config --quiet
+  deploy:
+    if: github.event_name == 'workflow_dispatch' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
+    needs: checks
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    environment: production
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Verify SSH host and install deploy key
+        env:
+          SSH_HOST: ${{ secrets.SSH_HOST_DEV_NEW }}
+          SSH_KEY: ${{ secrets.SSH_KEY }}
+          SSH_FINGERPRINT: ${{ secrets.SSH_FINGERPRINT }}
         run: |
-          echo "Checking SSH connectivity..."
-          timeout 15 bash -c "</dev/tcp/${{ secrets.SSH_HOST_DEV_NEW }}/22" \
-            && echo "Port 22 OPEN"
-
-      - name: Copy files to server
-        uses: appleboy/scp-action@v1.0.0
-        with:
-          host: ${{ secrets.SSH_HOST_DEV_NEW }}
-          username: ${{ secrets.SSH_USER }}
-          key: ${{ secrets.SSH_KEY }}
-          source: ".,!.git,!node_modules,!.next,!.env"
-          target: "/home/apps/machine-learning/recognize_cctv_fe"
-          overwrite: true
-          rm: false
-
-      - name: Build and Restart Docker on Server
-        uses: appleboy/ssh-action@v1.2.5
-        with:
-          host: ${{ secrets.SSH_HOST_DEV_NEW }}
-          username: ${{ secrets.SSH_USER }}
-          key: ${{ secrets.SSH_KEY }}
-          command_timeout: 30m
-          script: |
-            set -e
-
-            cd /home/apps/machine-learning/recognize_cctv_fe
-
-            SHARED_DIR="/home/apps/machine-learning/shared"
-            SHARED_ENV="$SHARED_DIR/.env.fe"
-
-            mkdir -p "$SHARED_DIR"
-
-            # Remove legacy environment folder if it exists
-            rm -rf environment
-
-            if [ ! -f "$SHARED_ENV" ]; then
-              echo "Shared environment file $SHARED_ENV not found. Creating automatically from template..."
-              if [ -f ".env.example" ]; then
-                cp ".env.example" "$SHARED_ENV"
-              elif [ -f ".env" ]; then
-                cp ".env" "$SHARED_ENV"
-              else
-                echo "ERROR: No .env.example found to create $SHARED_ENV."
-                exit 1
-              fi
-              echo "Successfully initialized $SHARED_ENV from template."
-            else
-              echo "Using existing shared env file: $SHARED_ENV"
-            fi
-
-            ln -sf "$SHARED_ENV" .env
-            ENV_FILE="$SHARED_ENV"
-
-            echo "Current directory:"
-            pwd
-
-            echo "Docker Compose version:"
-            docker compose version
-
-            echo "Building and starting containers..."
-            docker compose --env-file "$ENV_FILE" up -d --build
-
-            echo "Container status:"
-            docker compose --env-file "$ENV_FILE" ps
-
-            echo "Checking frontend health..."
-            curl --fail --silent --show-error --retry 10 --retry-all-errors \
-              --retry-delay 3 --max-time 10 \
-              http://127.0.0.1:8005/
-
-            echo "Deployment completed."
+          set -euo pipefail
+          test -n "$SSH_FINGERPRINT"
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -T 10 -t ed25519 "$SSH_HOST" > ~/.ssh/known_hosts
+          actual=$(ssh-keygen -lf ~/.ssh/known_hosts -E sha256 | awk '{print $2}')
+          test "$actual" = "$SSH_FINGERPRINT"
+      - name: Upload isolated release and deploy
+        env:
+          SSH_HOST: ${{ secrets.SSH_HOST_DEV_NEW }}
+          SSH_USER: ${{ secrets.SSH_USER }}
+        run: |
+          set -euo pipefail
+          [[ "$SSH_USER" =~ ^[a-zA-Z0-9_-]+$ ]]
+          [[ "$SSH_HOST" =~ ^[a-zA-Z0-9.-]+$ ]]
+          release="/home/apps/machine-learning/releases/frontend/$GITHUB_SHA"
+          ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=yes "$SSH_USER@$SSH_HOST" "mkdir -p '$release'"
+          git archive HEAD | ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=yes "$SSH_USER@$SSH_HOST" "tar -x -C '$release'"
+          ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=yes "$SSH_USER@$SSH_HOST" "bash '$release/tools/deploy_production.sh' '$release' '/home/apps/machine-learning/shared/.env.fe' '$GITHUB_SHA'"
+      - name: Remove temporary SSH key
+        if: always()
+        run: rm -f ~/.ssh/deploy_key

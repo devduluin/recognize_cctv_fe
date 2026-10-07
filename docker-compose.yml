@@ -1,15 +1,25 @@
+name: recognize-cctv-fe
+
 services:
   recognize_cctv_fe:
     container_name: recognize_cctv_fe
+    image: ${RELEASE_IMAGE:-recognize_cctv_fe:local}
+    init: true
+    stop_grace_period: 30s
+    security_opt: [no-new-privileges:true]
+    cap_drop: [ALL]
     build:
       context: .
       args:
         NEXT_PUBLIC_APP_MODE: ${NEXT_PUBLIC_APP_MODE}
         NEXT_PUBLIC_SERVICE_RECOGNIZE_CCTV: ${NEXT_PUBLIC_SERVICE_RECOGNIZE_CCTV}
         IS_MAINTANANCE: ${IS_MAINTANANCE:-false}
-    restart: always
+    restart: unless-stopped
+    logging:
+      driver: json-file
+      options: {max-size: "10m", max-file: "3"}
     ports:
-      - "8005:8005"
+      - "127.0.0.1:8005:8005"
     env_file:
       - ${ENV_FILE:-.env}
     environment:
