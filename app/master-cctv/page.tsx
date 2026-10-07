@@ -1,4 +1,5 @@
 "use client";
+import { visitorFetch } from "../../components/auth/visitor-api";
 import { Button } from "../../components/ui/button";
 import { toast } from "../../components/ui/toast";
 import { Field, Input } from "../../components/ui/field";
@@ -55,7 +56,7 @@ export default function KameraPage() {
         "";
       setCompanyId(cid);
       if (!cid) throw new Error("Workspace belum tersedia.");
-      const response = await fetch(
+      const response = await visitorFetch(
         `${API_BASE}/cameras/${encodeURIComponent(cid)}`,
         { cache: "no-store" },
       );
@@ -103,7 +104,7 @@ export default function KameraPage() {
     setBusy(true);
     setFormError("");
     try {
-      const response = await fetch(
+      const response = await visitorFetch(
         `${API_BASE}/source/${encodeURIComponent(companyId)}`,
         {
           method: "POST",
@@ -137,7 +138,7 @@ export default function KameraPage() {
   async function remove(id: string) {
     if (!confirm("Hapus kamera ini?")) return;
     try {
-      const response = await fetch(
+      const response = await visitorFetch(
         `${API_BASE}/cameras/${encodeURIComponent(companyId)}/${encodeURIComponent(id)}`,
         { method: "DELETE" },
       );

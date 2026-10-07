@@ -1,6 +1,6 @@
 "use client";
 import { visitorFetch } from "./auth/visitor-api";
-import { useEffect, useId, useMemo, useState } from "react";
+import { useEffect, useId, useMemo, useState, useSyncExternalStore } from "react";
 import {
   ClockArrowUp,
   RefreshCw,
@@ -79,10 +79,9 @@ function resolveCompanyId(companyId: string) {
     return "";
   }
 }
-interface HourlyTooltipPayloadItem {
-  payload: Hour;
-  value: number;
-}
+const subscribeToClient = () => () => {};
+const clientReady = () => true;
+const serverReady = () => false;
 
 function CustomHourlyTooltip({
   active,
@@ -123,10 +122,7 @@ export function VisitorChart({
   timezone?: string;
   table?: boolean;
 }) {
-  const [mounted, setMounted] = useState(false);
-  useEffect(() => {
-    setMounted(true);
-  }, []);
+  const mounted = useSyncExternalStore(subscribeToClient, clientReady, serverReady);
 
   return (
     <div className={ui.chartPanel}>
@@ -265,8 +261,6 @@ export function GenderBarChart({
   femaleCount = 0,
   unknownCount = 0,
   total = 0,
-  date,
-  timezone = "Asia/Jakarta",
   table = true,
 }: {
   hours?: Hour[];
@@ -278,14 +272,10 @@ export function GenderBarChart({
   timezone?: string;
   table?: boolean;
 }) {
-  const [mounted, setMounted] = useState(false);
+  const mounted = useSyncExternalStore(subscribeToClient, clientReady, serverReady);
   const [viewMode, setViewMode] = useState<"hourly" | "summary">(
     hours && hours.length > 0 ? "hourly" : "summary",
   );
-
-  useEffect(() => {
-    setMounted(true);
-  }, []);
 
   const calculatedTotal = total > 0 ? total : maleCount + femaleCount + unknownCount;
   const safeTotal = Math.max(1, calculatedTotal);
@@ -531,20 +521,6 @@ export function GenderBarChart({
   );
 }
 
-interface CombinedTooltipPayloadItem {
-  name: string;
-  value: number;
-  color: string;
-  payload: {
-    hour: number;
-    label: string;
-    in_count: number;
-    male_count: number;
-    female_count: number;
-    unknown_count: number;
-  };
-}
-
 function CustomCombinedTooltip({
   active,
   payload,
@@ -607,12 +583,8 @@ export function CombinedVisitorChart({
   timezone?: string;
   table?: boolean;
 }) {
-  const [mounted, setMounted] = useState(false);
+  const mounted = useSyncExternalStore(subscribeToClient, clientReady, serverReady);
   const [isStacked, setIsStacked] = useState(true);
-
-  useEffect(() => {
-    setMounted(true);
-  }, []);
 
   const chartData = useMemo(
     () =>

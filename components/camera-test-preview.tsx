@@ -6,6 +6,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Camera, Loader2, Square } from "lucide-react";
 import { getAuthHeaders } from "./auth/auth-api";
 import WebRTCPlayer, { StreamUrls } from "./camera/webrtc-player";
+import { countingLineGeometry } from "./camera/counting-line-geometry";
 
 const API_BASE =
   (process.env.NEXT_PUBLIC_SERVICE_RECOGNIZE_CCTV || "") + "/api/v1/events";
@@ -230,20 +231,10 @@ export default function CameraTestPreview({
     };
   }, [autoStart, testCamera]);
 
-  const radians = angle * Math.PI / 180;
-  const horizontal = orientation === "horizontal";
-  const normal = horizontal
-    ? { x: -Math.sin(radians), y: Math.cos(radians) }
-    : { x: Math.cos(radians), y: Math.sin(radians) };
-  const anchor = horizontal
-    ? { x: frameSize.width / 2, y: frameSize.height * position / 100 }
-    : { x: frameSize.width * position / 100, y: frameSize.height / 2 };
-  const span = 2 * Math.hypot(frameSize.width, frameSize.height);
-  const zoneHalfWidth =
-    (horizontal ? frameSize.height : frameSize.width) * zoneWidthRatio / 2;
-  const lineOffsets = twoLineCounting
-    ? [-zoneHalfWidth, zoneHalfWidth]
-    : [0];
+  const geometry = countingLineGeometry(frameSize.width, frameSize.height, {
+    linePosition: position / 100, lineOrientation: orientation, lineAngle: angle,
+    twoLineCounting, zoneWidthRatio, reverseDirection: reversed,
+  });
   return (
     <div
       data-compact={compact}
@@ -273,7 +264,9 @@ export default function CameraTestPreview({
               hideLineUI
                 ? undefined
                 : {
-                    linePosition: position,
+                    linePosition: position / 100,
+                    lineAngle: angle,
+                    countingDirection,
                     lineOrientation: orientation as "vertical" | "horizontal",
                     reverseDirection: reversed,
                     twoLineCounting,
@@ -304,23 +297,23 @@ export default function CameraTestPreview({
             {!hideLineUI && (
               <svg
                 role="img"
-                aria-label={`${twoLineCounting ? "Dua garis" : "Satu garis"} ${orientation}, kemiringan ${angle} derajat, posisi ${position} persen. ${countingDirection === "auto" ? `Masuk ${reversed ? "B ke A" : "A ke B"}.` : `Lintasan lengkap dihitung sebagai ${countingDirection === "in" ? "masuk" : "keluar"}.`}`}
+                aria-label={`${twoLineCounting ? "Dua garis" : "Satu garis"} ${orientation}, kemiringan ${angle} derajat, posisi ${position} persen. ${countingDirection === "auto" ? `Masuk ${reversed ? "Batas 2 ke Batas 1" : "Batas 1 ke Batas 2"}.` : `Lintasan lengkap dihitung sebagai ${countingDirection === "in" ? "masuk" : "keluar"}.`}`}
                 className="pointer-events-none absolute inset-0 h-full w-full"
                 viewBox={`0 0 ${frameSize.width} ${frameSize.height}`}
                 preserveAspectRatio="xMidYMid meet"
               >
-                {lineOffsets.map((offset, index) => {
-                  const x = anchor.x + normal.x * offset;
-                  const y = anchor.y + normal.y * offset;
+                {geometry.lines.map((line, index) => {
+                  const x = Math.max(8, Math.min(frameSize.width - 130, line.labelPoint?.x ?? 0));
+                  const y = Math.max(40, Math.min(frameSize.height - 8, line.labelPoint?.y ?? 0));
                   return (
                     <g key={index}>
                       <line
-                        x1={x - normal.y * span} y1={y + normal.x * span}
-                        x2={x + normal.y * span} y2={y - normal.x * span}
-                        stroke="#22c55e" strokeWidth={2} vectorEffect="non-scaling-stroke"
+                        x1={line.start.x} y1={line.start.y}
+                        x2={line.end.x} y2={line.end.y}
+                        stroke="#67e8f9" strokeWidth={2} vectorEffect="non-scaling-stroke"
                       />
-                      <text x={x + 8} y={y - 12} fill="white" stroke="black" strokeWidth={3} paintOrder="stroke" fontSize={32}>
-                        {index === 0 ? "A" : "B"}
+                      <text x={x} y={y} fill="white" stroke="black" strokeWidth={3} paintOrder="stroke" fontSize={24}>
+                        {twoLineCounting ? `Batas ${index + 1}` : "Garis hitung"}
                       </text>
                     </g>
                   );

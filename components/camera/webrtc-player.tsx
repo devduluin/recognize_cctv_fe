@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import Hls from "hls.js";
 import {
   AlertCircle,
@@ -17,6 +17,7 @@ import {
   VolumeX,
 } from "lucide-react";
 import CountingLineOverlay, { LineConfig } from "./counting-line-overlay";
+import { containedVideoRect } from "./counting-line-geometry";
 import DetectionBoxesOverlay, { DetectionBox } from "./detection-boxes-overlay";
 
 export type { LineConfig, DetectionBox };
@@ -50,7 +51,6 @@ export interface WebRTCPlayerProps {
 
 export default function WebRTCPlayer({
   whepUrl,
-  webrtcPlayerUrl,
   hlsUrl,
   fallbackStreamUrl,
   cameraName = "CCTV Camera",
@@ -61,7 +61,7 @@ export default function WebRTCPlayer({
   lineConfig,
   hideInternalSwitcher = false,
   detections,
-  showDetections = true,
+  showDetections,
   onToggleDetections,
   onModeChange,
   onStatusChange,
@@ -76,6 +76,11 @@ export default function WebRTCPlayer({
   const whepResourceUrlRef = useRef<string | null>(null);
 
   const [activeMode, setActiveMode] = useState<StreamMode>(preferredMode);
+  const [lastPreferredMode, setLastPreferredMode] = useState(preferredMode);
+  if (lastPreferredMode !== preferredMode) {
+    setLastPreferredMode(preferredMode);
+    setActiveMode(preferredMode);
+  }
   const [showOverlay, setShowOverlay] = useState<boolean>(true);
   const [status, setStatus] = useState<"connecting" | "live" | "error">("connecting");
   const [errorMessage, setErrorMessage] = useState<string>("");
@@ -86,12 +91,9 @@ export default function WebRTCPlayer({
   const [internalShowDetections, setInternalShowDetections] = useState<boolean>(
     showDetections ?? true
   );
+  const [videoViewport, setVideoViewport] = useState<(NonNullable<ReturnType<typeof containedVideoRect>> & { mediaWidth: number; mediaHeight: number }) | null>(null);
 
-  useEffect(() => {
-    if (showDetections !== undefined) {
-      setInternalShowDetections(showDetections);
-    }
-  }, [showDetections]);
+  const detectionsVisible = showDetections ?? internalShowDetections;
 
   const handleToggleDetections = useCallback(
     (enabled: boolean) => {
@@ -103,9 +105,11 @@ export default function WebRTCPlayer({
 
   // Stable callback refs to prevent unnecessary useEffect re-triggers from parent renders
   const onStatusChangeRef = useRef(onStatusChange);
-  onStatusChangeRef.current = onStatusChange;
   const onModeChangeRef = useRef(onModeChange);
-  onModeChangeRef.current = onModeChange;
+  useEffect(() => {
+    onStatusChangeRef.current = onStatusChange;
+    onModeChangeRef.current = onModeChange;
+  }, [onStatusChange, onModeChange]);
 
   // Clean up all active streams (WebRTC & HLS)
   const cleanupStreams = useCallback(() => {
@@ -167,13 +171,6 @@ export default function WebRTCPlayer({
     },
     []
   );
-
-  // Sync activeMode when preferredMode prop changes from parent
-  useEffect(() => {
-    if (preferredMode && preferredMode !== activeMode) {
-      switchMode(preferredMode);
-    }
-  }, [preferredMode, switchMode]);
 
   // WebRTC WHEP connection initialization using native HTML5 Video
   const startWebRTC = useCallback(async () => {
@@ -379,23 +376,54 @@ export default function WebRTCPlayer({
 
   // Main lifecycle effect for stream initialization
   useEffect(() => {
-    if (activeMode === "webrtc") {
-      void startWebRTC();
-    } else if (activeMode === "hls") {
-      startHLS();
-    } else {
-      cleanupStreams();
-      updateStatus(fallbackStreamUrl ? "connecting" : "error", fallbackStreamUrl ? undefined : "URL stream backend tidak tersedia");
-    }
+    const frame = requestAnimationFrame(() => {
+      if (activeMode === "webrtc") {
+        void startWebRTC();
+      } else if (activeMode === "hls") {
+        startHLS();
+      } else {
+        cleanupStreams();
+        updateStatus(fallbackStreamUrl ? "connecting" : "error", fallbackStreamUrl ? undefined : "URL stream backend tidak tersedia");
+      }
+    });
 
     return () => {
+      cancelAnimationFrame(frame);
       cleanupStreams();
     };
   }, [activeMode, retryNonce, startWebRTC, startHLS, cleanupStreams, updateStatus, fallbackStreamUrl]);
 
   const mjpegUrl = fallbackStreamUrl
-    ? `${fallbackStreamUrl}${fallbackStreamUrl.includes("?") ? "&" : "?"}annotated=${internalShowDetections}`
+    ? `${fallbackStreamUrl}${fallbackStreamUrl.includes("?") ? "&" : "?"}annotated=${detectionsVisible}`
     : undefined;
+
+  useEffect(() => {
+    const container = containerRef.current;
+    const video = videoRef.current;
+    if (!container) return;
+    const measure = () => {
+      const image = mjpegRef.current;
+      const mediaWidth = activeMode === "mjpeg" ? image?.naturalWidth || 0 : video?.videoWidth || 0;
+      const mediaHeight = activeMode === "mjpeg" ? image?.naturalHeight || 0 : video?.videoHeight || 0;
+      const rect = containedVideoRect(container.clientWidth, container.clientHeight, mediaWidth, mediaHeight);
+      const next = rect ? { ...rect, mediaWidth, mediaHeight } : null;
+      setVideoViewport((previous) => JSON.stringify(previous) === JSON.stringify(next) ? previous : next);
+      return Boolean(rect);
+    };
+    const observer = new ResizeObserver(measure);
+    observer.observe(container);
+    video?.addEventListener("loadedmetadata", measure);
+    video?.addEventListener("resize", measure);
+    const animation = requestAnimationFrame(measure);
+    const poll = setInterval(() => { if (measure()) clearInterval(poll); }, 100);
+    return () => {
+      observer.disconnect();
+      video?.removeEventListener("loadedmetadata", measure);
+      video?.removeEventListener("resize", measure);
+      cancelAnimationFrame(animation);
+      clearInterval(poll);
+    };
+  }, [activeMode, mjpegUrl, retryNonce]);
 
   useEffect(() => {
     if (activeMode !== "mjpeg" || !mjpegUrl) return;
@@ -454,7 +482,7 @@ export default function WebRTCPlayer({
         autoPlay={autoPlay}
         playsInline
         muted={isMuted}
-        className={`h-full w-full object-contain transition-opacity duration-300 ${
+        className={`absolute inset-0 block h-full w-full object-contain transition-opacity duration-300 ${lineConfig?.mirror ? "-scale-x-100" : ""} ${
           status === "live" && activeMode !== "mjpeg" ? "opacity-100" : "opacity-0"
         }`}
       />
@@ -472,15 +500,14 @@ export default function WebRTCPlayer({
         />
       )}
 
-      {/* Line Crossing Overlay (WebRTC / HLS mode) */}
-      {showOverlay && activeMode !== "mjpeg" && lineConfig && (
-        <CountingLineOverlay config={lineConfig} />
-      )}
-
-      {/* AI Detection Bounding Boxes Overlay (WebRTC / HLS mode) */}
-      {internalShowDetections && activeMode !== "mjpeg" && detections && detections.length > 0 && (
-        <DetectionBoxesOverlay detections={detections} mirror={lineConfig?.mirror} />
-      )}
+      {videoViewport && <div data-camera-viewport className="pointer-events-none absolute" style={{ left: videoViewport.left, top: videoViewport.top, width: videoViewport.width, height: videoViewport.height }}>
+        {showOverlay && lineConfig && (activeMode !== "mjpeg" || !detectionsVisible) && (
+          <CountingLineOverlay config={{ ...lineConfig, mirror: false }} mediaWidth={videoViewport.mediaWidth} mediaHeight={videoViewport.mediaHeight} displayWidth={videoViewport.width} />
+        )}
+        {detectionsVisible && activeMode !== "mjpeg" && detections && detections.length > 0 && (
+          <DetectionBoxesOverlay detections={detections} />
+        )}
+      </div>}
 
       {/* Status Overlay: Connecting */}
       {status === "connecting" && (
@@ -542,7 +569,7 @@ export default function WebRTCPlayer({
                 type="button"
                 onClick={() => handleToggleDetections(false)}
                 className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-[11px] font-semibold transition ${
-                  !internalShowDetections
+                  !detectionsVisible
                     ? "bg-cyan-500 text-white shadow-sm"
                     : "text-slate-300 hover:text-white hover:bg-white/10"
                 }`}
@@ -556,7 +583,7 @@ export default function WebRTCPlayer({
                 type="button"
                 onClick={() => handleToggleDetections(true)}
                 className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-[11px] font-semibold transition ${
-                  internalShowDetections
+                  detectionsVisible
                     ? "bg-amber-500 text-slate-950 font-bold shadow-sm"
                     : "text-slate-300 hover:text-white hover:bg-white/10"
                 }`}

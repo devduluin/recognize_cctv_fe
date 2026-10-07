@@ -1,4 +1,5 @@
 "use client";
+import { visitorFetch } from "../auth/visitor-api";
 import { Button } from "../ui/button";
 import { Select, Switch } from "../ui/field";
 import { Panel } from "../ui/layout";
@@ -23,7 +24,7 @@ export default function GeneralSettingsPanel() {
   const live = useRef(true);
   const api = useCallback(
     async <T,>(path: string, body?: unknown): Promise<T> => {
-      const response = await fetch(`${API_BASE}${path}`, {
+      const response = await visitorFetch(`${API_BASE}${path}`, {
         ...(body !== undefined
           ? {
               method: "POST",

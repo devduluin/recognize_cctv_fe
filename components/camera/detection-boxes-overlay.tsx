@@ -11,6 +11,8 @@ export interface DetectionBox {
   color?: string;
   box: [number, number, number, number]; // [x1, y1, x2, y2] normalized in 0..1
   zone_seconds?: number | null;
+  counting_status?: string;
+  counting_message?: string;
 }
 
 export interface DetectionBoxesOverlayProps {
@@ -91,10 +93,9 @@ export default function DetectionBoxesOverlay({
               <span>{det.label || `Track ${det.track_id ?? "?"}`}</span>
             </div>
 
-            {/* Bottom Crossing Zone Timer Tag (if present) */}
-            {det.zone_seconds != null && det.zone_seconds > 0 && (
-              <div className="absolute -bottom-5 left-0 whitespace-nowrap rounded bg-black/80 px-1.5 py-0.5 text-[9px] font-semibold text-emerald-300 border border-emerald-500/30 backdrop-blur-xs shadow">
-                P1: {det.zone_seconds.toFixed(1)}s
+            {det.counting_message && (
+              <div className="absolute bottom-1 left-1 max-w-[240px] rounded bg-slate-950/95 px-2 py-1 text-[11px] leading-snug text-white">
+                {det.counting_message}
               </div>
             )}
           </div>

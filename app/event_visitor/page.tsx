@@ -60,9 +60,13 @@ type Status = {
   two_line_counting?: boolean;
   zone_width_ratio?: number;
   mirror?: boolean;
+  counting_frame_size?: { width: number; height: number };
   cameras?: {
     camera_id: string;
     counting_direction?: string;
+    counting_frame_size?: { width: number; height: number };
+    body_reid_enabled?: boolean;
+    body_reid_error?: string | null;
     name: string;
     running: boolean;
     connection_state?: "online" | "connecting" | "reconnecting" | "stopped";
@@ -117,7 +121,8 @@ export default function EventVisitorPage({
   const [streamErrors, setStreamErrors] = useState<Record<string, boolean>>({});
   const [cameraModes, setCameraModes] = useState<Record<string, StreamMode>>({});
   const [cameraAiDetection, setCameraAiDetection] = useState<Record<string, boolean>>({});
-  const [cameraDetections, setCameraDetections] = useState<Record<string, DetectionBox[]>>({});
+  const [detectionSnapshot, setDetectionSnapshot] = useState<{ eventId: string; cameras: Record<string, DetectionBox[]> } | null>(null);
+  const cameraDetections = status?.running && detectionSnapshot?.eventId === selectedEventId ? detectionSnapshot.cameras : {};
   const [streamKey, setStreamKey] = useState(0);
   const cameraRetryKey = (status?.cameras || []).filter((camera) => streamErrors[camera.camera_id] && camera.running && (!camera.connection_state || camera.connection_state === "online")).map((camera) => camera.camera_id).join(",");
   useEffect(() => {
@@ -169,13 +174,14 @@ export default function EventVisitorPage({
     let fallbackInterval: NodeJS.Timeout | null = null;
 
     const cid = getCompanyId();
+    const initial = setTimeout(() => {
+      setStatus(null);
+      if (!cid) setConnectionError("Workspace belum tersedia.");
+      else void refreshStatus(controller.signal);
+    }, 0);
     if (!cid) {
-      setConnectionError("Workspace belum tersedia.");
-      return;
+      return () => clearTimeout(initial);
     }
-
-    setStatus(null);
-    void refreshStatus(controller.signal);
 
     const token = getAuthToken();
     const query = [
@@ -225,6 +231,7 @@ export default function EventVisitorPage({
     }
 
     return () => {
+      clearTimeout(initial);
       controller.abort();
       if (eventSource) {
         eventSource.close();
@@ -238,7 +245,6 @@ export default function EventVisitorPage({
   // Live AI detection boxes SSE stream (<100ms updates)
   useEffect(() => {
     if (!selectedEventId || !status?.running) {
-      setCameraDetections({});
       return;
     }
     const cid = getCompanyId();
@@ -260,7 +266,7 @@ export default function EventVisitorPage({
         try {
           const payload = JSON.parse(event.data);
           if (payload?.cameras) {
-            setCameraDetections(payload.cameras);
+            setDetectionSnapshot({ eventId: selectedEventId, cameras: payload.cameras });
           }
         } catch {
           // ignore parse errors
@@ -393,7 +399,7 @@ export default function EventVisitorPage({
         throw new Error(typeof body.detail === "string" ? body.detail : "Event belum dapat direset. Coba lagi.");
       }
       setStatus(null);
-      setCameraDetections({});
+      setDetectionSnapshot(null);
       setStreamErrors({});
       setResetVersion((value) => value + 1);
       setStreamKey((value) => value + 1);
@@ -525,7 +531,7 @@ export default function EventVisitorPage({
                 </span>
               </div>
               <p className="mt-1 text-xs text-[#52647f]">
-                Tampilan grid otomatis semua kamera. Wajah yang cocok antar-kamera dalam event ini otomatis teridentifikasi sebagai satu pengunjung unik.
+                Pantau semua kamera dalam satu event. Pengunjung dicocokkan melalui wajah atau tubuh agar tidak dihitung sebagai orang baru di setiap kamera.
               </p>
               <div className="mt-2 flex flex-wrap items-center gap-3 text-[11px] text-[#52647f]">
                 <span className="inline-flex items-center gap-1.5 font-medium">
@@ -538,11 +544,11 @@ export default function EventVisitorPage({
                 </span>
                 <span className="inline-flex items-center gap-1.5 font-medium">
                   <span className="size-2.5 rounded-[2px] bg-[#eab308] ring-1 ring-yellow-500/50" />
-                  <span>Kuning: Belum Terdeteksi</span>
+                  <span>Kuning: Gender belum diketahui</span>
                 </span>
                 <span className="inline-flex items-center gap-1.5 font-medium">
-                  <span className="size-2.5 rounded-[2px] bg-[#22c55e] ring-1 ring-green-500/50" />
-                  <span>Hijau: Crossing Garis</span>
+                  <span className="size-2.5 rounded-[2px] bg-cyan-300 ring-1 ring-cyan-400/50" />
+                  <span>Biru muda: Batas penghitungan</span>
                 </span>
               </div>
             </div>
@@ -585,6 +591,7 @@ export default function EventVisitorPage({
                 const streamUrl = `${API_BASE}/stream?company_id=${encodeURIComponent(getCompanyId())}&event_id=${encodeURIComponent(selectedEventId)}${camQuery}${tokenQuery}`;
                 const hasError = Boolean(streamErrors[camId]);
                 const isRunning = running && camera.running !== false;
+                const detectionMessages = [...new Set((cameraDetections[camId] || camera.detections || []).map((detection) => detection.counting_message).filter(Boolean))].slice(0, 3);
 
                 return (
                   <div
@@ -593,7 +600,7 @@ export default function EventVisitorPage({
                     className="group/cell relative flex flex-col overflow-hidden rounded-xl border border-white/10 bg-[#101c30] shadow-md"
                   >
                     {/* Camera Header Bar */}
-                    <div className="flex items-center justify-between border-b border-white/10 bg-white/5 px-3 py-2 text-xs">
+                    <div className="flex flex-wrap items-center justify-between gap-2 border-b border-white/10 bg-white/5 px-3 py-2 text-xs">
                       <div className="flex items-center gap-2">
                         <span className="flex size-5 items-center justify-center rounded bg-white/10 text-[11px] font-semibold text-white/90">
                           {index + 1}
@@ -715,6 +722,7 @@ export default function EventVisitorPage({
                           className="size-full"
                           lineConfig={{
                             countingDirection: camera.counting_direction,
+                            frameSize: camera.counting_frame_size || status?.counting_frame_size,
                             linePosition: camera.line_position ?? status?.line_position ?? 0.5,
                             lineOrientation: camera.line_orientation ?? status?.line_orientation ?? "horizontal",
                             lineAngle: camera.line_angle ?? status?.line_angle ?? 0.0,
@@ -758,17 +766,22 @@ export default function EventVisitorPage({
                         </div>
                       )}
 
-                      {isRunning && camera.connection_state && camera.connection_state !== "online" && (
-                        <p role="status" className="border-t border-white/10 bg-[#101c30] px-3 py-2 text-xs text-amber-200">
-                          {camera.connection_state === "reconnecting" ? "Kamera terputus. Menghubungkan kembali otomatis…" : camera.connection_state === "stopped" ? "Kamera offline. Hentikan lalu mulai monitoring untuk mencoba kembali." : "Menunggu gambar kamera…"}
-                        </p>
-                      )}
                       {camera.last_error && (
                         <div className="absolute inset-x-2 bottom-2 rounded border border-rose-800 bg-rose-950/80 px-2 py-1 text-[11px] text-rose-200">
                           {camera.last_error}
                         </div>
                       )}
                     </div>
+                    {isRunning && camera.connection_state && camera.connection_state !== "online" && (
+                      <p role="status" className="border-t border-white/10 bg-[#101c30] px-3 py-2 text-xs text-amber-200">
+                        {camera.connection_state === "reconnecting" ? "Kamera terputus. Menghubungkan kembali otomatis…" : camera.connection_state === "stopped" ? "Kamera offline. Hentikan lalu mulai monitoring untuk mencoba kembali." : "Menunggu gambar kamera…"}
+                      </p>
+                    )}
+                    {isRunning && (!camera.connection_state || camera.connection_state === "online") && <div className="border-t border-white/10 bg-[#101c30] px-3 py-2 text-xs text-slate-200">
+                      {camera.body_reid_enabled === false && <p className="mb-1 text-amber-200">Pencocokan tubuh tidak aktif. Wajah diperlukan untuk mencocokkan pengunjung antar kamera.</p>}
+                      {detectionMessages.length === 0 && <p>Belum ada pengunjung yang terdeteksi.</p>}
+                      {detectionMessages.map((message) => <p key={message}>{message}</p>)}
+                    </div>}
                   </div>
                 );
               })}
@@ -962,7 +975,7 @@ export default function EventVisitorPage({
         </div>
       </div>
       <div className="pt-2">
-        <VisitorRecords key={`${selectedEventId}:${resetVersion}`} companyId={getCompanyId()} eventId={selectedEventId} version={`${status?.in_count}:${status?.out_count}:${status?.last_visitor_at}`} />
+        <VisitorRecords key={selectedEventId} companyId={getCompanyId()} eventId={selectedEventId} monitoring={Boolean(status?.running)} timezone={status?.timezone || "Asia/Jakarta"} cameras={status?.cameras || []} onChanged={() => { setResetVersion((value) => value + 1); void refreshStatus(); }} version={`${resetVersion}:${status?.in_count}:${status?.out_count}:${status?.last_visitor_at}`} />
       </div>
       <div className="pt-2">
       <HourlyVisitorStatistics
