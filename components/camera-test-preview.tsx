@@ -6,7 +6,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Camera, Loader2, Square } from "lucide-react";
 import { getAuthHeaders } from "./auth/auth-api";
 import WebRTCPlayer, { StreamUrls } from "./camera/webrtc-player";
-import { countingLineGeometry, countingLineGuidance } from "./camera/counting-line-geometry";
+import CountingLineOverlay from "./camera/counting-line-overlay";
+import { containedVideoRect, countingLineGeometry, countingLineGuidance } from "./camera/counting-line-geometry";
 
 const API_BASE =
   (process.env.NEXT_PUBLIC_SERVICE_RECOGNIZE_CCTV || "") + "/api/v1/events";
@@ -46,6 +47,19 @@ export default function CameraTestPreview({
   const [streamUrls, setStreamUrls] = useState<StreamUrls | null>(null);
   const active = useRef<AbortController | null>(null);
   const canvas = useRef<HTMLCanvasElement | null>(null);
+  const videoArea = useRef<HTMLDivElement | null>(null);
+  const [displaySize, setDisplaySize] = useState({ width: 0, height: 0 });
+
+  useEffect(() => {
+    const target = videoArea.current;
+    if (!target) return;
+    const observer = new ResizeObserver(([entry]) => {
+      const { width, height } = entry.contentRect;
+      setDisplaySize({ width, height });
+    });
+    observer.observe(target);
+    return () => observer.disconnect();
+  }, []);
 
   useEffect(
     () => () => {
@@ -238,6 +252,9 @@ export default function CameraTestPreview({
   const directionGuidance = countingLineGuidance({
     countingDirection, twoLineCounting, reverseDirection: reversed,
   });
+  const videoRect = containedVideoRect(
+    displaySize.width, displaySize.height, frameSize.width, frameSize.height,
+  );
   return (
     <div
       data-compact={compact}
@@ -254,7 +271,7 @@ export default function CameraTestPreview({
       )}
 
       {/* Video Area */}
-      <div className="relative flex aspect-video w-full items-center justify-center overflow-hidden group-data-[compact=true]/preview:h-[140px] group-data-[compact=true]/preview:aspect-auto bg-[#080d18]">
+      <div ref={videoArea} className="relative flex aspect-video w-full items-center justify-center overflow-hidden bg-[#080d18]">
         {streaming && streamUrls?.webrtc_whep ? (
           <WebRTCPlayer
             whepUrl={streamUrls.webrtc_whep}
@@ -294,35 +311,26 @@ export default function CameraTestPreview({
           />
         )}
 
-        {/* Fallback line overlay for canvas streaming mode */}
-        {preview && !streamUrls?.webrtc_whep && (
-          <div className="relative h-full w-full pointer-events-none">
-            {!hideLineUI && (
-              <svg
-                role="img"
-                aria-label={`${twoLineCounting ? "Dua garis" : "Satu garis"} ${orientation}, kemiringan ${angle} derajat, posisi ${position} persen. ${directionGuidance.join(". ")}.`}
-                className="pointer-events-none absolute inset-0 h-full w-full"
-                viewBox={`0 0 ${frameSize.width} ${frameSize.height}`}
-                preserveAspectRatio="xMidYMid meet"
-              >
-                {geometry.lines.map((line, index) => {
-                  const x = Math.max(8, Math.min(frameSize.width - 130, line.labelPoint?.x ?? 0));
-                  const y = Math.max(40, Math.min(frameSize.height - 8, line.labelPoint?.y ?? 0));
-                  return (
-                    <g key={index}>
-                      <line
-                        x1={line.start.x} y1={line.start.y}
-                        x2={line.end.x} y2={line.end.y}
-                        stroke="#67e8f9" strokeWidth={2} vectorEffect="non-scaling-stroke"
-                      />
-                      <text x={x} y={y} fill="white" stroke="black" strokeWidth={3} paintOrder="stroke" fontSize={24}>
-                        {twoLineCounting ? `Batas ${index + 1}` : "Garis hitung"}
-                      </text>
-                    </g>
-                  );
-                })}
-              </svg>
-            )}
+        {preview && !streamUrls?.webrtc_whep && !hideLineUI && videoRect && (
+          <div
+            className="pointer-events-none absolute"
+            style={{ left: videoRect.left, top: videoRect.top, width: videoRect.width, height: videoRect.height }}
+          >
+            <CountingLineOverlay
+              mediaWidth={frameSize.width}
+              mediaHeight={frameSize.height}
+              displayWidth={videoRect.width}
+              config={{
+                linePosition: position / 100,
+                lineOrientation: orientation,
+                lineAngle: angle,
+                reverseDirection: reversed,
+                countingDirection,
+                twoLineCounting,
+                zoneWidthRatio,
+                mirror,
+              }}
+            />
           </div>
         )}
 
