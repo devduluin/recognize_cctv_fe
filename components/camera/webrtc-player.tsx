@@ -32,6 +32,7 @@ export interface StreamUrls {
 
 export interface WebRTCPlayerProps {
   whepUrl?: string;
+  iceServers?: RTCIceServer[];
   webrtcPlayerUrl?: string;
   hlsUrl?: string;
   fallbackStreamUrl?: string;
@@ -51,6 +52,7 @@ export interface WebRTCPlayerProps {
 
 export default function WebRTCPlayer({
   whepUrl,
+  iceServers,
   hlsUrl,
   fallbackStreamUrl,
   cameraName = "CCTV Camera",
@@ -200,10 +202,7 @@ export default function WebRTCPlayer({
 
     try {
       const pc = new RTCPeerConnection({
-        iceServers: [
-          { urls: "stun:stun.l.google.com:19302" },
-          { urls: "stun:stun1.l.google.com:19302" },
-        ],
+        iceServers: iceServers ?? [],
       });
       pcRef.current = pc;
 
@@ -281,7 +280,7 @@ export default function WebRTCPlayer({
       if (!isCurrent()) return;
       fallback(err instanceof Error ? err.message : "Gagal menghubungkan WebRTC");
     }
-  }, [whepUrl, hlsUrl, fallbackStreamUrl, cleanupStreams, updateStatus, switchMode]);
+  }, [whepUrl, iceServers, hlsUrl, fallbackStreamUrl, cleanupStreams, updateStatus, switchMode]);
 
   // HLS stream playback
   const startHLS = useCallback(() => {
