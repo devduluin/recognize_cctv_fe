@@ -2,6 +2,17 @@ import type { LineConfig } from "./counting-line-overlay";
 
 export type Point = { x: number; y: number };
 
+export function countingLineGuidance(config: LineConfig) {
+  const entryOrder = config.reverseDirection ? "Batas 2 ke Batas 1" : "Batas 1 ke Batas 2";
+  const exitOrder = config.reverseDirection ? "Batas 1 ke Batas 2" : "Batas 2 ke Batas 1";
+  const twoLines = config.twoLineCounting ?? true;
+  const entry = twoLines ? `Masuk: ${entryOrder}` : "Masuk: lewati garis mengikuti panah";
+  const exit = twoLines ? `Keluar: ${exitOrder}` : "Keluar: lewati garis mengikuti panah";
+  return config.countingDirection === "in" ? [entry]
+    : config.countingDirection === "out" ? [exit]
+    : [entry, exit];
+}
+
 export function containedVideoRect(containerWidth: number, containerHeight: number, mediaWidth: number, mediaHeight: number) {
   if (Math.min(containerWidth, containerHeight, mediaWidth, mediaHeight) <= 0) return null;
   const scale = Math.min(containerWidth / mediaWidth, containerHeight / mediaHeight);

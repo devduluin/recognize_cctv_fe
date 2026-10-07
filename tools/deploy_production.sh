@@ -4,7 +4,6 @@ release_dir="${1:?Release directory required}"
 env_file="${2:?Shared environment required}"
 release_id="${3:?Git SHA required}"
 [[ "$release_id" =~ ^[0-9a-f]{40}$ ]] || { echo "Invalid release SHA" >&2; exit 1; }
-[[ -f "$env_file" ]] || { echo "Shared production environment must be provisioned first." >&2; exit 1; }
 cd "$release_dir"
 export ENV_FILE="$env_file"
 export RELEASE_IMAGE="recognize_cctv_fe:$release_id"
@@ -13,6 +12,18 @@ state_dir="$(dirname "$env_file")/frontend-deployment"
 mkdir -p "$state_dir"
 exec 9>"$state_dir/deploy.lock"
 flock -n 9 || { echo "Another deployment is running" >&2; exit 1; }
+if [[ ! -e "$env_file" && ! -L "$env_file" ]]; then
+  [[ -f .env.example ]] || { echo "Cannot initialize $env_file: .env.example is missing from the release." >&2; exit 1; }
+  temporary_env=$(mktemp "$(dirname "$env_file")/.env.init.XXXXXX")
+  trap 'rm -f "$temporary_env"' EXIT
+  cp .env.example "$temporary_env"
+  chmod 600 "$temporary_env"
+  ln "$temporary_env" "$env_file"
+  rm -f "$temporary_env"
+  trap - EXIT
+  echo "Created $env_file from .env.example. Production validation will check its values before startup."
+fi
+[[ -f "$env_file" && -r "$env_file" ]] || { echo "Production environment is not a readable file: $env_file" >&2; exit 1; }
 previous_image=$(docker inspect --format '{{.Image}}' recognize_cctv_fe 2>/dev/null || true)
 previous_release=""
 [[ ! -f "$state_dir/current" ]] || previous_release=$(cat "$state_dir/current")

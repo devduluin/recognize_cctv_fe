@@ -1,6 +1,6 @@
 "use client";
 
-import { countingLineGeometry } from "./counting-line-geometry";
+import { countingLineGeometry, countingLineGuidance } from "./counting-line-geometry";
 
 export interface LineConfig {
   linePosition?: number;
@@ -63,7 +63,7 @@ export default function CountingLineOverlay({ config, mediaWidth = 1280, mediaHe
         })}
       </svg>
       {showLabels && <div className="absolute inset-x-2 bottom-2 flex flex-wrap items-center justify-center gap-1.5">
-        {role === "in" || role === "out" ? <span className={badge}>Kamera {role === "in" ? "Masuk" : "Keluar"}</span> : <>
+        {role === "in" || role === "out" ? <span className={badge}>{role === "in" ? entryArrow : exitArrow} {countingLineGuidance(config)[0]}</span> : <>
           <span className={badge}>{entryArrow} Masuk</span>
           <span className={badge}>{exitArrow} Keluar</span>
         </>}

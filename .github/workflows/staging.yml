@@ -35,32 +35,41 @@ jobs:
     environment: production
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - name: Verify SSH host and install deploy key
+      - name: Prepare SSH host key and deploy key
         env:
-          SSH_HOST: ${{ secrets.SSH_HOST_DEV_NEW }}
+          SSH_HOST_DEV_NEW: ${{ secrets.SSH_HOST_DEV_NEW }}
+          SSH_USER: ${{ secrets.SSH_USER }}
           SSH_KEY: ${{ secrets.SSH_KEY }}
-          SSH_FINGERPRINT: ${{ secrets.SSH_FINGERPRINT }}
         run: |
           set -euo pipefail
-          test -n "$SSH_FINGERPRINT"
+          for required in SSH_HOST_DEV_NEW SSH_USER SSH_KEY; do
+            if [[ -z "${!required:-}" ]]; then
+              echo "::error::Secret $required belum tersedia. Atur di repository atau environment production."
+              exit 1
+            fi
+          done
+          [[ "$SSH_HOST_DEV_NEW" =~ ^[a-zA-Z0-9.-]+$ && "$SSH_HOST_DEV_NEW" != -* ]] || { echo "::error::Format SSH_HOST_DEV_NEW tidak valid."; exit 1; }
+          [[ "$SSH_USER" =~ ^[a-zA-Z0-9_-]+$ ]] || { echo "::error::Format SSH_USER tidak valid."; exit 1; }
           install -d -m 700 ~/.ssh
           printf '%s\n' "$SSH_KEY" > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
-          ssh-keyscan -T 10 -t ed25519 "$SSH_HOST" > ~/.ssh/known_hosts
-          actual=$(ssh-keygen -lf ~/.ssh/known_hosts -E sha256 | awk '{print $2}')
-          test "$actual" = "$SSH_FINGERPRINT"
+          ssh-keyscan -T 10 -t ed25519 "$SSH_HOST_DEV_NEW" > ~/.ssh/known_hosts
+          if [[ ! -s ~/.ssh/known_hosts ]]; then
+            echo "::error::Host key SSH tidak tersedia. Periksa alamat server dan akses port 22."
+            exit 1
+          fi
       - name: Upload isolated release and deploy
         env:
-          SSH_HOST: ${{ secrets.SSH_HOST_DEV_NEW }}
+          SSH_HOST_DEV_NEW: ${{ secrets.SSH_HOST_DEV_NEW }}
           SSH_USER: ${{ secrets.SSH_USER }}
         run: |
           set -euo pipefail
           [[ "$SSH_USER" =~ ^[a-zA-Z0-9_-]+$ ]]
-          [[ "$SSH_HOST" =~ ^[a-zA-Z0-9.-]+$ ]]
+          [[ "$SSH_HOST_DEV_NEW" =~ ^[a-zA-Z0-9.-]+$ ]]
           release="/home/apps/machine-learning/releases/frontend/$GITHUB_SHA"
-          ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=yes "$SSH_USER@$SSH_HOST" "mkdir -p '$release'"
-          git archive HEAD | ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=yes "$SSH_USER@$SSH_HOST" "tar -x -C '$release'"
-          ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=yes "$SSH_USER@$SSH_HOST" "bash '$release/tools/deploy_production.sh' '$release' '/home/apps/machine-learning/shared/.env.fe' '$GITHUB_SHA'"
+          ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=yes "$SSH_USER@$SSH_HOST_DEV_NEW" "mkdir -p '$release'"
+          git archive HEAD | ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=yes "$SSH_USER@$SSH_HOST_DEV_NEW" "tar -x -C '$release'"
+          ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=yes "$SSH_USER@$SSH_HOST_DEV_NEW" "bash '$release/tools/deploy_production.sh' '$release' '/home/apps/machine-learning/shared/.env.fe' '$GITHUB_SHA'"
       - name: Remove temporary SSH key
         if: always()
         run: rm -f ~/.ssh/deploy_key

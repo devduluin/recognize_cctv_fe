@@ -6,7 +6,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Camera, Loader2, Square } from "lucide-react";
 import { getAuthHeaders } from "./auth/auth-api";
 import WebRTCPlayer, { StreamUrls } from "./camera/webrtc-player";
-import { countingLineGeometry } from "./camera/counting-line-geometry";
+import { countingLineGeometry, countingLineGuidance } from "./camera/counting-line-geometry";
 
 const API_BASE =
   (process.env.NEXT_PUBLIC_SERVICE_RECOGNIZE_CCTV || "") + "/api/v1/events";
@@ -235,6 +235,9 @@ export default function CameraTestPreview({
     linePosition: position / 100, lineOrientation: orientation, lineAngle: angle,
     twoLineCounting, zoneWidthRatio, reverseDirection: reversed,
   });
+  const directionGuidance = countingLineGuidance({
+    countingDirection, twoLineCounting, reverseDirection: reversed,
+  });
   return (
     <div
       data-compact={compact}
@@ -297,7 +300,7 @@ export default function CameraTestPreview({
             {!hideLineUI && (
               <svg
                 role="img"
-                aria-label={`${twoLineCounting ? "Dua garis" : "Satu garis"} ${orientation}, kemiringan ${angle} derajat, posisi ${position} persen. ${countingDirection === "auto" ? `Masuk ${reversed ? "Batas 2 ke Batas 1" : "Batas 1 ke Batas 2"}.` : `Lintasan lengkap dihitung sebagai ${countingDirection === "in" ? "masuk" : "keluar"}.`}`}
+                aria-label={`${twoLineCounting ? "Dua garis" : "Satu garis"} ${orientation}, kemiringan ${angle} derajat, posisi ${position} persen. ${directionGuidance.join(". ")}.`}
                 className="pointer-events-none absolute inset-0 h-full w-full"
                 viewBox={`0 0 ${frameSize.width} ${frameSize.height}`}
                 preserveAspectRatio="xMidYMid meet"
@@ -371,6 +374,25 @@ export default function CameraTestPreview({
         )}
       </div>
 
+      {!hideLineUI && (
+        <div className="space-y-2 border-t border-slate-200 bg-white px-4 py-3 text-sm text-slate-700">
+          <div aria-live="polite" aria-atomic="true" className="space-y-1">
+            <p className="font-medium text-slate-900">Arah yang dihitung</p>
+            {directionGuidance.map((instruction) => (
+              <p key={instruction}>
+                <span aria-hidden="true" className="mr-2 font-semibold">{instruction.startsWith("Masuk") ? geometry.entryArrow : geometry.exitArrow}</span>
+                {instruction}
+              </p>
+            ))}
+            <p className="text-xs text-slate-600">Balik arah perlintasan: {reversed ? "aktif" : "nonaktif"}.</p>
+          </div>
+          <p className="text-xs leading-5 text-slate-600">
+            Centang atau hapus centang “Balik arah perlintasan” agar panah mengikuti arah berjalan yang ingin dihitung.
+            {countingDirection !== "auto" && " Gerakan ke arah sebaliknya tidak dihitung."}
+            {twoLineCounting && " Pengunjung harus melewati kedua batas agar tercatat."}
+          </p>
+        </div>
+      )}
       {/* Control Bar (Bottom) */}
       <div className="flex items-center justify-between border-t border-slate-200 bg-white px-4 py-3">
         <div className="flex flex-1 items-center gap-4">

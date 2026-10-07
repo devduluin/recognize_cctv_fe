@@ -1013,11 +1013,10 @@ export default function EventsManager({ editEventId, onClose, onSaved }: {
                                   <input
                                     type="checkbox"
                                     checked={Boolean(cfg.reverseDirection)}
-                                    disabled={cfg.countingDirection !== "auto"}
                                     onChange={(e) => updateCam("reverseDirection", e.target.checked)}
                                     className="size-4 rounded border-neutral-300 text-navy focus:ring-navy"
                                   />
-                                  Balik arah masuk/keluar (mode otomatis)
+                                  Balik arah perlintasan
                                 </label>
                                 <label className="flex min-h-11 cursor-pointer items-center gap-3 text-sm text-neutral-700">
                                   <input

@@ -2,9 +2,9 @@
 
 The workflow runs lint, TypeScript, a production build, Docker build and Compose validation before manual deployment from `main` or `master`. Runtime uses Node 24, a standalone Next.js image, a non-root user, bounded logs and graceful shutdown.
 
-Provision `/home/apps/machine-learning/shared/.env.fe` with mode `600`, `NEXT_PUBLIC_APP_MODE=multi_tenant`, `IS_MAINTANANCE=false`, and `NEXT_PUBLIC_SERVICE_RECOGNIZE_CCTV=https://your-api.example`. Public variables are baked into the browser bundle during build; rebuild after changing the API URL. Never place credentials in `NEXT_PUBLIC_*` variables.
+When missing, the deploy script creates the shared directory and copies `.env.example` to `/home/apps/machine-learning/shared/.env.fe` with mode `600`. Existing env files are preserved. Configure the file with `NEXT_PUBLIC_APP_MODE=multi_tenant`, `IS_MAINTANANCE=false`, and `NEXT_PUBLIC_SERVICE_RECOGNIZE_CCTV=https://your-api.example`. Public variables are baked into the browser bundle during build; rebuild after changing the API URL. Never place credentials in `NEXT_PUBLIC_*` variables.
 
-Create the `production` GitHub environment and configure `SSH_HOST_DEV_NEW`, `SSH_USER`, `SSH_KEY`, and trusted ED25519 `SSH_FINGERPRINT` secrets. Restrict environment branches to `main`/`master`. The server needs Docker, Compose v2, `flock`, and the external `nginx-proxy-manager_default` network. Proxy this service through HTTPS; host port 8005 is bound to loopback, while Nginx Proxy Manager can reach the container through the shared network.
+Create the `production` GitHub environment and configure `SSH_HOST_DEV_NEW`, `SSH_USER`, and `SSH_KEY` secrets. Each run obtains the ED25519 host key using `ssh-keyscan`, without a separately trusted fingerprint comparison. Restrict environment branches to `main`/`master`. The server needs Docker, Compose v2, `flock`, and the external `nginx-proxy-manager_default` network. Proxy this service through HTTPS; host port 8005 is bound to loopback, while Nginx Proxy Manager can reach the container through the shared network.
 
 For an existing running frontend, register its original checkout directory in `/home/apps/machine-learning/shared/frontend-deployment/current` before first deployment. The script refuses to replace an existing release without a rollback configuration. A fresh install needs no registration.
 
