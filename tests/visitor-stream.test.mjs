@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { afterEach, mock, test } from "node:test";
-import { visitorFetch } from "../components/auth/visitor-api.ts";
+import { visitorFetch } from "../components/auth/visitor-fetch.ts";
 import { consumeCameraFrames } from "../components/camera-frames.ts";
 
 const originalStorage = Object.getOwnPropertyDescriptor(globalThis, "localStorage");

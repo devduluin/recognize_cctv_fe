@@ -19,6 +19,7 @@ import {
   Video,
 } from "lucide-react";
 import VisitorRecords from "../../components/visitor-records";
+import { connectStatusStream } from "../../components/events/status-stream";
 import EventsManager from "../../components/events/events-manager";
 import { toast } from "../../components/ui/toast";
 import Modal from "../../components/ui-modal";
@@ -53,6 +54,12 @@ type Status = {
   timezone?: string;
   last_visitor_at: string | null;
   last_error?: string;
+  last_count_update?: {
+    id: string;
+    crossing_to_saved_ms: number;
+    recognition_wait_ms: number;
+    save_ms: number;
+  };
   line_position?: number;
   line_orientation?: string;
   line_angle?: number;
@@ -138,6 +145,24 @@ export default function EventVisitorPage({
     return () => clearTimeout(timer);
   }, [cameraRetryKey]);
   const stage = useRef<HTMLDivElement>(null);
+  const countReceived = useRef<{ id: string; at: number } | null>(null);
+  const [renderMeasurement, setRenderMeasurement] = useState<{ id: string; ms: number } | null>(null);
+  const applyStatus = useCallback((next: Status) => {
+    const id = next?.last_count_update?.id;
+    if (id && countReceived.current?.id !== id) countReceived.current = { id, at: performance.now() };
+    setStatus(next);
+  }, []);
+  useEffect(() => {
+    const received = countReceived.current;
+    if (!received || received.id !== status?.last_count_update?.id) return;
+    let second = 0;
+    const first = requestAnimationFrame(() => {
+      second = requestAnimationFrame(() => {
+        setRenderMeasurement({ id: received.id, ms: Math.round(performance.now() - received.at) });
+      });
+    });
+    return () => { cancelAnimationFrame(first); cancelAnimationFrame(second); };
+  }, [status?.last_count_update?.id]);
   const refreshStatus = useCallback(
     async (signal?: AbortSignal) => {
       try {
@@ -154,7 +179,7 @@ export default function EventVisitorPage({
           throw new Error("Status kamera belum dapat dimuat. Coba lagi.");
         const payload = await response.json();
         if (!signal?.aborted) {
-          setStatus(payload.result);
+          applyStatus(payload.result);
           setConnectionError("");
         }
       } catch (error) {
@@ -166,12 +191,10 @@ export default function EventVisitorPage({
           );
       }
     },
-    [selectedEventId],
+    [selectedEventId, applyStatus],
   );
   useEffect(() => {
     const controller = new AbortController();
-    let eventSource: EventSource | null = null;
-    let fallbackInterval: NodeJS.Timeout | null = null;
 
     const cid = getCompanyId();
     const initial = setTimeout(() => {
@@ -194,53 +217,23 @@ export default function EventVisitorPage({
 
     const streamUrl = `${API_BASE}/status/stream?${query}`;
 
-    if (typeof EventSource !== "undefined") {
-      eventSource = new EventSource(streamUrl);
-
-      eventSource.onopen = () => {
+    const disconnect = connectStatusStream<Status>({
+      url: streamUrl,
+      refresh: (signal) => refreshStatus(signal),
+      open: () => setConnectionError(""),
+      receive: (nextStatus) => {
+        controller.abort();
+        applyStatus(nextStatus);
         setConnectionError("");
-      };
-
-      eventSource.onmessage = (event) => {
-        try {
-          const payload = JSON.parse(event.data);
-          if (payload?.result) {
-            setStatus(payload.result);
-            setConnectionError("");
-          }
-        } catch {
-          // ignore parse errors
-        }
-      };
-
-      eventSource.onerror = () => {
-        if (eventSource?.readyState === EventSource.CLOSED) {
-          if (!fallbackInterval) {
-            fallbackInterval = setInterval(
-              () => void refreshStatus(controller.signal),
-              5000,
-            );
-          }
-        }
-      };
-    } else {
-      fallbackInterval = setInterval(
-        () => void refreshStatus(controller.signal),
-        3000,
-      );
-    }
+      },
+    });
 
     return () => {
       clearTimeout(initial);
       controller.abort();
-      if (eventSource) {
-        eventSource.close();
-      }
-      if (fallbackInterval) {
-        clearInterval(fallbackInterval);
-      }
+      disconnect();
     };
-  }, [selectedEventId, refreshStatus]);
+  }, [selectedEventId, refreshStatus, applyStatus]);
 
   // Live AI detection boxes SSE stream (<100ms updates)
   useEffect(() => {
@@ -325,6 +318,12 @@ export default function EventVisitorPage({
     try {
       if (!selectedEventId)
         throw new Error("Pilih event sebelum memulai monitoring.");
+      if (command === "start") {
+        const readinessResponse = await visitorFetch(`${API_BASE}/readiness?event_id=${encodeURIComponent(selectedEventId)}`);
+        const readiness = await readinessResponse.json();
+        if (!readinessResponse.ok) throw new Error(typeof readiness.detail === "string" ? readiness.detail : "Kesiapan model belum dapat diperiksa.");
+        if (!readiness.result?.ready) throw new Error(readiness.result?.issues?.join(" ") || "Model lokal belum siap.");
+      }
       const response = await visitorFetch(
         `${API_BASE}/${command}?company_id=${encodeURIComponent(getCompanyId())}&event_id=${encodeURIComponent(selectedEventId)}`,
         {
@@ -944,6 +943,15 @@ export default function EventVisitorPage({
                     timeZone: status.timezone || "Asia/Jakarta",
                   })
                 : "Belum ada aktivitas",
+            )}
+            {status?.last_count_update && (
+              <details className="mt-3 text-sm text-neutral-700">
+                <summary className="cursor-pointer">Waktu pembaruan hitungan</summary>
+                <p className="mt-2">Pencatatan terakhir: {Math.round(status.last_count_update.crossing_to_saved_ms)} ms sejak perlintasan terdeteksi.</p>
+                <p>Pemrosesan pengunjung: {Math.round(status.last_count_update.recognition_wait_ms)} ms. Menyimpan: {Math.round(status.last_count_update.save_ms)} ms.</p>
+                {renderMeasurement?.id === status.last_count_update.id && <p>Tampilan browser: {renderMeasurement.ms} ms setelah data diterima.</p>}
+                <p className="mt-1 text-xs text-neutral-500">Belum termasuk jeda kamera sebelum deteksi dan waktu pengiriman melalui jaringan.</p>
+              </details>
             )}
             {row("Session ID", status?.session_id || "-")}
           </Panel>
