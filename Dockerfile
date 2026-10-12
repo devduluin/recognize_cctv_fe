@@ -1,4 +1,4 @@
-FROM node:20-alpine AS base
+FROM node:24-alpine AS base
 
 # Install dependencies only when needed
 FROM base AS deps
@@ -29,7 +29,7 @@ ENV NEXT_PUBLIC_SERVICE_RECOGNIZE_CCTV=$NEXT_PUBLIC_SERVICE_RECOGNIZE_CCTV
 ARG IS_MAINTANANCE
 ENV IS_MAINTANANCE=$IS_MAINTANANCE
 
-RUN npm run build
+RUN npm run build -- --webpack
 
 # Production image, copy all the files and run next
 FROM base AS runner

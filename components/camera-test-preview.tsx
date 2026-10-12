@@ -4,6 +4,10 @@ import { Button } from "./ui/button";
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Camera, Loader2, Square } from "lucide-react";
+import { getAuthHeaders } from "./auth/auth-api";
+import WebRTCPlayer, { StreamUrls } from "./camera/webrtc-player";
+import CountingLineOverlay from "./camera/counting-line-overlay";
+import { containedVideoRect, countingLineGeometry, countingLineGuidance } from "./camera/counting-line-geometry";
 
 const API_BASE =
   (process.env.NEXT_PUBLIC_SERVICE_RECOGNIZE_CCTV || "") + "/api/v1/events";
@@ -15,6 +19,8 @@ export default function CameraTestPreview({
   angle = 0,
   reversed,
   countingDirection = "auto",
+  twoLineCounting = true,
+  zoneWidthRatio = 0.20,
   mirror = false,
   autoStart = false,
   hideLineUI = false,
@@ -26,6 +32,8 @@ export default function CameraTestPreview({
   angle?: number;
   reversed: boolean;
   countingDirection?: "auto" | "in" | "out";
+  twoLineCounting?: boolean;
+  zoneWidthRatio?: number;
   mirror?: boolean;
   autoStart?: boolean;
   hideLineUI?: boolean;
@@ -36,8 +44,22 @@ export default function CameraTestPreview({
   const [error, setError] = useState("");
   const [testing, setTesting] = useState(false);
   const [streaming, setStreaming] = useState(false);
+  const [streamUrls, setStreamUrls] = useState<StreamUrls | null>(null);
   const active = useRef<AbortController | null>(null);
   const canvas = useRef<HTMLCanvasElement | null>(null);
+  const videoArea = useRef<HTMLDivElement | null>(null);
+  const [displaySize, setDisplaySize] = useState({ width: 0, height: 0 });
+
+  useEffect(() => {
+    const target = videoArea.current;
+    if (!target) return;
+    const observer = new ResizeObserver(([entry]) => {
+      const { width, height } = entry.contentRect;
+      setDisplaySize({ width, height });
+    });
+    observer.observe(target);
+    return () => observer.disconnect();
+  }, []);
 
   useEffect(
     () => () => {
@@ -53,6 +75,7 @@ export default function CameraTestPreview({
     setStreaming(false);
     setTesting(false);
     setPreview(false);
+    setStreamUrls(null);
   };
 
   const testCamera = useCallback(async () => {
@@ -63,6 +86,7 @@ export default function CameraTestPreview({
     setTesting(true);
     setError("");
     setPreview(false);
+    setStreamUrls(null);
     let timedOut = false;
     let timer: ReturnType<typeof setTimeout>;
     const armTimeout = () => {
@@ -70,7 +94,7 @@ export default function CameraTestPreview({
       timer = setTimeout(() => {
         timedOut = true;
         controller.abort();
-      }, 10000);
+      }, 12000);
     };
     armTimeout();
     try {
@@ -82,9 +106,38 @@ export default function CameraTestPreview({
       } catch {
         /* An explicit source can be tested without company defaults. */
       }
+      // 1. Try MediaMTX WebRTC Preview First (Zero latency, no Python CPU load)
+      try {
+        const previewUrlResp = await fetch(`${API_BASE}/camera-preview-url`, {
+          method: "POST",
+          headers: getAuthHeaders({ "Content-Type": "application/json" }),
+          body: JSON.stringify({
+            camera_source: source.trim() || null,
+            company_id: companyId,
+          }),
+          signal: controller.signal,
+        });
+        if (previewUrlResp.ok) {
+          const payload = await previewUrlResp.json().catch(() => null);
+          const urls = payload?.result?.stream_urls;
+          if (urls?.webrtc_whep && !controller.signal.aborted) {
+            clearTimeout(timer!);
+            active.current = null;
+            setStreamUrls(urls);
+            setPreview(true);
+            setTesting(false);
+            setStreaming(true);
+            return;
+          }
+        }
+      } catch {
+        if (controller.signal.aborted) return;
+      }
+
+      // 2. Fallback to /camera-stream (raw frame streaming over HTTP)
       const response = await visitorFetch(`${API_BASE}/camera-stream`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: getAuthHeaders({ "Content-Type": "application/json" }),
         body: JSON.stringify({
           camera_source: source.trim() || null,
           company_id: companyId,
@@ -96,7 +149,9 @@ export default function CameraTestPreview({
         throw new Error(
           typeof payload?.detail === "string"
             ? payload.detail
-            : "Kamera belum dapat diuji. Coba lagi.",
+            : typeof payload?.message === "string"
+              ? payload.message
+              : "Kamera belum dapat diuji. Coba lagi.",
         );
       }
       if (
@@ -176,6 +231,7 @@ export default function CameraTestPreview({
         setStreaming(false);
         setTesting(false);
         setPreview(false);
+        setStreamUrls(null);
       }
     }
   }, [source]);
@@ -189,16 +245,16 @@ export default function CameraTestPreview({
     };
   }, [autoStart, testCamera]);
 
-  const radians = angle * Math.PI / 180;
-  const horizontal = orientation === "horizontal";
-  const normal = horizontal
-    ? { x: -Math.sin(radians), y: Math.cos(radians) }
-    : { x: Math.cos(radians), y: Math.sin(radians) };
-  const anchor = horizontal
-    ? { x: frameSize.width / 2, y: frameSize.height * position / 100 }
-    : { x: frameSize.width * position / 100, y: frameSize.height / 2 };
-  const span = 2 * Math.hypot(frameSize.width, frameSize.height);
-  const zoneHalfWidth = (horizontal ? frameSize.height : frameSize.width) * 0.10;
+  const geometry = countingLineGeometry(frameSize.width, frameSize.height, {
+    linePosition: position / 100, lineOrientation: orientation, lineAngle: angle,
+    twoLineCounting, zoneWidthRatio, reverseDirection: reversed,
+  });
+  const directionGuidance = countingLineGuidance({
+    countingDirection, twoLineCounting, reverseDirection: reversed,
+  });
+  const videoRect = containedVideoRect(
+    displaySize.width, displaySize.height, frameSize.width, frameSize.height,
+  );
   return (
     <div
       data-compact={compact}
@@ -215,58 +271,86 @@ export default function CameraTestPreview({
       )}
 
       {/* Video Area */}
-      <div className="relative flex aspect-video w-full items-center justify-center overflow-hidden group-data-[compact=true]/preview:h-[140px] group-data-[compact=true]/preview:aspect-auto">
-        <canvas
-          ref={canvas}
-          aria-label="Video live kamera event"
-          className={`absolute inset-0 h-full w-full object-contain ${preview ? "" : "invisible"} ${mirror ? "-scale-x-100" : ""}`}
-        />
-        {preview ? (
-          <div className="relative h-full w-full">
-            {!hideLineUI && (
-              <svg
-                role="img"
-                aria-label={`Dua garis ${orientation}, kemiringan ${angle} derajat, posisi ${position} persen. ${countingDirection === "auto" ? `Masuk ${reversed ? "B ke A" : "A ke B"}.` : `Lintasan lengkap dihitung sebagai ${countingDirection === "in" ? "masuk" : "keluar"}.`}`}
-                className="pointer-events-none absolute inset-0 h-full w-full"
-                viewBox={`0 0 ${frameSize.width} ${frameSize.height}`}
-                preserveAspectRatio="xMidYMid meet"
-              >
-                {[-zoneHalfWidth, zoneHalfWidth].map((offset, index) => {
-                  const x = anchor.x + normal.x * offset;
-                  const y = anchor.y + normal.y * offset;
-                  return (
-                    <g key={index}>
-                      <line
-                        x1={x - normal.y * span} y1={y + normal.x * span}
-                        x2={x + normal.y * span} y2={y - normal.x * span}
-                        stroke="#22c55e" strokeWidth={2} vectorEffect="non-scaling-stroke"
-                      />
-                      <text x={x + 8} y={y - 12} fill="white" stroke="black" strokeWidth={3} paintOrder="stroke" fontSize={32}>
-                        {index === 0 ? "A" : "B"}
-                      </text>
-                    </g>
-                  );
-                })}
-              </svg>
-            )}
-          </div>
+      <div ref={videoArea} className="relative flex aspect-video w-full items-center justify-center overflow-hidden bg-[#080d18]">
+        {streaming && streamUrls?.webrtc_whep ? (
+          <WebRTCPlayer
+            whepUrl={streamUrls.webrtc_whep}
+            hlsUrl={streamUrls.hls}
+            cameraName="Preview Kamera"
+            autoPlay
+            muted
+            className="absolute inset-0 h-full w-full"
+            lineConfig={
+              hideLineUI
+                ? undefined
+                : {
+                    linePosition: position / 100,
+                    lineAngle: angle,
+                    countingDirection,
+                    lineOrientation: orientation as "vertical" | "horizontal",
+                    reverseDirection: reversed,
+                    twoLineCounting,
+                    zoneWidthRatio,
+                    mirror,
+                  }
+            }
+            onStatusChange={(st) => {
+              if (st === "live") {
+                setPreview(true);
+                setTesting(false);
+              } else if (st === "error") {
+                setError("Koneksi WebRTC gagal");
+              }
+            }}
+          />
         ) : (
+          <canvas
+            ref={canvas}
+            aria-label="Video live kamera event"
+            className={`absolute inset-0 h-full w-full object-contain ${preview ? "" : "invisible"} ${mirror ? "-scale-x-100" : ""}`}
+          />
+        )}
+
+        {preview && !streamUrls?.webrtc_whep && !hideLineUI && videoRect && (
+          <div
+            className="pointer-events-none absolute"
+            style={{ left: videoRect.left, top: videoRect.top, width: videoRect.width, height: videoRect.height }}
+          >
+            <CountingLineOverlay
+              mediaWidth={frameSize.width}
+              mediaHeight={frameSize.height}
+              displayWidth={videoRect.width}
+              config={{
+                linePosition: position / 100,
+                lineOrientation: orientation,
+                lineAngle: angle,
+                reverseDirection: reversed,
+                countingDirection,
+                twoLineCounting,
+                zoneWidthRatio,
+                mirror,
+              }}
+            />
+          </div>
+        )}
+
+        {!streaming && (
           <div className="flex flex-col items-center justify-center gap-3 text-slate-500">
             {testing ? (
               <>
                 <div className="relative flex h-12 w-12 items-center justify-center">
-                  <Loader2 size={24} className="animate-spin text-[#0c2e73]" />
+                  <Loader2 size={24} className="animate-spin text-slate-300" />
                 </div>
-                <p role="status" className="text-xs font-medium text-slate-600">
+                <p role="status" className="text-xs font-medium text-slate-300">
                   Menghubungkan...
                 </p>
               </>
             ) : (
               <>
-                <div className="flex h-12 w-12 items-center justify-center text-[#0c2e73]">
+                <div className="flex h-12 w-12 items-center justify-center text-slate-300">
                   <Camera size={34} />
                 </div>
-                <p className="text-lg font-semibold text-neutral-700">
+                <p className="text-lg font-semibold text-slate-200">
                   Preview Kamera
                 </p>
               </>
@@ -274,28 +358,49 @@ export default function CameraTestPreview({
           </div>
         )}
 
-        {/* Status Badge (Top Right) */}
-        <div className="absolute right-3 top-3 z-10 flex items-center gap-2 rounded-full bg-black/60 px-3 py-1.5 backdrop-blur-md">
-          {preview ? (
-            <>
-              <span className="relative flex h-2 w-2">
-                <span className="relative inline-flex h-2 w-2 rounded-full bg-red-500"></span>
-              </span>
-              <span className="text-[10px] font-bold tracking-wider text-white">
-                LIVE
-              </span>
-            </>
-          ) : (
-            <>
-              <span className="h-2 w-2 rounded-full bg-slate-500"></span>
-              <span className="text-[10px] font-bold tracking-wider text-slate-300">
-                OFFLINE
-              </span>
-            </>
-          )}
-        </div>
+        {/* Status Badge (Top Right) - only shown when not using WebRTCPlayer which has its own badge */}
+        {!streamUrls?.webrtc_whep && (
+          <div className="absolute right-3 top-3 z-10 flex items-center gap-2 rounded-full bg-black/60 px-3 py-1.5 backdrop-blur-md">
+            {preview ? (
+              <>
+                <span className="relative flex h-2 w-2">
+                  <span className="relative inline-flex h-2 w-2 rounded-full bg-red-500"></span>
+                </span>
+                <span className="text-[10px] font-bold tracking-wider text-white">
+                  LIVE
+                </span>
+              </>
+            ) : (
+              <>
+                <span className="h-2 w-2 rounded-full bg-slate-500"></span>
+                <span className="text-[10px] font-bold tracking-wider text-slate-300">
+                  OFFLINE
+                </span>
+              </>
+            )}
+          </div>
+        )}
       </div>
 
+      {!hideLineUI && (
+        <div className="space-y-2 border-t border-slate-200 bg-white px-4 py-3 text-sm text-slate-700">
+          <div aria-live="polite" aria-atomic="true" className="space-y-1">
+            <p className="font-medium text-slate-900">Arah yang dihitung</p>
+            {directionGuidance.map((instruction) => (
+              <p key={instruction}>
+                <span aria-hidden="true" className="mr-2 font-semibold">{instruction.startsWith("Masuk") ? geometry.entryArrow : geometry.exitArrow}</span>
+                {instruction}
+              </p>
+            ))}
+            <p className="text-xs text-slate-600">Balik arah perlintasan: {reversed ? "aktif" : "nonaktif"}.</p>
+          </div>
+          <p className="text-xs leading-5 text-slate-600">
+            Centang atau hapus centang “Balik arah perlintasan” agar panah mengikuti arah berjalan yang ingin dihitung.
+            {countingDirection !== "auto" && " Gerakan ke arah sebaliknya tidak dihitung."}
+            {twoLineCounting && " Pengunjung harus melewati kedua batas agar tercatat."}
+          </p>
+        </div>
+      )}
       {/* Control Bar (Bottom) */}
       <div className="flex items-center justify-between border-t border-slate-200 bg-white px-4 py-3">
         <div className="flex flex-1 items-center gap-4">

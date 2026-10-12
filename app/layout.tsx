@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import "react-toastify/dist/ReactToastify.css";
 import "./globals.css";
 import AdminShell from "../components/admin-shell";
 import MaintenancePage from "../components/maintenance-page";

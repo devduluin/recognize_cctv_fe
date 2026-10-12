@@ -1,6 +1,5 @@
 "use client";
 import { visitorFetch, downloadVisitorReport } from "../../components/auth/visitor-api";
-import VisitorCameraStream from "../../components/visitor-camera-stream";
 import { Button, ButtonLink, buttonStyles } from "../../components/ui/button";
 import { Field, Select } from "../../components/ui/field";
 import { InfoRow, Page, PageHeading, Panel, Toolbar } from "../../components/ui/layout";
@@ -11,12 +10,22 @@ import {
   Download,
   Maximize,
   Pause,
+  Pencil,
   Play,
+  Radio,
   RefreshCw,
+  Sliders,
   Square,
   Video,
 } from "lucide-react";
+import VisitorRecords from "../../components/visitor-records";
+import { connectStatusStream } from "../../components/events/status-stream";
+import EventsManager from "../../components/events/events-manager";
+import { toast } from "../../components/ui/toast";
+import Modal from "../../components/ui-modal";
 import HourlyVisitorStatistics from "../../components/hourly-visitor-statistics";
+import { getAuthHeaders, getAuthToken } from "../../components/auth/auth-api";
+import WebRTCPlayer, { DetectionBox, StreamMode } from "../../components/camera/webrtc-player";
 const API_BASE = `${process.env.NEXT_PUBLIC_SERVICE_RECOGNIZE_CCTV || ""}/api/v1/event_visitor`;
 const EVENTS_API = `${process.env.NEXT_PUBLIC_SERVICE_RECOGNIZE_CCTV || ""}/api/v1/events`;
 type VisitorEvent = {
@@ -30,6 +39,11 @@ type VisitorEvent = {
   location?: string;
   capacity?: number;
 };
+type UnresolvedCrossings = {
+  in: number;
+  out: number;
+  reasons?: { reason: string; count: number; message: string }[];
+};
 type Status = {
   running: boolean;
   camera_source: string | number | null;
@@ -39,13 +53,56 @@ type Status = {
   total_count: number;
   in_count: number;
   out_count: number;
+  unresolved_crossings?: UnresolvedCrossings;
   male_count: number;
   female_count: number;
   unknown_gender_count: number;
   timezone?: string;
   last_visitor_at: string | null;
   last_error?: string;
-  cameras?: { camera_id: string; name: string; running: boolean; last_error?: string }[];
+  last_count_update?: {
+    id: string;
+    crossing_to_saved_ms: number;
+    recognition_wait_ms: number;
+    save_ms: number;
+  };
+  line_position?: number;
+  line_orientation?: string;
+  line_angle?: number;
+  reverse_direction?: boolean;
+  two_line_counting?: boolean;
+  zone_width_ratio?: number;
+  mirror?: boolean;
+  counting_frame_size?: { width: number; height: number };
+  cameras?: {
+    camera_id: string;
+    counting_direction?: string;
+    counting_frame_size?: { width: number; height: number };
+    body_reid_enabled?: boolean;
+    body_reid_error?: string | null;
+    unresolved_crossings?: UnresolvedCrossings;
+    name: string;
+    running: boolean;
+    connection_state?: "online" | "connecting" | "reconnecting" | "stopped";
+    reconnect_attempts?: number;
+    last_frame_at?: string | null;
+    last_error?: string;
+    mediamtx_path?: string;
+    line_position?: number;
+    line_orientation?: string;
+    line_angle?: number;
+    reverse_direction?: boolean;
+    two_line_counting?: boolean;
+    zone_width_ratio?: number;
+    mirror?: boolean;
+    stream_urls?: {
+      webrtc_whep?: string;
+      webrtc_player?: string;
+      hls?: string;
+      rtsp_internal?: string;
+    };
+    detections?: DetectionBox[];
+  }[];
 };
 function getCompanyId() {
   try {
@@ -67,12 +124,52 @@ export default function EventVisitorPage({
   const [events, setEvents] = useState<VisitorEvent[]>([]);
   const [selectedEventId, setSelectedEventId] = useState(fixedEventId);
   const [busy, setBusy] = useState(false);
+  const [resetOpen, setResetOpen] = useState(false);
+  const [editOpen, setEditOpen] = useState(false);
+  const [eventVersion, setEventVersion] = useState(0);
+  const [resetVersion, setResetVersion] = useState(0);
+  const [resetError, setResetError] = useState("");
   const [status, setStatus] = useState<Status | null>(null);
   const [connectionError, setConnectionError] = useState("");
   const [actionError, setActionError] = useState("");
   const [streamErrors, setStreamErrors] = useState<Record<string, boolean>>({});
+  const [cameraModes, setCameraModes] = useState<Record<string, StreamMode>>({});
+  const [cameraAiDetection, setCameraAiDetection] = useState<Record<string, boolean>>({});
+  const [detectionSnapshot, setDetectionSnapshot] = useState<{ eventId: string; cameras: Record<string, DetectionBox[]> } | null>(null);
+  const cameraDetections = status?.running && detectionSnapshot?.eventId === selectedEventId ? detectionSnapshot.cameras : {};
   const [streamKey, setStreamKey] = useState(0);
+  const cameraRetryKey = (status?.cameras || []).filter((camera) => streamErrors[camera.camera_id] && camera.running && (!camera.connection_state || camera.connection_state === "online")).map((camera) => camera.camera_id).join(",");
+  useEffect(() => {
+    if (!cameraRetryKey) return;
+    const retryIds = cameraRetryKey.split(",");
+    const timer = setTimeout(() => {
+      setStreamErrors((previous) => {
+        const next = { ...previous };
+        retryIds.forEach((id) => { next[id] = false; });
+        return next;
+      });
+    }, 3000);
+    return () => clearTimeout(timer);
+  }, [cameraRetryKey]);
   const stage = useRef<HTMLDivElement>(null);
+  const countReceived = useRef<{ id: string; at: number } | null>(null);
+  const [renderMeasurement, setRenderMeasurement] = useState<{ id: string; ms: number } | null>(null);
+  const applyStatus = useCallback((next: Status) => {
+    const id = next?.last_count_update?.id;
+    if (id && countReceived.current?.id !== id) countReceived.current = { id, at: performance.now() };
+    setStatus(next);
+  }, []);
+  useEffect(() => {
+    const received = countReceived.current;
+    if (!received || received.id !== status?.last_count_update?.id) return;
+    let second = 0;
+    const first = requestAnimationFrame(() => {
+      second = requestAnimationFrame(() => {
+        setRenderMeasurement({ id: received.id, ms: Math.round(performance.now() - received.at) });
+      });
+    });
+    return () => { cancelAnimationFrame(first); cancelAnimationFrame(second); };
+  }, [status?.last_count_update?.id]);
   const refreshStatus = useCallback(
     async (signal?: AbortSignal) => {
       try {
@@ -83,13 +180,13 @@ export default function EventVisitorPage({
           : "";
         const response = await visitorFetch(
           `${API_BASE}/status?company_id=${encodeURIComponent(cid)}${query}`,
-          { cache: "no-store", signal },
+          { cache: "no-store", signal, headers: getAuthHeaders() },
         );
         if (!response.ok)
           throw new Error("Status kamera belum dapat dimuat. Coba lagi.");
         const payload = await response.json();
         if (!signal?.aborted) {
-          setStatus(payload.result);
+          applyStatus(payload.result);
           setConnectionError("");
         }
       } catch (error) {
@@ -101,25 +198,99 @@ export default function EventVisitorPage({
           );
       }
     },
-    [selectedEventId],
+    [selectedEventId, applyStatus],
   );
   useEffect(() => {
     const controller = new AbortController();
+
+    const cid = getCompanyId();
     const initial = setTimeout(() => {
       setStatus(null);
-      void refreshStatus(controller.signal);
+      if (!cid) setConnectionError("Workspace belum tersedia.");
+      else void refreshStatus(controller.signal);
     }, 0);
-    const timer = setInterval(() => refreshStatus(controller.signal), 3000);
+    if (!cid) {
+      return () => clearTimeout(initial);
+    }
+
+    const token = getAuthToken();
+    const query = [
+      `company_id=${encodeURIComponent(cid)}`,
+      selectedEventId ? `event_id=${encodeURIComponent(selectedEventId)}` : "",
+      token ? `token=${encodeURIComponent(token)}` : "",
+    ]
+      .filter(Boolean)
+      .join("&");
+
+    const streamUrl = `${API_BASE}/status/stream?${query}`;
+
+    const disconnect = connectStatusStream<Status>({
+      url: streamUrl,
+      refresh: (signal) => refreshStatus(signal),
+      open: () => setConnectionError(""),
+      receive: (nextStatus) => {
+        controller.abort();
+        applyStatus(nextStatus);
+        setConnectionError("");
+      },
+    });
+
     return () => {
-      controller.abort();
       clearTimeout(initial);
-      clearInterval(timer);
+      controller.abort();
+      disconnect();
     };
-  }, [refreshStatus]);
+  }, [selectedEventId, refreshStatus, applyStatus]);
+
+  // Live AI detection boxes SSE stream (<100ms updates)
+  useEffect(() => {
+    if (!selectedEventId || !status?.running) {
+      return;
+    }
+    const cid = getCompanyId();
+    if (!cid) return;
+    const token = getAuthToken();
+    const query = [
+      `company_id=${encodeURIComponent(cid)}`,
+      `event_id=${encodeURIComponent(selectedEventId)}`,
+      token ? `token=${encodeURIComponent(token)}` : "",
+    ]
+      .filter(Boolean)
+      .join("&");
+
+    const detUrl = `${API_BASE}/detections/stream?${query}`;
+    let es: EventSource | null = null;
+    try {
+      es = new EventSource(detUrl);
+      es.onmessage = (event) => {
+        try {
+          const payload = JSON.parse(event.data);
+          if (payload?.cameras) {
+            setDetectionSnapshot({ eventId: selectedEventId, cameras: payload.cameras });
+          }
+        } catch {
+          // ignore parse errors
+        }
+      };
+      es.onerror = () => {
+        // EventSource will auto-reconnect
+      };
+    } catch {
+      // ignore
+    }
+
+    return () => {
+      if (es) {
+        es.close();
+      }
+    };
+  }, [selectedEventId, status?.running]);
+
   useEffect(() => {
     const controller = new AbortController();
     visitorFetch(`${EVENTS_API}?company_id=${encodeURIComponent(getCompanyId())}`, {
       signal: controller.signal,
+      headers: getAuthHeaders(),
     })
       .then((response) => {
         if (!response.ok)
@@ -142,7 +313,7 @@ export default function EventVisitorPage({
       controller.abort();
       clearTimeout(initial);
     };
-  }, [fixedEventId]);
+  }, [fixedEventId, eventVersion]);
   async function action(command: "start" | "pause" | "stop") {
     if (
       command === "stop" &&
@@ -154,13 +325,19 @@ export default function EventVisitorPage({
     try {
       if (!selectedEventId)
         throw new Error("Pilih event sebelum memulai monitoring.");
+      if (command === "start") {
+        const readinessResponse = await visitorFetch(`${API_BASE}/readiness?event_id=${encodeURIComponent(selectedEventId)}`);
+        const readiness = await readinessResponse.json();
+        if (!readinessResponse.ok) throw new Error(typeof readiness.detail === "string" ? readiness.detail : "Kesiapan model belum dapat diperiksa.");
+        if (!readiness.result?.ready) throw new Error(readiness.result?.issues?.join(" ") || "Model lokal belum siap.");
+      }
       const response = await visitorFetch(
         `${API_BASE}/${command}?company_id=${encodeURIComponent(getCompanyId())}&event_id=${encodeURIComponent(selectedEventId)}`,
         {
           method: "POST",
+          headers: getAuthHeaders(command === "start" ? { "Content-Type": "application/json" } : {}),
           ...(command === "start"
             ? {
-                headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ event_id: selectedEventId }),
               }
             : {}),
@@ -175,11 +352,12 @@ export default function EventVisitorPage({
         );
       setStreamErrors({});
       setStreamKey((key) => key + 1);
+      toast.success({ start: "Monitoring dimulai.", pause: "Monitoring dijeda.", stop: "Monitoring dihentikan." }[command]);
       await refreshStatus();
     } catch (error) {
-      setActionError(
-        error instanceof Error ? error.message : "Perintah gagal.",
-      );
+      const message = error instanceof Error ? error.message : "Perintah gagal.";
+      setActionError(message);
+      toast.error(message);
     } finally {
       setBusy(false);
     }
@@ -195,16 +373,14 @@ export default function EventVisitorPage({
             name: "Kamera Utama",
             running: Boolean(status?.running),
             last_error: status?.last_error,
+            unresolved_crossings: status?.unresolved_crossings,
           },
         ];
   const gridColsClass =
     cameraList.length === 1
       ? "grid-cols-1"
       : "grid-cols-1 md:grid-cols-2";
-  const inside = Math.max(
-    0,
-    (status?.in_count || 0) - (status?.out_count || 0),
-  );
+  const inside = Math.max(0, status?.total_count || 0);
   const value = (count?: number) =>
     status ? `${(count || 0).toLocaleString("id-ID")} Orang` : "-";
   const demographics = [
@@ -219,8 +395,47 @@ export default function EventVisitorPage({
       <span>{content}</span>
     </InfoRow>
   );
+  const resetEvent = async () => {
+    if (busy || !fixedEventId) return;
+    setBusy(true);
+    setResetError("");
+    try {
+      const response = await visitorFetch(`${EVENTS_API}/${encodeURIComponent(fixedEventId)}/reset`, { method: "POST" });
+      if (!response.ok) {
+        const body = await response.json().catch(() => ({}));
+        throw new Error(typeof body.detail === "string" ? body.detail : "Event belum dapat direset. Coba lagi.");
+      }
+      setStatus(null);
+      setDetectionSnapshot(null);
+      setStreamErrors({});
+      setResetVersion((value) => value + 1);
+      setStreamKey((value) => value + 1);
+      setResetOpen(false);
+      toast.success("Data event berhasil direset.");
+      await refreshStatus();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Reset event gagal.";
+      setResetError(message);
+      toast.error(message);
+    } finally {
+      setBusy(false);
+    }
+  };
   return (
     <Page className="space-y-6">
+      {resetOpen && (
+        <Modal title="Reset data event?" size="small" busy={busy} onClose={() => setResetOpen(false)}>
+          <div className="space-y-4 p-6">
+            <p>Monitoring akan dihentikan. Semua hitungan, riwayat capture, foto, dan identitas pengunjung event ini akan dihapus permanen.</p>
+            <p className="text-sm text-neutral-600">Nama, jadwal, pengaturan, dan kamera event tetap tersimpan. Jadwal otomatis yang aktif dapat menjalankan monitoring kembali.</p>
+            {resetError && <p role="alert" className={ui.error}>{resetError}</p>}
+            <div className="flex flex-wrap justify-end gap-2">
+              <Button type="button" disabled={busy} onClick={() => setResetOpen(false)}>Batal</Button>
+              <Button type="button" variant="stop" disabled={busy} onClick={() => void resetEvent()}>{busy ? "Mereset…" : "Hapus Data dan Reset"}</Button>
+            </div>
+          </div>
+        </Modal>
+      )}
       <PageHeading>
         <div>
           <p className={ui.eyebrow}>MANAJEMEN EVENT</p>
@@ -230,6 +445,14 @@ export default function EventVisitorPage({
           </p>
         </div>
         {fixedEventId && (
+          <div className="flex flex-wrap items-center gap-2">
+          <Button type="button" variant="outline" disabled={busy} onClick={() => setEditOpen(true)}>
+            <Pencil size={16} /> Edit Event
+          </Button>
+          {editOpen && <EventsManager editEventId={fixedEventId} onClose={() => setEditOpen(false)} onSaved={() => { setEventVersion((value) => value + 1); void refreshStatus(); }} />}
+          <Button type="button" variant="outline" disabled={busy} onClick={() => { setResetError(""); setResetOpen(true); }}>
+            <RefreshCw size={16} /> Reset Event
+          </Button>
           <RowMenu
             trigger={
               <span className={cx(buttonStyles({ variant: "outline", className: "w-auto! h-auto!" }), "inline-flex items-center gap-2")}>
@@ -255,8 +478,14 @@ export default function EventVisitorPage({
               </button>
             ))}
           </RowMenu>
+          </div>
         )}
       </PageHeading>
+      {status && (status.in_count || 0) === 0 && cameraList.every((camera) => camera.counting_direction === "out") && (
+        <p role="status" className="mb-4 rounded-lg border border-amber-300 bg-amber-50 p-4 text-sm text-amber-950">
+          Event ini belum memiliki catatan Masuk. Keluar hanya dihitung untuk pengunjung yang sudah masuk di event yang sama. Gunakan satu event untuk kamera Masuk dan Keluar.
+        </p>
+      )}
       {!fixedEventId && (
         <Toolbar>
           <Field>
@@ -309,7 +538,7 @@ export default function EventVisitorPage({
                 </span>
               </div>
               <p className="mt-1 text-xs text-[#52647f]">
-                Tampilan grid otomatis semua kamera. Wajah yang cocok antar-kamera dalam event ini otomatis teridentifikasi sebagai satu pengunjung unik.
+                Pantau semua kamera dalam satu event. Pengunjung dicocokkan melalui wajah atau tubuh agar tidak dihitung sebagai orang baru di setiap kamera.
               </p>
               <div className="mt-2 flex flex-wrap items-center gap-3 text-[11px] text-[#52647f]">
                 <span className="inline-flex items-center gap-1.5 font-medium">
@@ -322,11 +551,11 @@ export default function EventVisitorPage({
                 </span>
                 <span className="inline-flex items-center gap-1.5 font-medium">
                   <span className="size-2.5 rounded-[2px] bg-[#eab308] ring-1 ring-yellow-500/50" />
-                  <span>Kuning: Belum Terdeteksi</span>
+                  <span>Kuning: Gender belum diketahui</span>
                 </span>
                 <span className="inline-flex items-center gap-1.5 font-medium">
-                  <span className="size-2.5 rounded-[2px] bg-[#22c55e] ring-1 ring-green-500/50" />
-                  <span>Hijau: Crossing Garis</span>
+                  <span className="size-2.5 rounded-[2px] bg-cyan-300 ring-1 ring-cyan-400/50" />
+                  <span>Biru muda: Batas penghitungan</span>
                 </span>
               </div>
             </div>
@@ -364,9 +593,12 @@ export default function EventVisitorPage({
                   camId && camId !== "default"
                     ? `&camera_id=${encodeURIComponent(camId)}`
                     : "";
-                const streamUrl = `${API_BASE}/stream?company_id=${encodeURIComponent(getCompanyId())}&event_id=${encodeURIComponent(selectedEventId)}${camQuery}`;
+                const token = getAuthToken();
+                const tokenQuery = token ? `&token=${encodeURIComponent(token)}` : "";
+                const streamUrl = `${API_BASE}/stream?company_id=${encodeURIComponent(getCompanyId())}&event_id=${encodeURIComponent(selectedEventId)}${camQuery}${tokenQuery}`;
                 const hasError = Boolean(streamErrors[camId]);
                 const isRunning = running && camera.running !== false;
+                const detectionMessages = [...new Set((cameraDetections[camId] || camera.detections || []).map((detection) => detection.counting_message).filter(Boolean))].slice(0, 3);
 
                 return (
                   <div
@@ -375,7 +607,7 @@ export default function EventVisitorPage({
                     className="group/cell relative flex flex-col overflow-hidden rounded-xl border border-white/10 bg-[#101c30] shadow-md"
                   >
                     {/* Camera Header Bar */}
-                    <div className="flex items-center justify-between border-b border-white/10 bg-white/5 px-3 py-2 text-xs">
+                    <div className="flex flex-wrap items-center justify-between gap-2 border-b border-white/10 bg-white/5 px-3 py-2 text-xs">
                       <div className="flex items-center gap-2">
                         <span className="flex size-5 items-center justify-center rounded bg-white/10 text-[11px] font-semibold text-white/90">
                           {index + 1}
@@ -385,6 +617,44 @@ export default function EventVisitorPage({
                         </span>
                       </div>
                       <div className="flex items-center gap-2">
+                        {/* Tab Realtime dan AI Detection di sebelah Live */}
+                        {isRunning && (
+                          <div className="flex items-center rounded-lg bg-black/60 p-0.5 border border-white/15 backdrop-blur-sm">
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setCameraAiDetection((prev) => ({ ...prev, [camId]: false }));
+                              }}
+                              className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-[11px] font-semibold transition ${
+                                !(cameraAiDetection[camId] ?? true)
+                                  ? "bg-cyan-500 text-white shadow-sm"
+                                  : "text-slate-300 hover:text-white hover:bg-white/10"
+                              }`}
+                              title="Tampilan Bersih Realtime (tanpa kotak deteksi)"
+                            >
+                              <Radio className="size-3 text-emerald-400 animate-pulse" />
+                              <span>Realtime</span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setCameraAiDetection((prev) => ({ ...prev, [camId]: true }));
+                              }}
+                              className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-[11px] font-semibold transition ${
+                                cameraAiDetection[camId] ?? true
+                                  ? "bg-amber-500 text-slate-950 font-bold shadow-sm"
+                                  : "text-slate-300 hover:text-white hover:bg-white/10"
+                              }`}
+                              title="AI Detection (Bounding Box: Biru=Pria, Pink=Wanita, Kuning=Unknown)"
+                            >
+                              <Sliders className="size-3" />
+                              <span>AI Detection</span>
+                            </button>
+                          </div>
+                        )}
+
                         <span
                           className={`inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-medium ${
                             isRunning && !hasError && !connectionError
@@ -439,16 +709,42 @@ export default function EventVisitorPage({
                     {/* Camera Stream Frame */}
                     <div className="relative aspect-video w-full overflow-hidden bg-black grid place-items-center">
                       {isRunning && !connectionError && !hasError ? (
-                        <VisitorCameraStream
+                        <WebRTCPlayer
                           key={`${streamKey}-${camId}`}
-                          src={streamUrl}
-                          name={camera.name}
-                          onError={() => {
-                            setStreamErrors((prev) => ({ ...prev, [camId]: true }));
-                            setTimeout(() => {
-                              setStreamErrors((prev) => ({ ...prev, [camId]: false }));
-                              setStreamKey((k) => k + 1);
-                            }, 3000);
+                          whepUrl={camera.stream_urls?.webrtc_whep}
+                          webrtcPlayerUrl={camera.stream_urls?.webrtc_player}
+                          hlsUrl={camera.stream_urls?.hls}
+                          fallbackStreamUrl={streamUrl}
+                          preferredMode={cameraModes[camId] || "webrtc"}
+                          detections={cameraDetections[camId] || camera.detections || []}
+                          showDetections={cameraAiDetection[camId] ?? true}
+                          onToggleDetections={(enabled) => {
+                            setCameraAiDetection((prev) => ({ ...prev, [camId]: enabled }));
+                          }}
+                          hideInternalSwitcher
+                          onModeChange={(m) => {
+                            setCameraModes((prev) => ({ ...prev, [camId]: m }));
+                          }}
+                          cameraName={camera.name}
+                          className="size-full"
+                          lineConfig={{
+                            countingDirection: camera.counting_direction,
+                            frameSize: camera.counting_frame_size || status?.counting_frame_size,
+                            linePosition: camera.line_position ?? status?.line_position ?? 0.5,
+                            lineOrientation: camera.line_orientation ?? status?.line_orientation ?? "horizontal",
+                            lineAngle: camera.line_angle ?? status?.line_angle ?? 0.0,
+                            reverseDirection: camera.reverse_direction ?? status?.reverse_direction ?? false,
+                            twoLineCounting: camera.two_line_counting ?? status?.two_line_counting ?? true,
+                            zoneWidthRatio: camera.zone_width_ratio ?? status?.zone_width_ratio ?? 0.20,
+                            mirror: camera.mirror ?? status?.mirror ?? false,
+                          }}
+                          onStatusChange={(s) => {
+                            const isErr = s === "error";
+                            setStreamErrors((prev) =>
+                              prev[camId] === isErr
+                                ? prev
+                                : { ...prev, [camId]: isErr },
+                            );
                           }}
                         />
                       ) : (
@@ -483,6 +779,28 @@ export default function EventVisitorPage({
                         </div>
                       )}
                     </div>
+                    {isRunning && camera.connection_state && camera.connection_state !== "online" && (
+                      <p role="status" className="border-t border-white/10 bg-[#101c30] px-3 py-2 text-xs text-amber-200">
+                        {camera.connection_state === "reconnecting" ? "Kamera terputus. Menghubungkan kembali otomatis…" : camera.connection_state === "stopped" ? "Kamera offline. Hentikan lalu mulai monitoring untuk mencoba kembali." : "Menunggu gambar kamera…"}
+                      </p>
+                    )}
+                    {isRunning && (!camera.connection_state || camera.connection_state === "online") && <div className="border-t border-white/10 bg-[#101c30] px-3 py-2 text-xs text-slate-200">
+                      {camera.body_reid_enabled === false && <p className="mb-1 text-amber-200">Pencocokan tubuh tidak aktif. Wajah diperlukan untuk mencocokkan pengunjung antar kamera.</p>}
+                      {detectionMessages.length === 0 && <p>Belum ada pengunjung yang terdeteksi.</p>}
+                      {detectionMessages.map((message) => <p key={message}>{message}</p>)}
+                    </div>}
+                    {camera.unresolved_crossings && (camera.unresolved_crossings.in > 0 || camera.unresolved_crossings.out > 0) && (
+                      <div className="border-t border-white/10 bg-[#101c30] px-3 py-2 text-xs text-amber-200">
+                        <p>Lintasan belum terhitung: Masuk {camera.unresolved_crossings.in} · Keluar {camera.unresolved_crossings.out}.</p>
+                        {camera.unresolved_crossings.reasons?.length ? (
+                          <ul className="mt-1 space-y-1">
+                            {camera.unresolved_crossings.reasons.map((item) => (
+                              <li key={item.reason}>{item.message}: {item.count}</li>
+                            ))}
+                          </ul>
+                        ) : <p>Menunggu kecocokan atau bukti yang lebih jelas.</p>}
+                      </div>
+                    )}
                   </div>
                 );
               })}
@@ -500,7 +818,7 @@ export default function EventVisitorPage({
                   ? "Koneksi terputus. Angka terakhir belum diperbarui."
                   : !status
                     ? "Memuat statistik pengunjung…"
-                    : "Total event dari seluruh kamera · Diperbarui setiap 3 detik"}
+                    : "Total event dari seluruh kamera · Diperbarui real-time"}
               </p>
               <dl className="mt-4 divide-y divide-white/10">
                 {[
@@ -646,6 +964,15 @@ export default function EventVisitorPage({
                   })
                 : "Belum ada aktivitas",
             )}
+            {status?.last_count_update && (
+              <details className="mt-3 text-sm text-neutral-700">
+                <summary className="cursor-pointer">Waktu pembaruan hitungan</summary>
+                <p className="mt-2">Pencatatan terakhir: {Math.round(status.last_count_update.crossing_to_saved_ms)} ms sejak perlintasan terdeteksi.</p>
+                <p>Pemrosesan pengunjung: {Math.round(status.last_count_update.recognition_wait_ms)} ms. Menyimpan: {Math.round(status.last_count_update.save_ms)} ms.</p>
+                {renderMeasurement?.id === status.last_count_update.id && <p>Tampilan browser: {renderMeasurement.ms} ms setelah data diterima.</p>}
+                <p className="mt-1 text-xs text-neutral-500">Belum termasuk jeda kamera sebelum deteksi dan waktu pengiriman melalui jaringan.</p>
+              </details>
+            )}
             {row("Session ID", status?.session_id || "-")}
           </Panel>
         </div>
@@ -676,7 +1003,11 @@ export default function EventVisitorPage({
         </div>
       </div>
       <div className="pt-2">
-        <HourlyVisitorStatistics
+        <VisitorRecords key={selectedEventId} companyId={getCompanyId()} eventId={selectedEventId} monitoring={Boolean(status?.running)} timezone={status?.timezone || "Asia/Jakarta"} cameras={status?.cameras || []} onChanged={() => { setResetVersion((value) => value + 1); void refreshStatus(); }} version={`${resetVersion}:${status?.in_count}:${status?.out_count}:${status?.last_visitor_at}`} />
+      </div>
+      <div className="pt-2">
+      <HourlyVisitorStatistics
+          key={`${selectedEventId}:${resetVersion}`}
           companyId={getCompanyId()}
           eventId={selectedEventId}
         />

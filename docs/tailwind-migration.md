@@ -27,11 +27,4 @@ Data dan respons API dalam pengujian browser menggunakan fixture. Pengujian tida
 - PASS: `git diff --check`.
 - `tsc --noEmit` masih melaporkan error yang sudah ada di `app/recognize_cctv/page.tsx` (63) dan `app/reset-password/page.tsx` (1); tidak ada error pada berkas migrasi. Build mengikuti konfigurasi proyek yang sudah melewati pemeriksaan tipe.
 
-## Delivery Gate antislop
-
-- PASS, Hard Gate: tidak menambah aset, klaim, angka produk, navigasi, atau tema; hasil visual mengikuti pembanding. Label, disabled/loading/error state, fokus modal, Escape, keyboard switch/scroll, dan ukuran mobile dipertahankan dan diuji sesuai cakupan di atas.
-- PASS, Purpose: warna navy, bayangan panel, radius, ikon, serta aksen grafik berasal dari tampilan pengguna yang sudah ada. Tidak ada dekorasi atau animasi baru.
-- PASS, Liveliness: hierarki judul/filter, metrik, grafik, dan rincian tetap sama. Dials dan identitas visual mengikuti referensi yang sudah disetujui.
-- PASS, Craftsmanship: utility dibagi ke komponen bertipe dengan props native; variasi tombol eksplisit, token warna terpusat, tanpa ketergantungan baru. Build production dan pembandingan browser memverifikasi implementasi.
-
 Screenshot dan harness sementara berada di `/private/tmp/ml-tailwind-*`, tidak ditambahkan sebagai aset aplikasi.

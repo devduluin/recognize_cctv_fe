@@ -1,5 +1,7 @@
 "use client";
+import { visitorFetch } from "../../components/auth/visitor-api";
 import { Button } from "../../components/ui/button";
+import { toast } from "../../components/ui/toast";
 import { Field, Input } from "../../components/ui/field";
 import { Page, PageHeading, Toolbar } from "../../components/ui/layout";
 import { DataTable, StatusBadge, TableContainer, RowMenu } from "../../components/ui/data-table";
@@ -54,7 +56,7 @@ export default function KameraPage() {
         "";
       setCompanyId(cid);
       if (!cid) throw new Error("Workspace belum tersedia.");
-      const response = await fetch(
+      const response = await visitorFetch(
         `${API_BASE}/cameras/${encodeURIComponent(cid)}`,
         { cache: "no-store" },
       );
@@ -102,7 +104,7 @@ export default function KameraPage() {
     setBusy(true);
     setFormError("");
     try {
-      const response = await fetch(
+      const response = await visitorFetch(
         `${API_BASE}/source/${encodeURIComponent(companyId)}`,
         {
           method: "POST",
@@ -123,11 +125,12 @@ export default function KameraPage() {
         );
       }
       setIsOpen(false);
+      toast.success(editingId ? "Perubahan kamera disimpan." : "Kamera berhasil ditambahkan.");
       await load();
     } catch (error) {
-      setFormError(
-        error instanceof Error ? error.message : "Kamera gagal disimpan.",
-      );
+      const message = error instanceof Error ? error.message : "Kamera gagal disimpan.";
+      setFormError(message);
+      toast.error(message);
     } finally {
       setBusy(false);
     }
@@ -135,17 +138,18 @@ export default function KameraPage() {
   async function remove(id: string) {
     if (!confirm("Hapus kamera ini?")) return;
     try {
-      const response = await fetch(
+      const response = await visitorFetch(
         `${API_BASE}/cameras/${encodeURIComponent(companyId)}/${encodeURIComponent(id)}`,
         { method: "DELETE" },
       );
       if (!response.ok) throw new Error("Kamera belum dapat dihapus.");
+      toast.success("Kamera berhasil dihapus.");
       setSelected((previous) => previous.filter((value) => value !== id));
       await load();
     } catch (error) {
-      setError(
-        error instanceof Error ? error.message : "Kamera gagal dihapus.",
-      );
+      const message = error instanceof Error ? error.message : "Kamera gagal dihapus.";
+      setError(message);
+      toast.error(message);
     }
   }
   return (
@@ -435,6 +439,13 @@ export default function KameraPage() {
                           className="px-2.5 py-1 rounded-md border border-slate-200 bg-white hover:bg-slate-100 text-slate-700 font-medium shadow-sm transition"
                         >
                           Gerbang Event
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => selectDummyVideo("Tes Sample", "tes-sample.mp4")}
+                          className="px-2.5 py-1 rounded-md border border-slate-200 bg-white hover:bg-slate-100 text-slate-700 font-medium shadow-sm transition"
+                        >
+                          Tes Sample
                         </button>
                         <button
                           type="button"
