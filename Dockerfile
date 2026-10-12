@@ -1,4 +1,4 @@
-FROM node:20-alpine AS base
+FROM node:24-alpine AS base
 
 # Install dependencies only when needed
 FROM base AS deps
@@ -14,6 +14,7 @@ FROM base AS builder
 WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
+RUN rm -f .env*
 RUN mkdir -p public
 
 # Next.js telemetry is disabled
@@ -25,7 +26,10 @@ ENV NEXT_PUBLIC_APP_MODE=$NEXT_PUBLIC_APP_MODE
 ARG NEXT_PUBLIC_SERVICE_RECOGNIZE_CCTV
 ENV NEXT_PUBLIC_SERVICE_RECOGNIZE_CCTV=$NEXT_PUBLIC_SERVICE_RECOGNIZE_CCTV
 
-RUN npm run build
+ARG IS_MAINTANANCE
+ENV IS_MAINTANANCE=$IS_MAINTANANCE
+
+RUN npm run build -- --webpack
 
 # Production image, copy all the files and run next
 FROM base AS runner

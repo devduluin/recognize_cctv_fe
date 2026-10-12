@@ -1,5 +1,6 @@
 "use client";
-import { useEffect, useId, useState } from "react";
+import { visitorFetch } from "./auth/visitor-api";
+import { useEffect, useId, useMemo, useState, useSyncExternalStore } from "react";
 import {
   ClockArrowUp,
   RefreshCw,
@@ -78,17 +79,17 @@ function resolveCompanyId(companyId: string) {
     return "";
   }
 }
-interface HourlyTooltipPayloadItem {
-  payload: Hour;
-  value: number;
-}
+const subscribeToClient = () => () => {};
+const clientReady = () => true;
+const serverReady = () => false;
 
 function CustomHourlyTooltip({
   active,
   payload,
 }: {
   active?: boolean;
-  payload?: HourlyTooltipPayloadItem[];
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  payload?: readonly any[];
 }) {
   if (active && payload && payload.length) {
     const data = payload[0].payload;
@@ -121,17 +122,14 @@ export function VisitorChart({
   timezone?: string;
   table?: boolean;
 }) {
-  const [mounted, setMounted] = useState(false);
-  useEffect(() => {
-    setMounted(true);
-  }, []);
+  const mounted = useSyncExternalStore(subscribeToClient, clientReady, serverReady);
 
   return (
     <div className={ui.chartPanel}>
       <div className="p-5">
-        <div className="h-[340px] w-full">
+        <div className="h-[340px] w-full min-h-[340px]">
           {mounted ? (
-            <ResponsiveContainer width="100%" height="100%">
+            <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0} debounce={50}>
               <AreaChart
                 data={hours}
                 margin={{ top: 20, right: 25, left: -10, bottom: 5 }}
@@ -156,7 +154,7 @@ export function VisitorChart({
                   tick={{ fill: "#64748b", fontSize: 12 }}
                   allowDecimals={false}
                 />
-                <RechartsTooltip content={<CustomHourlyTooltip />} />
+                <RechartsTooltip content={CustomHourlyTooltip} />
                 <Area
                   type="monotone"
                   dataKey="in_count"
@@ -263,8 +261,6 @@ export function GenderBarChart({
   femaleCount = 0,
   unknownCount = 0,
   total = 0,
-  date,
-  timezone = "Asia/Jakarta",
   table = true,
 }: {
   hours?: Hour[];
@@ -276,14 +272,10 @@ export function GenderBarChart({
   timezone?: string;
   table?: boolean;
 }) {
-  const [mounted, setMounted] = useState(false);
+  const mounted = useSyncExternalStore(subscribeToClient, clientReady, serverReady);
   const [viewMode, setViewMode] = useState<"hourly" | "summary">(
     hours && hours.length > 0 ? "hourly" : "summary",
   );
-
-  useEffect(() => {
-    setMounted(true);
-  }, []);
 
   const calculatedTotal = total > 0 ? total : maleCount + femaleCount + unknownCount;
   const safeTotal = Math.max(1, calculatedTotal);
@@ -321,14 +313,18 @@ export function GenderBarChart({
     },
   ];
 
-  const hourlyData = (hours ?? []).map((h) => ({
-    hour: h.hour,
-    label: h.label,
-    male_count: h.male_count ?? 0,
-    female_count: h.female_count ?? 0,
-    unknown_count: h.unknown_count ?? 0,
-    in_count: h.in_count,
-  }));
+  const hourlyData = useMemo(
+    () =>
+      (hours ?? []).map((h) => ({
+        hour: h.hour,
+        label: h.label,
+        male_count: h.male_count ?? 0,
+        female_count: h.female_count ?? 0,
+        unknown_count: h.unknown_count ?? 0,
+        in_count: h.in_count,
+      })),
+    [hours],
+  );
 
   return (
     <div className={ui.chartPanel}>
@@ -367,9 +363,9 @@ export function GenderBarChart({
       </div>
 
       <div className="p-5">
-        <div className="h-[340px] w-full">
+        <div className="h-[340px] w-full min-h-[340px]">
           {mounted ? (
-            <ResponsiveContainer width="100%" height="100%">
+            <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0} debounce={50}>
               {viewMode === "hourly" ? (
                 <BarChart
                   data={hourlyData}
@@ -389,7 +385,7 @@ export function GenderBarChart({
                     tick={{ fill: "#64748b", fontSize: 12 }}
                     allowDecimals={false}
                   />
-                  <RechartsTooltip content={<CustomCombinedTooltip />} />
+                  <RechartsTooltip content={CustomCombinedTooltip} />
                   <RechartsLegend
                     wrapperStyle={{ paddingTop: 10 }}
                     formatter={(value) => (
@@ -525,26 +521,13 @@ export function GenderBarChart({
   );
 }
 
-interface CombinedTooltipPayloadItem {
-  name: string;
-  value: number;
-  color: string;
-  payload: {
-    hour: number;
-    label: string;
-    in_count: number;
-    male_count: number;
-    female_count: number;
-    unknown_count: number;
-  };
-}
-
 function CustomCombinedTooltip({
   active,
   payload,
 }: {
   active?: boolean;
-  payload?: CombinedTooltipPayloadItem[];
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  payload?: readonly any[];
 }) {
   if (active && payload && payload.length) {
     const data = payload[0].payload;
@@ -600,21 +583,21 @@ export function CombinedVisitorChart({
   timezone?: string;
   table?: boolean;
 }) {
-  const [mounted, setMounted] = useState(false);
+  const mounted = useSyncExternalStore(subscribeToClient, clientReady, serverReady);
   const [isStacked, setIsStacked] = useState(true);
 
-  useEffect(() => {
-    setMounted(true);
-  }, []);
-
-  const chartData = hours.map((hour) => ({
-    hour: hour.hour,
-    label: hour.label,
-    in_count: hour.in_count,
-    male_count: hour.male_count ?? 0,
-    female_count: hour.female_count ?? 0,
-    unknown_count: hour.unknown_count ?? 0,
-  }));
+  const chartData = useMemo(
+    () =>
+      (hours ?? []).map((hour) => ({
+        hour: hour.hour,
+        label: hour.label,
+        in_count: hour.in_count,
+        male_count: hour.male_count ?? 0,
+        female_count: hour.female_count ?? 0,
+        unknown_count: hour.unknown_count ?? 0,
+      })),
+    [hours],
+  );
 
   return (
     <div className={ui.chartPanel}>
@@ -649,9 +632,9 @@ export function CombinedVisitorChart({
       </div>
 
       <div className="p-5">
-        <div className="h-[360px] w-full">
+        <div className="h-[360px] w-full min-h-[360px]">
           {mounted ? (
-            <ResponsiveContainer width="100%" height="100%">
+            <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0} debounce={50}>
               <ComposedChart
                 data={chartData}
                 margin={{ top: 20, right: 25, left: -10, bottom: 5 }}
@@ -670,7 +653,7 @@ export function CombinedVisitorChart({
                   tick={{ fill: "#64748b", fontSize: 12 }}
                   allowDecimals={false}
                 />
-                <RechartsTooltip content={<CustomCombinedTooltip />} />
+                <RechartsTooltip content={CustomCombinedTooltip} />
                 <RechartsLegend
                   wrapperStyle={{ paddingTop: 15 }}
                   formatter={(value) => (
@@ -789,13 +772,13 @@ export default function HourlyVisitorStatistics({
   const [refresh, setRefresh] = useState(0);
   const [availableEvents, setAvailableEvents] = useState<EventOption[]>([]);
   const [selectedEventId, setSelectedEventId] = useState("");
-  const effectiveCompanyId = resolveCompanyId(companyId);
+  const effectiveCompanyId = useMemo(() => resolveCompanyId(companyId), [companyId]);
   const activeEventId = eventId || selectedEventId;
   const key = `${effectiveCompanyId}:${activeEventId}:${date}`;
   useEffect(() => {
     if (!effectiveCompanyId || eventId) return;
     const controller = new AbortController();
-    fetch(
+    visitorFetch(
       `${process.env.NEXT_PUBLIC_SERVICE_RECOGNIZE_CCTV || ""}/api/v1/events?company_id=${encodeURIComponent(effectiveCompanyId)}`,
       { cache: "no-store", signal: controller.signal, headers: getAuthHeaders() },
     )
@@ -818,7 +801,7 @@ export default function HourlyVisitorStatistics({
         const eventQuery = activeEventId
           ? `&event_id=${encodeURIComponent(activeEventId)}`
           : "";
-        const response = await fetch(
+        const response = await visitorFetch(
           `${API_BASE}/statistics/hourly?date=${encodeURIComponent(date)}&company_id=${encodeURIComponent(effectiveCompanyId)}${eventQuery}`,
           { signal: controller.signal, cache: "no-store", headers: getAuthHeaders() },
         );
@@ -849,7 +832,7 @@ export default function HourlyVisitorStatistics({
         }
       }
     }
-    timer = setTimeout(load, 0);
+    load();
     return () => {
       controller.abort();
       clearTimeout(timer);
@@ -928,8 +911,8 @@ export default function HourlyVisitorStatistics({
       icon: Venus,
     },
     {
-      label: "Tidak Diketahui",
-      value: current?.unknown_gender_count.toLocaleString("id-ID") ?? "-",
+      label: "Belum teridentifikasi (Unknown)",
+      value: current?.unknown_gender_count?.toLocaleString("id-ID") ?? "-",
       icon: HelpCircle,
     },
   ];

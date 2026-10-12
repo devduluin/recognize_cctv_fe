@@ -1,4 +1,5 @@
 "use client";
+import { visitorFetch } from "./auth/visitor-api";
 import { Button } from "./ui/button";
 import { StatCard } from "./ui/stat-card";
 import { ui } from "./ui/styles";
@@ -24,6 +25,7 @@ import {
 type Totals = {
   in_count: number;
   out_count: number;
+  total_count: number;
   male_count: number;
   female_count: number;
   unknown_gender_count: number;
@@ -55,7 +57,7 @@ export default function EventSummary({
         if (!cid) throw new Error("Workspace belum tersedia.");
         const base = `${process.env.NEXT_PUBLIC_SERVICE_RECOGNIZE_CCTV || ""}/api/v1/event_visitor`;
         async function get<T>(path: string): Promise<T> {
-          const response = await fetch(`${base}${path}`, {
+          const response = await visitorFetch(`${base}${path}`, {
             signal: controller.signal,
             headers: getAuthHeaders(),
           });
@@ -77,6 +79,7 @@ export default function EventSummary({
         const totals: Totals = {
           in_count: 0,
           out_count: 0,
+          total_count: 0,
           male_count: 0,
           female_count: 0,
           unknown_gender_count: 0,
@@ -173,7 +176,7 @@ export default function EventSummary({
                 },
                 {
                   label: "Di dalam area",
-                  value: `${Math.max(0, totals.in_count - totals.out_count).toLocaleString("id-ID")} Orang`,
+                  value: `${Math.max(0, totals.total_count).toLocaleString("id-ID")} Orang`,
                   icon: MapPinHouse,
                 },
                 {
@@ -187,7 +190,7 @@ export default function EventSummary({
                   icon: Venus,
                 },
                 {
-                  label: "Tidak Diketahui",
+                  label: "Belum teridentifikasi (Unknown)",
                   value: gender(totals.unknown_gender_count || 0),
                   icon: HelpCircle,
                 },
