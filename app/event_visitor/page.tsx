@@ -39,6 +39,11 @@ type VisitorEvent = {
   location?: string;
   capacity?: number;
 };
+type UnresolvedCrossings = {
+  in: number;
+  out: number;
+  reasons?: { reason: string; count: number; message: string }[];
+};
 type Status = {
   running: boolean;
   camera_source: string | number | null;
@@ -48,6 +53,7 @@ type Status = {
   total_count: number;
   in_count: number;
   out_count: number;
+  unresolved_crossings?: UnresolvedCrossings;
   male_count: number;
   female_count: number;
   unknown_gender_count: number;
@@ -74,6 +80,7 @@ type Status = {
     counting_frame_size?: { width: number; height: number };
     body_reid_enabled?: boolean;
     body_reid_error?: string | null;
+    unresolved_crossings?: UnresolvedCrossings;
     name: string;
     running: boolean;
     connection_state?: "online" | "connecting" | "reconnecting" | "stopped";
@@ -366,6 +373,7 @@ export default function EventVisitorPage({
             name: "Kamera Utama",
             running: Boolean(status?.running),
             last_error: status?.last_error,
+            unresolved_crossings: status?.unresolved_crossings,
           },
         ];
   const gridColsClass =
@@ -781,6 +789,18 @@ export default function EventVisitorPage({
                       {detectionMessages.length === 0 && <p>Belum ada pengunjung yang terdeteksi.</p>}
                       {detectionMessages.map((message) => <p key={message}>{message}</p>)}
                     </div>}
+                    {camera.unresolved_crossings && (camera.unresolved_crossings.in > 0 || camera.unresolved_crossings.out > 0) && (
+                      <div className="border-t border-white/10 bg-[#101c30] px-3 py-2 text-xs text-amber-200">
+                        <p>Lintasan belum terhitung: Masuk {camera.unresolved_crossings.in} · Keluar {camera.unresolved_crossings.out}.</p>
+                        {camera.unresolved_crossings.reasons?.length ? (
+                          <ul className="mt-1 space-y-1">
+                            {camera.unresolved_crossings.reasons.map((item) => (
+                              <li key={item.reason}>{item.message}: {item.count}</li>
+                            ))}
+                          </ul>
+                        ) : <p>Menunggu kecocokan atau bukti yang lebih jelas.</p>}
+                      </div>
+                    )}
                   </div>
                 );
               })}
