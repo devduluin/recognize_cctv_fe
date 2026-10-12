@@ -19,7 +19,7 @@ jobs:
       - run: npm ci
       - run: npm run lint
       - run: npm test
-      - run: npx tsc --noEmit
+      - run: npm run typecheck
       - run: npm run build -- --webpack
         env:
           NEXT_PUBLIC_SERVICE_RECOGNIZE_CCTV: https://api.example.com
