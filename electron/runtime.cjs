@@ -23,6 +23,32 @@ function persistentPaths(userData) {
   return { data, logs: path.join(data, 'logs'), secret };
 }
 
+function ensureNextRuntime(sourceDirectory, nextDirectory) {
+  const buildIdFile = path.join('.next', 'BUILD_ID');
+  const sourceBuildId = path.join(sourceDirectory, buildIdFile);
+  const expectedBuildId = fs.existsSync(sourceBuildId) ? fs.readFileSync(sourceBuildId, 'utf8').trim() : '';
+  const isUsable = directory => {
+    if (!fs.existsSync(path.join(directory, 'server.js')) ||
+        !fs.existsSync(path.join(directory, 'node_modules', 'next', 'package.json'))) return false;
+    if (!expectedBuildId) return true;
+    const installedBuildId = path.join(directory, buildIdFile);
+    return fs.existsSync(installedBuildId) && fs.readFileSync(installedBuildId, 'utf8').trim() === expectedBuildId;
+  };
+  if (isUsable(nextDirectory)) return nextDirectory;
+
+  const temporary = `${nextDirectory}.partial-${process.pid}`;
+  fs.rmSync(temporary, { recursive: true, force: true });
+  fs.mkdirSync(path.dirname(nextDirectory), { recursive: true });
+  fs.cpSync(sourceDirectory, temporary, { recursive: true });
+  if (!isUsable(temporary)) {
+    fs.rmSync(temporary, { recursive: true, force: true });
+    throw new Error('The bundled Next.js runtime is incomplete. Rebuild the desktop installer.');
+  }
+  fs.rmSync(nextDirectory, { recursive: true, force: true });
+  fs.renameSync(temporary, nextDirectory);
+  return nextDirectory;
+}
+
 async function waitForService(url, headers, alive, timeout = 120000) {
   const deadline = Date.now() + timeout;
   while (Date.now() < deadline) {
@@ -90,11 +116,10 @@ class DesktopRuntime extends EventEmitter {
     });
     await waitForService(`${this.backendOrigin}/desktop-health`, { 'X-Desktop-Service-Token': this.serviceToken }, () => backend.exitCode === null && !this.stopping);
     const nextDirectory = this.development ? this.frontendRoot : path.join(this.userData, 'next-runtime', this.version);
-    if (!this.development && !fs.existsSync(path.join(nextDirectory, 'server.js'))) {
-      const temporary = `${nextDirectory}.partial`;
-      fs.mkdirSync(path.dirname(nextDirectory), { recursive: true });
-      fs.cpSync(path.join(this.resources, 'next'), temporary, { recursive: true });
-      fs.renameSync(temporary, nextDirectory);
+    if (!this.development) {
+      // The app version can stay the same across local rebuilds. Validate the
+      // standalone dependencies/build ID instead of trusting server.js alone.
+      ensureNextRuntime(path.join(this.resources, 'next'), nextDirectory);
     }
     const nextNode = this.development ? this.node : path.join(this.resources, 'node', nodeName);
     const nextArgs = this.development ? [path.join(this.frontendRoot, 'node_modules/next/dist/bin/next'), 'dev', '--hostname', '127.0.0.1', '--port', String(frontendPort)] : [path.join(nextDirectory, 'server.js')];
@@ -165,4 +190,4 @@ class DesktopRuntime extends EventEmitter {
   }
 }
 
-module.exports = { DesktopRuntime, freePort, persistentPaths, waitForService, scrubbedEnvironment };
+module.exports = { DesktopRuntime, freePort, persistentPaths, ensureNextRuntime, waitForService, scrubbedEnvironment };
