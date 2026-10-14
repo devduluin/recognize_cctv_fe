@@ -39,9 +39,10 @@ desktop/.venv/bin/python -c 'from keras_facenet import FaceNet; FaceNet()'
 cd ../recognize_cctv_fe
 ```
 
-To rebuild the installer after changing the frontend or backend, run from this
-repository on the target Mac. Apple Silicon builds use `arm64`; Intel Macs use
-`x64`:
+To build after changing the frontend or backend, run on the target OS and
+architecture. On macOS/Linux, set the locked backend Python path like this.
+In Windows PowerShell, use
+`$env:DESKTOP_PYTHON = (Resolve-Path ..\recognize_cctv\desktop\.venv\Scripts\python.exe).Path`.
 
 ```bash
 nvm use 24.14.0
@@ -50,29 +51,29 @@ export DESKTOP_PYTHON="$(cd ../recognize_cctv && pwd)/desktop/.venv/bin/python"
 # Optional: verify which accelerator the backend environment can use.
 "$DESKTOP_PYTHON" -c 'import torch; print("CUDA:", torch.cuda.is_available()); print("MPS:", torch.backends.mps.is_available())'
 
+npm run desktop:clean
 npm run desktop:build
 npm run desktop:package -- --mac --arm64
-node scripts/desktop/packaged-smoke.cjs
 ```
 
-The installer and app archive are written to `dist-desktop/`. Replace
-`--arm64` with `--x64` when building on an Intel Mac. The build bundles the
-local sibling backend source, so backend changes are included. Inference
-selects CUDA, Apple MPS, or CPU based on what the installed runtime reports;
-if MPS reports unavailable, the app uses CPU. Windows installers must be built
-on Windows x64 or through the Windows GitHub Actions job.
+Replace the package target with `--mac --x64` on Intel Mac, `--win --x64` on
+Windows x64, or `--linux --x64` on Ubuntu 24.04 x64. Linux creates AppImage and
+`.deb` installers. The installer and app archive are written to
+`dist-desktop/`. The build bundles the local sibling backend source, so backend
+changes are included. Inference selects CUDA, Apple MPS, or CPU based on what
+the installed runtime reports; if MPS reports unavailable, the app uses CPU.
 
 Every `npm run desktop:build` prints and embeds the SemVer from `package.json`
 plus a newly randomized six-digit build number. Both appear in Pengaturan →
 Sistem Kamera → Tentang aplikasi. The build number identifies that particular
 build; it does not replace or increment the release version.
 
-For a one-command clean build and installer, use `desktop:rebuild`. It removes
-generated outputs, rebuilds the backend and Next.js app, then packages the
-installer. Pass the platform and architecture after `--`:
+For a one-command clean build and installer, use `desktop:rebuild`. It cleans
+generated outputs first, then rebuilds the backend and Next.js app and packages
+the installer. This command already includes clean, so no separate clean step
+is needed:
 
 ```bash
-npm run desktop:clean
 npm run desktop:rebuild -- --mac --arm64
 ```
 

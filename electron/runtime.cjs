@@ -106,6 +106,7 @@ class DesktopRuntime extends EventEmitter {
     const backendArgs = [...(this.development ? [path.join(this.backendRoot, 'desktop_backend.py')] : []), '--data-dir', this.paths.data, '--resources', backendAssets, '--port', String(backendPort), '--frontend-origin', this.frontendOrigin];
     await this.startMedia();
     const backend = this.startChild('backend', backendCommand, backendArgs, this.paths.data, {
+      YOLO_AUTOINSTALL: 'false',
       DESKTOP_SERVICE_TOKEN: this.serviceToken, MEDIAMTX_ENABLED: 'true', MEDIAMTX_NETWORK_MODE: 'host',
       MEDIAMTX_API_URL: this.mediaApiOrigin, MEDIAMTX_RTSP_URL: this.mediaRtspOrigin,
       MEDIAMTX_WHEP_URL: this.mediaWhepOrigin, MEDIAMTX_HLS_URL: this.mediaHlsOrigin,

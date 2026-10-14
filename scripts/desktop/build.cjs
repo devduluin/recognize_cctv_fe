@@ -20,7 +20,7 @@ const backendBundle = path.join(resources, 'visitor-backend');
 fs.rmSync(backendBundle, { recursive: true, force: true });
 fs.rmSync(path.join(resources, 'backend'), { recursive: true, force: true });
 run(python, ['-m', 'PyInstaller', '--noconfirm', '--clean', '--distpath', resources, '--workpath', path.join(backend, 'desktop/build'), path.join(backend, 'desktop/backend.spec')], backend,
-  { PYINSTALLER_CONFIG_DIR: path.join(backend, 'desktop/cache'), MPLCONFIGDIR: path.join(backend, 'desktop/cache/matplotlib') });
+  { PYINSTALLER_CONFIG_DIR: path.join(backend, 'desktop/cache'), MPLCONFIGDIR: path.join(backend, 'desktop/cache/matplotlib'), YOLO_AUTOINSTALL: 'false' });
 const backendExecutable = path.join(backendBundle, process.platform === 'win32' ? 'visitor-backend.exe' : 'visitor-backend');
 const selfTestData = fs.mkdtempSync(path.join(os.tmpdir(), 'visitor-backend-selftest-'));
 try {
