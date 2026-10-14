@@ -1,0 +1,10 @@
+{
+  "backendRepository": "devduluin/recognize_cctv",
+  "backendRef": "d5720ee8e4a6ac02d936d61a848adc208e301f56",
+  "nodeVersion": "24.14.0",
+  "pythonVersion": "3.12.15",
+  "mediaMtxVersion": "1.21.1",
+  "releaseOwner": "devduluin",
+  "releaseRepository": "recognize_cctv_fe",
+  "windowsPublisherName": "Duluin"
+}
