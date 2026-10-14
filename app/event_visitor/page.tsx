@@ -446,6 +446,7 @@ export default function EventVisitorPage({
         </div>
         {fixedEventId && (
           <div className="flex flex-wrap items-center gap-2">
+          <ButtonLink href="/video-detection" variant="outline"><Video size={16} /> Upload Video</ButtonLink>
           <Button type="button" variant="outline" disabled={busy} onClick={() => setEditOpen(true)}>
             <Pencil size={16} /> Edit Event
           </Button>
