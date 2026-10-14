@@ -2,7 +2,7 @@
 
 The desktop coordinator is this repository. The backend stays in sibling `recognize_cctv`, or the path specified by `DESKTOP_BACKEND_ROOT`. Read `DESKTOP-PLAN.md` for architecture and compatibility choices. Existing Docker/web deployments remain available.
 
-The authoritative desktop version is root package.json. Keep it at MAJOR.MINOR.PATCH. Do not bump it for ordinary development. Each release needs a CHANGELOG entry and docs/releases/VERSION.md. Update desktop.config.json's immutable backendRef after committing the backend desktop implementation. CI refuses a backend checkout without desktop_backend.py. Developer checkout files may differ from the committed reference; local packaging includes the local files, while release CI always checks out the explicit reference.
+The authoritative desktop version is root package.json. Keep it at MAJOR.MINOR.PATCH. Do not bump it for ordinary development. Each `desktop:build` also generates a random six-digit build number shown with the version under Settings → System Camera → About Application. The build number is recorded in the packaged manifest and is not the release version. Each release needs a CHANGELOG entry and docs/releases/VERSION.md. Update desktop.config.json's immutable backendRef after committing the backend desktop implementation. CI refuses a backend checkout without desktop_backend.py. Developer checkout files may differ from the committed reference; local packaging includes the local files, while release CI always checks out the explicit reference.
 
 ## Development
 

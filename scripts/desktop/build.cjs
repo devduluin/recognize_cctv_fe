@@ -1,7 +1,7 @@
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
-const { randomBytes } = require('node:crypto');
+const { randomBytes, randomInt } = require('node:crypto');
 const { execFileSync } = require('node:child_process');
 const root = path.resolve(__dirname, '../..');
 const backend = path.resolve(process.env.DESKTOP_BACKEND_ROOT || path.join(root, '../recognize_cctv'));
@@ -10,6 +10,8 @@ if (!python || !fs.existsSync(python)) throw new Error('Set DESKTOP_PYTHON to th
 const resources = path.join(root, 'resources');
 const version = require('../../package.json').version;
 if (!/^\d+\.\d+\.\d+$/.test(version)) throw new Error('Desktop version must be MAJOR.MINOR.PATCH.');
+const buildNumber = String(randomInt(100000, 1000000));
+console.log(`Building Visitor Counter ${version} (Build ${buildNumber})`);
 const run = (executable, args, cwd = root, env = {}) => execFileSync(executable, args, { cwd, stdio: 'inherit', env: { ...process.env, ...env }, windowsHide: true });
 run(process.execPath, [path.join(__dirname, 'prepare.cjs')]);
 run(python, [path.join(backend, 'tools/prepare_models.py'), '--models-dir', path.join(backend, 'models')], backend);
@@ -34,7 +36,8 @@ const ffmpegDestination = path.join(resources, 'media', process.platform === 'wi
 fs.copyFileSync(ffmpeg, ffmpegDestination);
 if (process.platform !== 'win32') fs.chmodSync(ffmpegDestination, 0o755);
 run(process.execPath, [path.join(root, 'node_modules/next/dist/bin/next'), 'build', '--webpack'], root,
-    { DESKTOP_BUILD: 'true', NEXT_PUBLIC_SERVICE_RECOGNIZE_CCTV: '', NEXT_PUBLIC_APP_MODE: 'multi_tenant', IS_MAINTANANCE: 'false', IS_MAINTENANCE: 'false', NEXT_PUBLIC_IS_MAINTANANCE: 'false', NEXT_PUBLIC_IS_MAINTENANCE: 'false' });
+    { DESKTOP_BUILD: 'true', NEXT_PUBLIC_DESKTOP_VERSION: version, NEXT_PUBLIC_DESKTOP_BUILD_NUMBER: buildNumber,
+      NEXT_PUBLIC_SERVICE_RECOGNIZE_CCTV: '', NEXT_PUBLIC_APP_MODE: 'multi_tenant', IS_MAINTANANCE: 'false', IS_MAINTENANCE: 'false', NEXT_PUBLIC_IS_MAINTANANCE: 'false', NEXT_PUBLIC_IS_MAINTENANCE: 'false' });
 fs.cpSync(path.join(root, '.next/standalone'), path.join(resources, 'next'), { recursive: true });
 fs.cpSync(path.join(root, '.next/static'), path.join(resources, 'next/.next/static'), { recursive: true });
 fs.cpSync(path.join(root, 'public'), path.join(resources, 'next/public'), { recursive: true });
@@ -48,6 +51,6 @@ function removeEnvironmentFiles(directory) {
   }
 }
 removeEnvironmentFiles(path.join(resources, 'next'));
-fs.writeFileSync(path.join(resources, 'build-manifest.json'), JSON.stringify({ version, platform: process.platform, arch: process.arch,
+fs.writeFileSync(path.join(resources, 'build-manifest.json'), JSON.stringify({ version, buildNumber, platform: process.platform, arch: process.arch,
   backendRevision: execFileSync('git', ['rev-parse', 'HEAD'], { cwd: backend, encoding: 'utf8' }).trim(),
   frontendRevision: execFileSync('git', ['rev-parse', 'HEAD'], { cwd: root, encoding: 'utf8' }).trim() }, null, 2));

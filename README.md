@@ -62,6 +62,11 @@ selects CUDA, Apple MPS, or CPU based on what the installed runtime reports;
 if MPS reports unavailable, the app uses CPU. Windows installers must be built
 on Windows x64 or through the Windows GitHub Actions job.
 
+Every `npm run desktop:build` prints and embeds the SemVer from `package.json`
+plus a newly randomized six-digit build number. Both appear in Pengaturan →
+Sistem Kamera → Tentang aplikasi. The build number identifies that particular
+build; it does not replace or increment the release version.
+
 For a clean rebuild, remove the generated app/build outputs, then run the build
 commands above again:
 

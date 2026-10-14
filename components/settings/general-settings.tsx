@@ -2,7 +2,7 @@
 import { visitorFetch } from "../auth/visitor-api";
 import { Button } from "../ui/button";
 import { Select, Switch } from "../ui/field";
-import { Panel } from "../ui/layout";
+import { InfoRow, Panel } from "../ui/layout";
 import { ui } from "../ui/styles";
 
 const settingRow = "flex flex-wrap items-center justify-between gap-3.5 border-b border-dashed border-[#d9d9d9] px-3 py-2.5 max-[600px]:px-0 [&>div]:min-w-[180px] [&>div]:flex-1 [&_p]:mt-[3px] [&_p]:text-xs/normal [&_p]:text-[#737373] [&_select]:min-w-[200px] [&_select]:flex-1";
@@ -13,6 +13,8 @@ import {
 } from "lucide-react";
 import { toast } from "../ui/toast";
 const API_BASE = `${process.env.NEXT_PUBLIC_SERVICE_RECOGNIZE_CCTV || ""}/api/v1/cctv`;
+const desktopVersion = process.env.NEXT_PUBLIC_DESKTOP_VERSION;
+const desktopBuildNumber = process.env.NEXT_PUBLIC_DESKTOP_BUILD_NUMBER;
 export default function GeneralSettingsPanel() {
   const [companyId, setCompanyId] = useState("");
   const [enabled, setEnabled] = useState(true);
@@ -180,7 +182,18 @@ export default function GeneralSettingsPanel() {
           </fieldset>
         </Panel>
       </div>
-
+      {desktopVersion && desktopBuildNumber && (
+        <Panel className="mt-4" aria-label="Informasi versi aplikasi">
+          <div className="mb-3">
+            <h2>Tentang aplikasi</h2>
+            <p className={ui.panelDescription}>Informasi versi Visitor Counter</p>
+          </div>
+          <div>
+            <InfoRow><span>Versi</span><span>v{desktopVersion}</span></InfoRow>
+            <InfoRow><span>Build</span><span>{desktopBuildNumber}</span></InfoRow>
+          </div>
+        </Panel>
+      )}
     </div>
   );
 }

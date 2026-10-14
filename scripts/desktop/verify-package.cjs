@@ -15,6 +15,7 @@ module.exports = async context => {
   }
   const manifest = JSON.parse(fs.readFileSync(path.join(root, 'build-manifest.json'), 'utf8'));
   if (manifest.version !== context.packager.appInfo.version || manifest.platform !== context.electronPlatformName) throw new Error('Packaged runtime/version mismatch.');
+  if (!/^\d{6}$/.test(String(manifest.buildNumber || ''))) throw new Error('Packaged runtime is missing its six-digit build number.');
   function inspect(directory) {
     for (const entry of fs.readdirSync(directory, { withFileTypes: true })) {
       if (entry.name.startsWith('.env') || ['jwt-secret', 'visitor.sqlite'].includes(entry.name)) throw new Error(`Private runtime data in installer: ${entry.name}`);
