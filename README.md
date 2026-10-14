@@ -77,7 +77,10 @@ npm run desktop:rebuild -- --mac --arm64
 ```
 
 Run `npm run desktop:rebuild -- --mac --x64` on an Intel Mac or
-`npm run desktop:rebuild -- --win --x64` on Windows x64. The separate
+`npm run desktop:rebuild -- --win --x64` on Windows x64, or
+`npm run desktop:rebuild -- --linux --x64` on Ubuntu/Debian x64. Linux builds
+produce AppImage and `.deb` installers and should be built on Ubuntu 24.04 x64.
+Linux packaging currently targets x64. The separate
 `desktop:build` and `desktop:package` commands remain available when you only
 need one build stage. `desktop:clean` removes `.next/`, `resources/`,
 `dist-desktop/`, and the backend PyInstaller work directory. It keeps

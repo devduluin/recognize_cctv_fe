@@ -32,7 +32,7 @@ node scripts/desktop/packaged-smoke.cjs
 
 Build separately on each native platform. desktop:build expects DESKTOP_PYTHON, verifies/provisions model checksums, packages FastAPI in PyInstaller onedir, builds Next standalone, copies static/public files and bundles a separately downloaded Node runtime. It copies FFmpeg from the locked imageio-ffmpeg wheel. Node/MediaMTX archive checksums are committed in desktop-assets.lock.json. To intentionally update them, change desktop.config.json and run `node scripts/desktop/prepare.cjs --lock-assets`, then review the checksum diff. Build resources and caches are ignored by Git.
 
-Windows output: NSIS .exe for x64. macOS output: .app, .dmg and .zip for the native arm64 or x64 architecture. ZIP is required for macOS updater metadata. The build runs a frozen-backend model self-test before building Next. Development packages are not official signed releases, and do not check updates automatically.
+Windows output: NSIS .exe for x64. macOS output: .app, .dmg and .zip for the native arm64 or x64 architecture. Linux x64 output: AppImage and `.deb`; AppImage is used for automatic updates. ZIP is required for macOS updater metadata. Build on the matching native OS and architecture. Linux builds are validated on Ubuntu 24.04 and currently target x64 with glibc-based distributions; AppImage systems need FUSE 2 or a compatible FUSE runtime. The build runs a frozen-backend model self-test before building Next. Development packages are not official signed releases, and do not check updates automatically.
 
 ## Persistent data
 
@@ -54,8 +54,8 @@ Configure protected `desktop-production` GitHub environments and secrets. DESKTO
 
 For signing, provide WINDOWS_CSC_LINK and WINDOWS_CSC_KEY_PASSWORD plus MACOS_CSC_LINK and MACOS_CSC_KEY_PASSWORD. Windows certificate publisher must match windowsPublisherName in desktop.config.json. macOS needs a Developer ID Application certificate plus APPLE_ID, APPLE_APP_SPECIFIC_PASSWORD and APPLE_TEAM_ID for notarization. Production packaging requires signing and macOS notarization; it never disables platform signature verification.
 
-The workflow validates updater SHA-512 metadata, merges both macOS file lists, generates SHA256SUMS.txt and publishes a draft only after mandatory builds pass, then makes it public. Keep release assets/metadata together. Downloads/installations use electron-updater's platform mechanisms; Python and Next are not updated independently. Users can postpone download or installation. Main-process menus provide manual update checks and installation.
+The workflow validates updater SHA-512 metadata, merges both macOS file lists, includes Linux AppImage update metadata, generates SHA256SUMS.txt and publishes a draft only after all platform builds pass, then makes it public. Keep release assets/metadata together. Downloads/installations use electron-updater's platform mechanisms; Python and Next are not updated independently. Users can postpone download or installation. Main-process menus provide manual update checks and installation.
 
 ## Validation status
 
-Unit tests do not prove installation or updating works. Before official release, record successful native frozen-backend/model tests, packaged SSR/API/Server Action/login tests, clean Windows installation, macOS launch on both architectures, signature/notarization checks and a real N-to-N+1 update preserving user data. Verify failure/offline recovery. Production readiness must not be claimed until all gates pass.
+Unit tests do not prove installation or updating works. Before official release, record successful native frozen-backend/model tests, packaged SSR/API/Server Action/login tests, clean Windows and Linux installations, macOS launch on both architectures, signature/notarization checks and real N-to-N+1 updates preserving user data on supported updater platforms. Verify failure/offline recovery. Production readiness must not be claimed until all gates pass.

@@ -6,7 +6,8 @@ const assert = require('node:assert/strict');
 const root = path.resolve(__dirname, '../..');
 const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'visitor-package-smoke-'));
 const executable = process.platform === 'win32' ? path.join(root, 'dist-desktop/win-unpacked/Visitor Counter.exe')
-  : path.join(root, `dist-desktop/mac${process.arch === 'arm64' ? '-arm64' : ''}/Visitor Counter.app/Contents/MacOS/Visitor Counter`);
+  : process.platform === 'darwin' ? path.join(root, `dist-desktop/mac${process.arch === 'arm64' ? '-arm64' : ''}/Visitor Counter.app/Contents/MacOS/Visitor Counter`)
+    : path.join(root, 'dist-desktop/linux-unpacked/visitor-counter');
 async function launch() {
   await new Promise((resolve, reject) => {
     const child = spawn(executable, ['--desktop-smoke'], { env: { ...process.env, DESKTOP_TEST_DATA: directory }, stdio: 'inherit', windowsHide: true });

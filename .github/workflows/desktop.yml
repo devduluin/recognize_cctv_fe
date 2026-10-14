@@ -54,6 +54,7 @@ jobs:
           - {os: windows-2025, platform: win32, arch: x64}
           - {os: macos-15, platform: darwin, arch: arm64}
           - {os: macos-15-intel, platform: darwin, arch: x64}
+          - {os: ubuntu-24.04, platform: linux, arch: x64}
     runs-on: ${{ matrix.os }}
     timeout-minutes: 120
     environment: ${{ needs.prepare.outputs.release == 'true' && 'desktop-production' || 'desktop-development' }}
@@ -126,7 +127,7 @@ jobs:
         working-directory: frontend
         run: npm run desktop:build
       - name: Prepare signing credentials for official release
-        if: needs.prepare.outputs.release == 'true'
+        if: needs.prepare.outputs.release == 'true' && runner.os != 'Linux'
         working-directory: frontend
         env:
           CSC_LINK: ${{ runner.os == 'Windows' && secrets.WINDOWS_CSC_LINK || secrets.MACOS_CSC_LINK }}
@@ -150,11 +151,15 @@ jobs:
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-        run: npm run desktop:package -- --${{ matrix.platform == 'win32' && 'win' || 'mac' }} --${{ matrix.arch }}
+        run: npm run desktop:package -- --${{ matrix.platform == 'win32' && 'win' || matrix.platform == 'darwin' && 'mac' || 'linux' }} --${{ matrix.arch }}
       - name: Launch packaged desktop twice and verify persistent local state
         working-directory: frontend
         run: |
-          node scripts/desktop/packaged-smoke.cjs
+          if [[ "$RUNNER_OS" == Linux ]]; then
+            xvfb-run -a node scripts/desktop/packaged-smoke.cjs
+          else
+            node scripts/desktop/packaged-smoke.cjs
+          fi
       - name: Verify macOS production signature and notarization
         if: runner.os == 'macOS' && needs.prepare.outputs.release == 'true'
         working-directory: frontend
@@ -168,6 +173,8 @@ jobs:
             frontend/dist-desktop/*.exe
             frontend/dist-desktop/*.dmg
             frontend/dist-desktop/*.zip
+            frontend/dist-desktop/*.AppImage
+            frontend/dist-desktop/*.deb
             frontend/dist-desktop/*.blockmap
             frontend/dist-desktop/latest*.yml
           if-no-files-found: error

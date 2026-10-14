@@ -14,6 +14,7 @@ module.exports = {
   artifactName: 'Visitor-Counter-${version}-${os}-${arch}.${ext}',
   publish: [{ provider: 'github', owner: config.releaseOwner, repo: config.releaseRepository, releaseType: 'draft' }],
   win: { target: [{ target: 'nsis', arch: ['x64'] }], signtoolOptions: { publisherName: config.windowsPublisherName } },
+  linux: { target: [{ target: 'AppImage', arch: ['x64'] }, { target: 'deb', arch: ['x64'] }], category: 'Utility', maintainer: 'Duluin', executableName: 'visitor-counter', icon: 'electron/linux-icon.png' },
   nsis: { oneClick: false, perMachine: false, allowToChangeInstallationDirectory: true, deleteAppDataOnUninstall: false },
   mac: { target: ['dmg', 'zip'], category: 'public.app-category.business', hardenedRuntime: true,
     entitlements: 'electron/entitlements.mac.plist', entitlementsInherit: 'electron/entitlements.mac.plist',

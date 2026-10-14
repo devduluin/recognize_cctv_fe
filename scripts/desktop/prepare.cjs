@@ -8,13 +8,14 @@ const lockPath = path.join(root, 'desktop-assets.lock.json');
 const lockMode = process.argv.includes('--lock-assets');
 
 async function main() {
-  const targets = [{ platform: 'darwin', arch: 'arm64', media: 'darwin_arm64' }, { platform: 'darwin', arch: 'x64', media: 'darwin_amd64' }, { platform: 'win32', arch: 'x64', media: 'windows_amd64' }];
+  const targets = [{ platform: 'darwin', arch: 'arm64', media: 'darwin_arm64' }, { platform: 'darwin', arch: 'x64', media: 'darwin_amd64' }, { platform: 'win32', arch: 'x64', media: 'windows_amd64' }, { platform: 'linux', arch: 'x64', media: 'linux_amd64' }];
   const mediaRelease = lockMode ? await (await fetch(`https://api.github.com/repos/bluenviron/mediamtx/releases/tags/v${config.mediaMtxVersion}`)).json() : null;
   const nodeChecksums = lockMode ? await (await fetch(`https://nodejs.org/dist/v${config.nodeVersion}/SHASUMS256.txt`)).text() : '';
   const lock = lockMode ? {} : JSON.parse(fs.readFileSync(lockPath, 'utf8'));
   if (lockMode) {
     for (const target of targets) {
-      const nodeFile = `node-v${config.nodeVersion}-${target.platform === 'win32' ? 'win' : 'darwin'}-${target.arch}.${target.platform === 'win32' ? 'zip' : 'tar.gz'}`;
+      const nodeOs = target.platform === 'win32' ? 'win' : target.platform === 'linux' ? 'linux' : 'darwin';
+      const nodeFile = `node-v${config.nodeVersion}-${nodeOs}-${target.arch}.${target.platform === 'win32' ? 'zip' : target.platform === 'linux' ? 'tar.xz' : 'tar.gz'}`;
       const mediaFile = `mediamtx_v${config.mediaMtxVersion}_${target.media}.${target.platform === 'win32' ? 'zip' : 'tar.gz'}`;
       const nodeLine = nodeChecksums.split('\n').find(line => line.trim().endsWith(` ${nodeFile}`));
       const asset = mediaRelease.assets?.find(asset => asset.name === mediaFile);
@@ -29,7 +30,7 @@ async function main() {
     return;
   }
   const target = targets.find(target => target.platform === process.platform && target.arch === process.arch);
-  if (!target) throw new Error('Build on Windows x64, macOS arm64 or macOS x64.');
+  if (!target) throw new Error('Build on Windows x64, macOS arm64/x64 or Linux x64.');
   const assets = lock[`${process.platform}-${process.arch}`];
   const resources = path.join(root, 'resources');
   const cache = path.join(root, 'desktop-cache');
