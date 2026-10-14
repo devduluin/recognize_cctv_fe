@@ -72,9 +72,13 @@ For a one-command clean build and installer, run `npm run desktop:rebuild`.
 Without arguments, it shows a numbered menu: `1` for macOS, `2` for Windows,
 and `3` for Linux. After you choose, it cleans generated outputs, rebuilds the
 backend and Next.js app, and packages the installer. During quiet parts of a
-build or macOS signing, the command shows a spinner with the current stage;
-detailed tool logs still appear as they are produced. This command already
-includes clean, so no separate clean step is needed:
+build or macOS signing, the command shows a spinner with an estimated overall
+percentage and current stage; detailed tool logs still appear as they are
+produced. It also shows an estimated remaining time for the current stage.
+Both percentage and remaining time are time-based estimates, so they can pause
+or jump and may be less accurate when caches are cold; 100% appears only after
+every stage finishes. This command already includes clean, so no separate
+clean step is needed:
 
 ```bash
 npm run desktop:rebuild

@@ -8,13 +8,17 @@ async function main() {
   const targetArgs = await selectTargetArgs();
   await runWithProgress(process.execPath, [path.join(__dirname, 'clean.cjs')], {
     cwd: root, label: 'Membersihkan output build lama',
+    progress: { start: 0, end: 4, expectedDurationMs: 8_000 },
   });
   await runWithProgress(process.execPath, [path.join(__dirname, 'build.cjs')], {
     cwd: root, label: 'Membangun backend dan frontend',
+    progress: { start: 4, end: 78, expectedDurationMs: 8 * 60_000 },
   });
   await runWithProgress(process.execPath, [path.join(__dirname, 'package.cjs'), ...targetArgs], {
     cwd: root, label: 'Menyiapkan installer desktop',
+    progress: { start: 78, end: 99, expectedDurationMs: 4 * 60_000 },
   });
+  process.stderr.write('✓ Build selesai (100%)\n');
 }
 
 main().catch(error => {
