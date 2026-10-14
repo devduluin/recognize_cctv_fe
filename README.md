@@ -20,6 +20,63 @@ You can start editing the page by modifying `app/page.tsx`. The page auto-update
 
 This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
 
+## Build the desktop installer
+
+Desktop builds use the backend in the sibling `recognize_cctv` directory. Use
+Node.js 24.14.0 and the backend's locked Python environment. On a fresh checkout,
+prepare those dependencies and the verified models once:
+
+```bash
+nvm install 24.14.0
+nvm use 24.14.0
+npm ci
+
+cd ../recognize_cctv
+python3 -m pip install uv==0.9.5
+uv sync --project desktop --locked
+desktop/.venv/bin/python tools/prepare_models.py --models-dir models
+desktop/.venv/bin/python -c 'from keras_facenet import FaceNet; FaceNet()'
+cd ../recognize_cctv_fe
+```
+
+To rebuild the installer after changing the frontend or backend, run from this
+repository on the target Mac. Apple Silicon builds use `arm64`; Intel Macs use
+`x64`:
+
+```bash
+nvm use 24.14.0
+export DESKTOP_PYTHON="$(cd ../recognize_cctv && pwd)/desktop/.venv/bin/python"
+
+# Optional: verify which accelerator the backend environment can use.
+"$DESKTOP_PYTHON" -c 'import torch; print("CUDA:", torch.cuda.is_available()); print("MPS:", torch.backends.mps.is_available())'
+
+npm run desktop:build
+npm run desktop:package -- --mac --arm64
+node scripts/desktop/packaged-smoke.cjs
+```
+
+The installer and app archive are written to `dist-desktop/`. Replace
+`--arm64` with `--x64` when building on an Intel Mac. The build bundles the
+local sibling backend source, so backend changes are included. Inference
+selects CUDA, Apple MPS, or CPU based on what the installed runtime reports;
+if MPS reports unavailable, the app uses CPU. Windows installers must be built
+on Windows x64 or through the Windows GitHub Actions job.
+
+For a clean rebuild, remove the generated app/build outputs, then run the build
+commands above again:
+
+```bash
+rm -rf .next resources dist-desktop ../recognize_cctv/desktop/build
+npm run desktop:build
+npm run desktop:package -- --mac --arm64
+```
+
+This keeps `desktop-cache/` (verified Node.js and MediaMTX downloads) and the
+backend Python environment so they can be reused. The installed application's
+SQLite database and other user data live separately under macOS Application
+Support and are not part of these build folders. To remove only old installers,
+delete `dist-desktop/` before packaging.
+
 ## Learn More
 
 To learn more about Next.js, take a look at the following resources:
