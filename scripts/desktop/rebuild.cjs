@@ -1,19 +1,23 @@
 const path = require('node:path');
-const { execFileSync } = require('node:child_process');
+const { runWithProgress } = require('./progress.cjs');
+const { selectTargetArgs } = require('./platform-selector.cjs');
 
 const root = path.resolve(__dirname, '../..');
-const run = (script, args = []) => execFileSync(process.execPath, [path.join(__dirname, script), ...args], {
-  cwd: root,
-  stdio: 'inherit',
-  env: process.env,
-  windowsHide: true,
-});
 
-run('clean.cjs');
-run('build.cjs');
-execFileSync(process.execPath, [
-  path.join(root, 'node_modules/electron-builder/cli.js'),
-  '--config', path.join(root, 'electron-builder.cjs'),
-  '--publish', 'never',
-  ...process.argv.slice(2),
-], { cwd: root, stdio: 'inherit', env: process.env, windowsHide: true });
+async function main() {
+  const targetArgs = await selectTargetArgs();
+  await runWithProgress(process.execPath, [path.join(__dirname, 'clean.cjs')], {
+    cwd: root, label: 'Membersihkan output build lama',
+  });
+  await runWithProgress(process.execPath, [path.join(__dirname, 'build.cjs')], {
+    cwd: root, label: 'Membangun backend dan frontend',
+  });
+  await runWithProgress(process.execPath, [path.join(__dirname, 'package.cjs'), ...targetArgs], {
+    cwd: root, label: 'Menyiapkan installer desktop',
+  });
+}
+
+main().catch(error => {
+  console.error(error.message);
+  process.exitCode = 1;
+});

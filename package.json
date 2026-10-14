@@ -15,9 +15,9 @@
     "desktop:test": "node --test tests/desktop-*.test.cjs",
     "desktop:assets": "node scripts/desktop/prepare.cjs",
     "desktop:clean": "node scripts/desktop/clean.cjs",
-    "desktop:build": "node scripts/desktop/build.cjs",
+    "desktop:build": "node scripts/desktop/build-wrapper.cjs",
     "desktop:rebuild": "node scripts/desktop/rebuild.cjs",
-    "desktop:package": "electron-builder --config electron-builder.cjs --publish never",
+    "desktop:package": "node scripts/desktop/package.cjs",
     "test": "node --test tests/*.test.mjs"
   },
   "dependencies": {

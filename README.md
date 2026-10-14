@@ -68,20 +68,28 @@ plus a newly randomized six-digit build number. Both appear in Pengaturan →
 Sistem Kamera → Tentang aplikasi. The build number identifies that particular
 build; it does not replace or increment the release version.
 
-For a one-command clean build and installer, use `desktop:rebuild`. It cleans
-generated outputs first, then rebuilds the backend and Next.js app and packages
-the installer. This command already includes clean, so no separate clean step
-is needed:
+For a one-command clean build and installer, run `npm run desktop:rebuild`.
+Without arguments, it shows a numbered menu: `1` for macOS, `2` for Windows,
+and `3` for Linux. After you choose, it cleans generated outputs, rebuilds the
+backend and Next.js app, and packages the installer. During quiet parts of a
+build or macOS signing, the command shows a spinner with the current stage;
+detailed tool logs still appear as they are produced. This command already
+includes clean, so no separate clean step is needed:
 
 ```bash
-npm run desktop:rebuild -- --mac --arm64
+npm run desktop:rebuild
 ```
 
-Run `npm run desktop:rebuild -- --mac --x64` on an Intel Mac or
-`npm run desktop:rebuild -- --win --x64` on Windows x64, or
-`npm run desktop:rebuild -- --linux --x64` on Ubuntu/Debian x64. Linux builds
-produce AppImage and `.deb` installers and should be built on Ubuntu 24.04 x64.
-Linux packaging currently targets x64. The separate
+The selected build must run on its target OS because PyInstaller creates a
+platform-specific FastAPI backend. The command checks the OS and architecture
+before cleaning anything, and stops with guidance if the selected target is
+not supported on the current machine. macOS uses the machine's current
+architecture (Apple Silicon arm64 or Intel x64); Windows supports x64; Linux
+builds should run on Ubuntu 24.04 x64 and produce AppImage and `.deb` installers.
+For example, choose macOS on a Mac, Windows on Windows x64, or Linux on Ubuntu
+24.04 x64. You can skip the prompt by passing a target explicitly, for example
+`npm run desktop:rebuild -- --mac --arm64` or `npm run desktop:rebuild -- --win --x64`.
+The separate
 `desktop:build` and `desktop:package` commands remain available when you only
 need one build stage. `desktop:clean` removes `.next/`, `resources/`,
 `dist-desktop/`, and the backend PyInstaller work directory. It keeps
@@ -89,6 +97,18 @@ need one build stage. `desktop:clean` removes `.next/`, `resources/`,
 Python environment for reuse. Installed app data, including the SQLite
 database, is stored separately under the operating system's application data
 directory and is unaffected.
+
+On macOS, local packaging may spend time signing the large bundled application.
+For a development build, disable automatic signing-identity discovery:
+
+```bash
+CSC_IDENTITY_AUTO_DISCOVERY=false npm run desktop:package -- --mac --arm64
+```
+
+This packages already-built resources. To clean, rebuild, and package in one
+command, use `CSC_IDENTITY_AUTO_DISCOVERY=false npm run desktop:rebuild -- --mac --arm64`.
+Official releases must use the configured signing certificate and notarization;
+do not disable signing for release builds.
 
 ## Learn More
 
