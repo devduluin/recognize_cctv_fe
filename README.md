@@ -67,20 +67,24 @@ plus a newly randomized six-digit build number. Both appear in Pengaturan →
 Sistem Kamera → Tentang aplikasi. The build number identifies that particular
 build; it does not replace or increment the release version.
 
-For a clean rebuild, remove the generated app/build outputs, then run the build
-commands above again:
+For a one-command clean build and installer, use `desktop:rebuild`. It removes
+generated outputs, rebuilds the backend and Next.js app, then packages the
+installer. Pass the platform and architecture after `--`:
 
 ```bash
-rm -rf .next resources dist-desktop ../recognize_cctv/desktop/build
-npm run desktop:build
-npm run desktop:package -- --mac --arm64
+npm run desktop:clean
+npm run desktop:rebuild -- --mac --arm64
 ```
 
-This keeps `desktop-cache/` (verified Node.js and MediaMTX downloads) and the
-backend Python environment so they can be reused. The installed application's
-SQLite database and other user data live separately under macOS Application
-Support and are not part of these build folders. To remove only old installers,
-delete `dist-desktop/` before packaging.
+Run `npm run desktop:rebuild -- --mac --x64` on an Intel Mac or
+`npm run desktop:rebuild -- --win --x64` on Windows x64. The separate
+`desktop:build` and `desktop:package` commands remain available when you only
+need one build stage. `desktop:clean` removes `.next/`, `resources/`,
+`dist-desktop/`, and the backend PyInstaller work directory. It keeps
+`desktop-cache/` (verified Node.js and MediaMTX downloads) and the backend
+Python environment for reuse. Installed app data, including the SQLite
+database, is stored separately under the operating system's application data
+directory and is unaffected.
 
 ## Learn More
 
