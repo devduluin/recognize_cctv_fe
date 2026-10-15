@@ -1,6 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { estimatePercent, estimateRemainingSeconds, formatDuration } = require('../scripts/desktop/progress.cjs');
+const { estimatePercent, estimateRemainingSeconds, formatDuration, formatTimeEstimate } = require('../scripts/desktop/progress.cjs');
 
 test('estimated build progress advances within a stage and stops before completion', () => {
   const stage = { start: 20, end: 80, expectedDurationMs: 1000 };
@@ -19,4 +19,12 @@ test('remaining time estimate decreases as the stage runs', () => {
   assert.equal(estimateRemainingSeconds(undefined, 30_000), null);
   assert.equal(formatDuration(90), '1 mnt 30 dtk');
   assert.equal(formatDuration(3660), '1 jam 1 mnt');
+});
+
+test('remaining time estimate does not imply zero seconds after a stage overruns', () => {
+  const stage = { expectedDurationMs: 120_000 };
+  const elapsedMs = 150_000;
+  assert.equal(estimateRemainingSeconds(stage, elapsedMs), 0);
+  assert.equal(formatTimeEstimate(stage, elapsedMs), ' — estimasi terlampaui 30 dtk');
+  assert.equal(formatTimeEstimate(stage, 60_000), ' — sisa ~1 mnt 0 dtk');
 });

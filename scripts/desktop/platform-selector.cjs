@@ -32,7 +32,7 @@ function resolveTargetArgs(args, platform = process.platform, arch = process.arc
     throw new Error(
       `Build ${hostDescription(target.platform, targetArch)} harus dijalankan pada mesin ${hostDescription(target.platform, targetArch)}. ` +
       `Mesin ini adalah ${hostDescription(platform, arch)}. Backend FastAPI memakai PyInstaller dan tidak bisa di-cross-compile. ` +
-      'Jalankan perintah ini pada OS target atau gunakan GitHub Actions.',
+      'Jalankan build lokal pada OS target, atau commit dan push perubahan lalu jalankan workflow "Desktop native builds" di GitHub Actions.',
     );
   }
 
@@ -54,7 +54,9 @@ async function selectTargetArgs(args = process.argv.slice(2), options = {}) {
   output.write('Pilih target installer desktop (build harus dijalankan pada OS target):\n');
   TARGETS.forEach((target, index) => {
     const targetArch = target.platform === 'darwin' ? (platform === 'darwin' ? arch : 'arm64 atau x64') : target.arch;
-    const suffix = local?.platform === target.platform ? ` — build lokal (${arch})` : ` — jalankan di ${hostDescription(target.platform, targetArch)}`;
+    const suffix = local?.platform === target.platform
+      ? ` — build lokal (${arch})`
+      : ` — perlu ${hostDescription(target.platform, targetArch)} atau GitHub Actions`;
     output.write(`  ${index + 1}. ${target.label}${suffix}\n`);
   });
   const rl = readline.createInterface({ input, output });
@@ -70,4 +72,48 @@ async function selectTargetArgs(args = process.argv.slice(2), options = {}) {
   }
 }
 
-module.exports = { resolveTargetArgs, selectTargetArgs, targetForHost };
+function targetName(args, platform = process.platform) {
+  if (args.includes('--mac')) return 'mac';
+  if (args.includes('--win')) return 'win';
+  if (args.includes('--linux')) return 'linux';
+  return platform === 'darwin' ? 'mac' : platform === 'win32' ? 'win' : 'linux';
+}
+
+async function selectSigningPreference(targetArgs, options = {}) {
+  const target = targetName(targetArgs, options.platform || process.platform);
+  const input = options.input || process.stdin;
+  const output = options.output || process.stdout;
+  if (target === 'linux') {
+    output.write('Signing code tidak berlaku untuk paket Linux; melanjutkan tanpa code signing.\n');
+    return false;
+  }
+  if (!input.isTTY || !output.isTTY) {
+    output.write('Terminal non-interaktif: melanjutkan sebagai build unsigned.\n');
+    return false;
+  }
+
+  const platformLabel = target === 'mac' ? 'macOS' : 'Windows';
+  const rl = readline.createInterface({ input, output });
+  try {
+    const answer = await rl.question(`Pilih signing untuk build ${platformLabel}:\n  1. Signed (butuh sertifikat signing)\n  2. Unsigned\nMasukkan pilihan [1-2]: `);
+    if (answer.trim() === '1') return true;
+    if (answer.trim() === '2') return false;
+    throw new Error('Pilihan signing tidak valid. Jalankan ulang dan masukkan 1 atau 2.');
+  } finally {
+    rl.close();
+  }
+}
+
+function signingEnvironment(signed) {
+  if (signed) return { DESKTOP_REQUIRE_SIGNING: 'true', CSC_IDENTITY_AUTO_DISCOVERY: 'true' };
+  return {
+    DESKTOP_REQUIRE_SIGNING: 'false',
+    CSC_IDENTITY_AUTO_DISCOVERY: 'false',
+    CSC_LINK: '',
+    CSC_NAME: '',
+    WIN_CSC_LINK: '',
+    WIN_CSC_NAME: '',
+  };
+}
+
+module.exports = { resolveTargetArgs, selectTargetArgs, selectSigningPreference, signingEnvironment, targetForHost };

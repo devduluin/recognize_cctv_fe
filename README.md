@@ -40,16 +40,17 @@ cd ../recognize_cctv_fe
 ```
 
 To build after changing the frontend or backend, run on the target OS and
-architecture. On macOS/Linux, set the locked backend Python path like this.
-In Windows PowerShell, use
-`$env:DESKTOP_PYTHON = (Resolve-Path ..\recognize_cctv\desktop\.venv\Scripts\python.exe).Path`.
+architecture. The build automatically finds the locked Python environment at
+`../recognize_cctv/desktop/.venv`. Set `DESKTOP_PYTHON` only if that environment
+is stored somewhere else. Create the environment first on a fresh checkout as
+shown above.
 
 ```bash
 nvm use 24.14.0
-export DESKTOP_PYTHON="$(cd ../recognize_cctv && pwd)/desktop/.venv/bin/python"
+BACKEND_PYTHON="$(cd ../recognize_cctv && pwd)/desktop/.venv/bin/python"
 
 # Optional: verify which accelerator the backend environment can use.
-"$DESKTOP_PYTHON" -c 'import torch; print("CUDA:", torch.cuda.is_available()); print("MPS:", torch.backends.mps.is_available())'
+"$BACKEND_PYTHON" -c 'import torch; print("CUDA:", torch.cuda.is_available()); print("MPS:", torch.backends.mps.is_available())'
 
 npm run desktop:clean
 npm run desktop:build
@@ -76,9 +77,10 @@ build or macOS signing, the command shows a spinner with an estimated overall
 percentage and current stage; detailed tool logs still appear as they are
 produced. It also shows an estimated remaining time for the current stage.
 Both percentage and remaining time are time-based estimates, so they can pause
-or jump and may be less accurate when caches are cold; 100% appears only after
-every stage finishes. This command already includes clean, so no separate
-clean step is needed:
+or jump and may be less accurate when caches are cold. If a stage takes longer
+than estimated, the display reports how long the estimate has been exceeded;
+100% appears only after every stage finishes. This command already includes
+clean, so no separate clean step is needed:
 
 ```bash
 npm run desktop:rebuild
@@ -87,12 +89,23 @@ npm run desktop:rebuild
 The selected build must run on its target OS because PyInstaller creates a
 platform-specific FastAPI backend. The command checks the OS and architecture
 before cleaning anything, and stops with guidance if the selected target is
-not supported on the current machine. macOS uses the machine's current
+not supported on the current machine. For another OS, commit and push the
+changes and run the `Desktop native builds` workflow from GitHub Actions; its
+manual workflow currently builds the full platform matrix. macOS uses the machine's current
 architecture (Apple Silicon arm64 or Intel x64); Windows supports x64; Linux
 builds should run on Ubuntu 24.04 x64 and produce AppImage and `.deb` installers.
 For example, choose macOS on a Mac, Windows on Windows x64, or Linux on Ubuntu
 24.04 x64. You can skip the prompt by passing a target explicitly, for example
 `npm run desktop:rebuild -- --mac --arm64` or `npm run desktop:rebuild -- --win --x64`.
+After choosing macOS or Windows, the menu asks whether to sign the build.
+Choose signed only when the matching signing certificate and credentials are
+available; the build is configured to fail instead of silently producing an
+unsigned installer. Choose unsigned for local development. Linux packages do
+not use this code-signing selection. In a non-interactive terminal the command
+defaults to unsigned. Official GitHub Release builds retain their required
+signing and notarization checks independently of this local build choice.
+Locally signed development builds skip Apple's per-file timestamp service to
+avoid network delays; do not use these artifacts as official releases.
 The separate
 `desktop:build` and `desktop:package` commands remain available when you only
 need one build stage. `desktop:clean` removes `.next/`, `resources/`,
@@ -113,6 +126,13 @@ This packages already-built resources. To clean, rebuild, and package in one
 command, use `CSC_IDENTITY_AUTO_DISCOVERY=false npm run desktop:rebuild -- --mac --arm64`.
 Official releases must use the configured signing certificate and notarization;
 do not disable signing for release builds.
+
+If macOS signing reports `invalid destination for symbolic link in bundle`,
+retry with `npm run desktop:package -- --mac --arm64` after applying the packaging
+fix. Public assets such as `public/samples` are copied as actual files, including
+when reusing previously staged resources. Other absolute, escaping, or broken
+resource symlinks fail validation before signing with their offending path.
+No additional environment variables are required.
 
 ## Learn More
 

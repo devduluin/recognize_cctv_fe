@@ -3,10 +3,10 @@ const os = require('node:os');
 const path = require('node:path');
 const { randomBytes, randomInt } = require('node:crypto');
 const { execFileSync } = require('node:child_process');
+const { resolveBackendPython } = require('./python-path.cjs');
 const root = path.resolve(__dirname, '../..');
 const backend = path.resolve(process.env.DESKTOP_BACKEND_ROOT || path.join(root, '../recognize_cctv'));
-const python = process.env.DESKTOP_PYTHON;
-if (!python || !fs.existsSync(python)) throw new Error('Set DESKTOP_PYTHON to the locked backend Python executable.');
+const python = resolveBackendPython(backend, process.env.DESKTOP_PYTHON);
 const resources = path.join(root, 'resources');
 const version = require('../../package.json').version;
 if (!/^\d+\.\d+\.\d+$/.test(version)) throw new Error('Desktop version must be MAJOR.MINOR.PATCH.');
@@ -40,7 +40,8 @@ run(process.execPath, [path.join(root, 'node_modules/next/dist/bin/next'), 'buil
       NEXT_PUBLIC_SERVICE_RECOGNIZE_CCTV: '', NEXT_PUBLIC_APP_MODE: 'multi_tenant', IS_MAINTANANCE: 'false', IS_MAINTENANCE: 'false', NEXT_PUBLIC_IS_MAINTANANCE: 'false', NEXT_PUBLIC_IS_MAINTENANCE: 'false' });
 fs.cpSync(path.join(root, '.next/standalone'), path.join(resources, 'next'), { recursive: true });
 fs.cpSync(path.join(root, '.next/static'), path.join(resources, 'next/.next/static'), { recursive: true });
-fs.cpSync(path.join(root, 'public'), path.join(resources, 'next/public'), { recursive: true });
+fs.rmSync(path.join(resources, 'next/public'), { recursive: true, force: true });
+fs.cpSync(path.join(root, 'public'), path.join(resources, 'next/public'), { recursive: true, dereference: true });
 // Next's standalone output may contain the developer's .env. Desktop secrets
 // are created under Electron userData and injected at runtime instead.
 function removeEnvironmentFiles(directory) {

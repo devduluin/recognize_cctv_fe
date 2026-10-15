@@ -9,7 +9,7 @@ module.exports = {
     { from: 'resources/node', to: 'node' }, { from: 'resources/media', to: 'media' },
     { from: 'resources/build-manifest.json', to: 'build-manifest.json' },
   ],
-  asar: true, forceCodeSigning: release,
+  asar: true, forceCodeSigning: release || process.env.DESKTOP_REQUIRE_SIGNING === 'true',
   extraMetadata: { desktopRelease: release },
   artifactName: 'Visitor-Counter-${version}-${os}-${arch}.${ext}',
   publish: [{ provider: 'github', owner: config.releaseOwner, repo: config.releaseRepository, releaseType: 'draft' }],
@@ -18,6 +18,10 @@ module.exports = {
   nsis: { oneClick: false, perMachine: false, allowToChangeInstallationDirectory: true, deleteAppDataOnUninstall: false },
   mac: { target: ['dmg', 'zip'], category: 'public.app-category.business', hardenedRuntime: true,
     entitlements: 'electron/entitlements.mac.plist', entitlementsInherit: 'electron/entitlements.mac.plist',
+    // Local signing is for development/testing and avoids a network timestamp
+    // request for every bundled native library. Official releases retain Apple's
+    // default timestamp service and notarization requirements.
+    timestamp: release ? undefined : 'none',
     notarize: release, binaries: ['Contents/Resources/node/node', 'Contents/Resources/backend/visitor-backend', 'Contents/Resources/media/mediamtx', 'Contents/Resources/media/ffmpeg'],
   },
   afterPack: 'scripts/desktop/verify-package.cjs',

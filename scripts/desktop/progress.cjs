@@ -24,6 +24,15 @@ function estimateRemainingSeconds(progress, elapsedMs) {
   return Math.max(0, (progress.expectedDurationMs - elapsedMs) / 1000);
 }
 
+function formatTimeEstimate(progress, elapsedMs) {
+  const remaining = estimateRemainingSeconds(progress, elapsedMs);
+  if (remaining === null) return '';
+  if (remaining === 0 && elapsedMs > progress.expectedDurationMs) {
+    return ` — estimasi terlampaui ${formatDuration((elapsedMs - progress.expectedDurationMs) / 1000)}`;
+  }
+  return ` — sisa ~${formatDuration(remaining)}`;
+}
+
 function runWithProgress(executable, args, { cwd, env = process.env, label, progress }) {
   return new Promise((resolve, reject) => {
     const child = spawn(executable, args, { cwd, env, stdio: ['inherit', 'pipe', 'pipe'], windowsHide: true });
@@ -56,8 +65,8 @@ function runWithProgress(executable, args, { cwd, env = process.env, label, prog
       if (!process.stderr.isTTY || Date.now() - lastOutputAt < 800) return;
       const percent = estimatePercent(progress, Date.now() - startedAt);
       const progressText = percent === null ? '' : ` ${percent}%`;
-      const remaining = estimateRemainingSeconds(progress, Date.now() - startedAt);
-      const timeText = remaining === null ? '' : ` — sisa ~${formatDuration(remaining)}`;
+      const elapsedMs = Date.now() - startedAt;
+      const timeText = formatTimeEstimate(progress, elapsedMs);
       process.stderr.write(`\r\u001b[2K${frames[frameIndex++ % frames.length]} ${label}${progressText}${timeText} — masih berjalan`);
       spinnerVisible = true;
     }, 500);
@@ -81,4 +90,4 @@ function runWithProgress(executable, args, { cwd, env = process.env, label, prog
   });
 }
 
-module.exports = { estimatePercent, estimateRemainingSeconds, formatDuration, runWithProgress };
+module.exports = { estimatePercent, estimateRemainingSeconds, formatDuration, formatTimeEstimate, runWithProgress };
