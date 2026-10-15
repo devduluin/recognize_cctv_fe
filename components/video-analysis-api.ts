@@ -5,8 +5,10 @@ export type VideoOptions = {
   gender_enabled: boolean;
 };
 
-export function videoUploadUrl(base: string, file: { name: string }, options: VideoOptions) {
+export function videoUploadUrl(base: string, file: { name: string }, options: VideoOptions, eventId?: string, recordingStartedAt?: string) {
   const query = new URLSearchParams({ filename: file.name });
+  if (eventId) query.set("event_id", eventId);
+  if (recordingStartedAt) query.set("recording_started_at", recordingStartedAt);
   for (const [key, value] of Object.entries(options)) query.set(key, String(value));
   return `${base}/video-analyses?${query}`;
 }

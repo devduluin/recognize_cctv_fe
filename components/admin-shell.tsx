@@ -12,7 +12,6 @@ import {
   LayoutDashboard,
   Menu,
   Settings2,
-  Video,
   Users,
   LogOut,
 } from "lucide-react";
@@ -33,7 +32,6 @@ const navigation = [
     group: "Sistem",
     links: [
       { href: "/master-cctv", label: "Kamera", icon: Cctv },
-      { href: "/video-detection", label: "Deteksi Video", icon: Video },
       { href: "/settings", label: "Pengaturan", icon: Settings2 },
       { href: "/users", label: "Pengguna", icon: Users },
     ],

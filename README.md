@@ -167,3 +167,10 @@ custom feature permissions, and account activation. Run the matching backend's
 Alembic migrations before deploying the web UI; desktop startup migrates its
 SQLite schema with a backup. See [user management](../recognize_cctv/docs/user-management.md)
 for setup, security behavior, and verification limits.
+
+Deteksi Video tersedia melalui **Event → Detail Event → Upload Video**. Masukkan
+waktu awal rekaman agar statistik per jam sesuai. Hasil yang selesai tersimpan
+pada laporan event; menu Deteksi Video terpisah kini mengarah ke daftar event.
+Identitas video terpisah dari kamera langsung/video lain; upload ulang file yang
+sama dapat menambah hitungan lagi. Backend dan frontend perlu dibangun ulang.
+Tidak ada environment variable baru untuk perubahan ini.

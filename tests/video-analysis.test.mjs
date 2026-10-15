@@ -22,3 +22,9 @@ test("crossings display source video offsets", () => {
   assert.equal(videoTime(65.3), "01:05");
   assert.equal(videoTime(1800), "30:00");
 });
+
+test("event upload includes target event and the recording timestamp", () => {
+  const url = new URL(videoUploadUrl("https://api.test/api/v1/event_visitor", { name: "gate.mp4" }, { line_position: 0.5, line_orientation: "horizontal", reverse_direction: false, gender_enabled: false }, "event-123", "2026-10-01T03:00:00.000Z"));
+  assert.equal(url.searchParams.get("event_id"), "event-123");
+  assert.equal(url.searchParams.get("recording_started_at"), "2026-10-01T03:00:00.000Z");
+});
