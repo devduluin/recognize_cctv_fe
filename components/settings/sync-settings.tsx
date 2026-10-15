@@ -89,7 +89,8 @@ export default function SyncSettings() {
       <p className={ui.pageDescription}>
         Kirim dan ambil perubahan workspace saat online. Data tetap tersedia saat offline.
         Gunakan akun server dengan email dan tipe akun yang sama dengan akun desktop.
-        Sinkronisasi berjalan otomatis di latar belakang. Perubahan yang belum terkirim tetap tersimpan saat offline.
+        Jalankan secara manual atau aktifkan sinkronisasi otomatis sesuai periode yang dipilih.
+        Perubahan yang belum terkirim tetap tersimpan saat offline.
       </p>
       <p className="mt-3 text-sm text-muted">
         Mencakup profil, workspace, dashboard, kamera, pengaturan, event, sesi, kunjungan,
@@ -125,21 +126,31 @@ export default function SyncSettings() {
           </dl>
           <fieldset disabled={disabled} className="flex flex-wrap items-center gap-4">
             <legend className="sr-only">Pengaturan sinkronisasi otomatis</legend>
-            <label className="flex items-center gap-2 text-sm">
-              <input type="checkbox" checked={status.auto_sync}
-                onChange={event => void action(() => syncRequest("/settings", "PATCH", { auto_sync: event.target.checked, interval_seconds: status.interval_seconds }))} />
-              Sinkronisasi otomatis
-            </label>
-            <Field>Interval pemeriksaan
-              <Select value={status.interval_seconds} onChange={event => void action(() => syncRequest("/settings", "PATCH", { auto_sync: status.auto_sync, interval_seconds: Number(event.target.value) }))}>
+            <Field>Mode sinkronisasi
+              <Select value={status.auto_sync ? "automatic" : "manual"}
+                onChange={event => void action(() => syncRequest("/settings", "PATCH", { auto_sync: event.target.value === "automatic", interval_seconds: status.interval_seconds }))}>
+                <option value="manual">Manual saja</option>
+                <option value="automatic">Manual + otomatis</option>
+              </Select>
+            </Field>
+            <Field>Periode sinkronisasi otomatis
+              <Select disabled={!status.auto_sync} value={status.interval_seconds} onChange={event => void action(() => syncRequest("/settings", "PATCH", { auto_sync: status.auto_sync, interval_seconds: Number(event.target.value) }))}>
                 <option value={15}>15 detik</option><option value={30}>30 detik</option>
                 <option value={60}>1 menit</option><option value={300}>5 menit</option>
+                <option value={600}>10 menit</option><option value={900}>15 menit</option>
+                <option value={1800}>30 menit</option><option value={3600}>1 jam</option>
+                {![15, 30, 60, 300, 600, 900, 1800, 3600].includes(status.interval_seconds) && <option value={status.interval_seconds}>{status.interval_seconds} detik</option>}
               </Select>
             </Field>
           </fieldset>
+          <p className="text-sm text-muted">
+            {status.auto_sync
+              ? "Sinkronisasi otomatis berjalan di latar belakang selama aplikasi terbuka. Periode dihitung setelah proses sebelumnya selesai. Anda juga dapat menekan Sinkronkan sekarang."
+              : "Sinkronisasi hanya berjalan saat Anda menekan Sinkronkan sekarang. Periode pilihan tetap tersimpan saat mode otomatis dimatikan."}
+          </p>
           <p role="status" aria-live="polite">{status.auth_required ? "Sesi sinkronisasi perlu dihubungkan ulang." : status.connection_state === "offline"
-            ? "Server belum terhubung. Data tetap disimpan lokal dan akan dicoba lagi otomatis."
-            : status.message || (status.auto_sync ? "Menunggu sinkronisasi otomatis" : "Sinkronisasi otomatis dijeda")}</p>
+            ? (status.auto_sync ? "Server belum terhubung. Data tetap disimpan lokal dan akan dicoba lagi otomatis." : "Server belum terhubung. Data tetap disimpan lokal. Tekan Sinkronkan sekarang untuk mencoba lagi.")
+            : !status.auto_sync && !status.running ? "Mode manual aktif. Sinkronisasi otomatis tidak berjalan." : status.message || "Menunggu sinkronisasi otomatis"}</p>
           {status.auto_sync && status.next_retry && !status.running && !status.auth_required && <p className="text-sm text-muted">
             Pemeriksaan berikutnya: {new Date(status.next_retry).toLocaleTimeString("id-ID")}.
           </p>}

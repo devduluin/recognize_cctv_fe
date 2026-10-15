@@ -174,3 +174,10 @@ pada laporan event; menu Deteksi Video terpisah kini mengarah ke daftar event.
 Identitas video terpisah dari kamera langsung/video lain; upload ulang file yang
 sama dapat menambah hitungan lagi. Backend dan frontend perlu dibangun ulang.
 Tidak ada environment variable baru untuk perubahan ini.
+
+Pada Pengaturan → Sinkronisasi database, setelah server terhubung, pilih
+**Manual saja** atau **Manual + otomatis**. Periode otomatis tersedia dari
+15 detik sampai 1 jam (15/30 detik, 1/5/10/15/30 menit, atau 1 jam). Tombol
+**Sinkronkan sekarang** tersedia pada kedua mode. Periode dihitung setelah
+proses sebelumnya selesai; percobaan ulang saat offline memakai jeda bertahap.
+Pilihan mode/periode tersimpan lokal dan tidak membutuhkan environment variable baru.
