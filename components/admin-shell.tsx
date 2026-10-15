@@ -1,6 +1,7 @@
 "use client";
 import { useRef, useEffect, useState, type ReactNode } from "react";
 import Link from "next/link";
+import { useAccess } from "./auth/access";
 import { BrandLogo } from "./ui/brand-logo";
 import { clearDashboardProfileCache, dashboardProfileRequest, defaultDashboardProfile, type DashboardProfile } from "./dashboard-profile";
 import { usePathname, useRouter } from "next/navigation";
@@ -11,8 +12,13 @@ import {
   LayoutDashboard,
   Menu,
   Settings2,
+  Users,
   LogOut,
 } from "lucide-react";
+const navigationPermission: Record<string, string> = {
+  "/": "events.read", "/events": "events.read", "/master-cctv": "cameras.read",
+  "/video-detection": "videos.analyze", "/users": "users.manage",
+};
 const navigation = [
   {
     group: "Overview",
@@ -27,6 +33,7 @@ const navigation = [
     links: [
       { href: "/master-cctv", label: "Kamera", icon: Cctv },
       { href: "/settings", label: "Pengaturan", icon: Settings2 },
+      { href: "/users", label: "Pengguna", icon: Users },
     ],
   },
 ];
@@ -37,6 +44,7 @@ const publicRoutes = [
   "/reset-password",
 ];
 export default function AdminShell({ children }: { children: ReactNode }) {
+  const { user: activeUser, can } = useAccess();
   const router = useRouter();
   const pathname = usePathname();
   const menu = useRef<HTMLDetailsElement>(null);
@@ -117,7 +125,7 @@ export default function AdminShell({ children }: { children: ReactNode }) {
     navigation.map((group) => (
       <div className="mb-[26px]" key={group.group}>
         <p className="mx-3 mb-[5px] text-[10px] tracking-[1px] text-[#cbd8f0] uppercase">{group.group}</p>
-        {group.links.map(({ href, label, icon: Icon }) => (
+        {group.links.filter(link => !navigationPermission[link.href] || can(navigationPermission[link.href])).map(({ href, label, icon: Icon }) => (
           <Link
             key={href}
             href={href}
@@ -157,11 +165,11 @@ export default function AdminShell({ children }: { children: ReactNode }) {
             className="grid size-8 place-items-center rounded-full border-2 border-white"
             aria-label="Profil pengguna"
           >
-            {name.charAt(0).toUpperCase()}
+            {(activeUser?.full_name || name).charAt(0).toUpperCase()}
           </Link>
           <Link href="/settings?tab=profile" className="min-w-0 flex-1">
-            <strong className="block truncate text-xs/normal">{name}</strong>
-            <small className="mt-0.5 block text-[10px]">Administrator</small>
+            <strong className="block truncate text-xs/normal">{activeUser?.full_name || name}</strong>
+            <small className="mt-0.5 block text-[10px]">{activeUser?.role === "admin" ? "Admin" : activeUser?.role === "operator" ? "Operator" : activeUser?.role === "viewer" ? "Viewer" : "Pengguna"}</small>
           </Link>
           <button
             onClick={logout}

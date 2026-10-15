@@ -5,8 +5,9 @@ const nextConfig: NextConfig = {
     root: __dirname,
   },
   async rewrites() {
+    if (process.env.DESKTOP_BUILD === "true") return [];
     const recognizeCctvBase = process.env.NEXT_PUBLIC_SERVICE_RECOGNIZE_CCTV || "http://127.0.0.1:8000";
-    return [
+    return { beforeFiles: [
       {
         source: "/api/v1/cctv/:path*",
         destination: `${recognizeCctvBase}/api/v1/cctv/:path*`,
@@ -31,7 +32,7 @@ const nextConfig: NextConfig = {
         source: "/static/:path*",
         destination: `${recognizeCctvBase}/static/:path*`,
       },
-    ];
+    ] };
   },
   output: "standalone",
 };

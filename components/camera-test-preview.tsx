@@ -102,7 +102,7 @@ export default function CameraTestPreview({
       try {
         const user = JSON.parse(localStorage.getItem("user_info") || "null");
         companyId =
-          user?.account_type === "personal" ? user?.id : user?.company_id;
+          user?.workspace_id || user?.company_id || (user?.account_type === "personal" ? user?.id : "");
       } catch {
         /* An explicit source can be tested without company defaults. */
       }

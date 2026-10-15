@@ -12,14 +12,14 @@ import {
   Video,
 } from "lucide-react";
 import { Button, ButtonLink } from "./ui/button";
+import { useAccess } from "./auth/access";
 import { getAuthHeaders } from "./auth/auth-api";
 import { cx, ui } from "./ui/styles";
 
 type CCTVCamera = {
   id: string;
   name: string;
-  rtsp_url?: string;
-  camera_source?: string;
+  has_source: boolean;
   status?: string;
   last_used?: string;
   events?: string[];
@@ -35,7 +35,7 @@ function resolveCompanyId(companyId?: string) {
   try {
     const user = JSON.parse(localStorage.getItem("user_info") || "null");
     return (
-      (user?.account_type === "personal" ? user?.id : user?.company_id) ||
+      (user?.workspace_id || user?.company_id || (user?.account_type === "personal" ? user?.id : "")) ||
       localStorage.getItem("cctv_company_id") ||
       ""
     );
@@ -51,6 +51,7 @@ function DashboardCameraCard({
   camera: CCTVCamera;
   companyId: string;
 }) {
+  const { can } = useAccess();
   const [streaming, setStreaming] = useState(false);
   const [connecting, setConnecting] = useState(false);
   const [error, setError] = useState("");
@@ -68,8 +69,7 @@ function DashboardCameraCard({
 
   const startStream = useCallback(async () => {
     stopStream();
-    const source = (camera.rtsp_url || camera.camera_source || "").trim();
-    if (!source) {
+    if (!camera.has_source) {
       setError("Sumber RTSP / URL kamera belum disetel.");
       return;
     }
@@ -95,7 +95,7 @@ function DashboardCameraCard({
         method: "POST",
         headers: getAuthHeaders({ "Content-Type": "application/json" }),
         body: JSON.stringify({
-          camera_source: source,
+          camera_id: camera.id,
           company_id: companyId || undefined,
         }),
         signal: controller.signal,
@@ -194,8 +194,8 @@ function DashboardCameraCard({
           <h3 className="truncate text-sm font-semibold text-slate-900" title={camera.name}>
             {camera.name || "Kamera CCTV"}
           </h3>
-          <p className="truncate text-[11px] text-muted" title={camera.rtsp_url || camera.camera_source || "-"}>
-            {camera.rtsp_url || camera.camera_source || "Sumber belum disetel"}
+          <p className="truncate text-[11px] text-muted">
+            {camera.has_source ? "Kamera terdaftar" : "Sumber belum disetel"}
           </p>
         </div>
         <span
@@ -303,13 +303,13 @@ function DashboardCameraCard({
             </button>
           )}
         </div>
-        <Link
+        {can("cameras.read") && <Link
           href="/master-cctv"
           className="inline-flex items-center gap-1 text-[11px] font-medium text-navy hover:underline"
         >
-          Kelola Kamera
+          {can("cameras.write") ? "Kelola Kamera" : "Lihat Kamera"}
           <ArrowRight size={12} />
-        </Link>
+        </Link>}
       </div>
     </div>
   );
@@ -320,6 +320,7 @@ export default function DashboardCameraPreview({
 }: {
   companyId?: string;
 }) {
+  const { can } = useAccess();
   const [cameras, setCameras] = useState<CCTVCamera[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -335,14 +336,15 @@ export default function DashboardCameraPreview({
       setLoading(true);
       setError("");
 
-      fetch(`${CCTV_API}/cameras/${encodeURIComponent(effectiveCompanyId)}`, {
+      fetch(`${CCTV_API}/camera-previews?company_id=${encodeURIComponent(effectiveCompanyId)}`, {
         cache: "no-store",
         signal: controller.signal,
         headers: getAuthHeaders(),
       })
         .then(async (response) => {
           if (!response.ok) {
-            throw new Error("Gagal memuat preview kamera.");
+            const payload = await response.json().catch(() => null);
+            throw new Error(typeof payload?.detail === "string" ? payload.detail : "Gagal memuat preview kamera.");
           }
           return response.json();
         })
@@ -388,10 +390,10 @@ export default function DashboardCameraPreview({
           >
             <RefreshCw size={16} className={loading ? "animate-spin" : ""} />
           </Button>
-          <ButtonLink variant="outline" href="/master-cctv">
+          {can("cameras.read") && <ButtonLink variant="outline" href="/master-cctv">
             Lihat Semua Kamera ({cameras.length})
             <ArrowRight size={15} />
-          </ButtonLink>
+          </ButtonLink>}
         </div>
       </div>
 
@@ -428,11 +430,11 @@ export default function DashboardCameraPreview({
             Belum ada kamera terdaftar
           </h3>
           <p className="mt-1 max-w-md text-xs text-muted">
-            Tambahkan kamera CCTV di menu Master Kamera untuk memantau streaming dan deteksi event secara langsung.
+            {can("cameras.write") ? "Tambahkan kamera CCTV di menu Master Kamera untuk memantau streaming dan deteksi event secara langsung." : "Hubungi Admin workspace untuk menambahkan kamera CCTV."}
           </p>
-          <ButtonLink variant="primary" href="/master-cctv" className="mt-4">
+          {can("cameras.write") && <ButtonLink variant="primary" href="/master-cctv" className="mt-4">
             Kelola Kamera
-          </ButtonLink>
+          </ButtonLink>}
         </div>
       ) : (
         <div className="grid grid-cols-1 gap-5 md:grid-cols-2 lg:grid-cols-3">

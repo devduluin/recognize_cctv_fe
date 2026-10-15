@@ -1,19 +1,22 @@
 "use client";
+import { useAccess } from "../../components/auth/access";
 import { Suspense } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import CCTVSettingsPanel from "../../components/settings/cctv-settings";
 import GeneralSettingsPanel from "../../components/settings/general-settings";
+import SyncSettings from "../../components/settings/sync-settings";
 import ProfileSettings from "../../components/settings/profile-settings";
 import { Page, PageHeading, Tabs } from "../../components/ui/layout";
 import { ui } from "../../components/ui/styles";
 function SettingsContent() {
+  const { can, loading: accessLoading } = useAccess();
   const params = useSearchParams();
   const requested = params.get("tab");
   const tab =
-    requested === "profile" || requested === "dashboard" || requested === "cctv"
+    requested === "sync" || requested === "profile" || requested === "dashboard" || requested === "cctv"
       ? requested
-      : "system";
+      : can("settings.write") ? "system" : "profile";
   return (
     <Page>
       <PageHeading>
@@ -30,7 +33,8 @@ function SettingsContent() {
           { id: "system", label: "Sistem Kamera" },
           { id: "profile", label: "Pengaturan Pengguna" },
           { id: "dashboard", label: "Pengaturan Dashboard" },
-        ].map(({ id, label }) => (
+          { id: "sync", label: "Sinkronisasi" },
+        ].filter(({ id }) => id === "profile" || (id === "sync" ? can("sync.run") : can("settings.write"))).map(({ id, label }) => (
           <Link
             key={id}
             href={`/settings?tab=${id}`}
@@ -45,7 +49,11 @@ function SettingsContent() {
           </Link>
         ))}
       </Tabs>
-      {tab === "system" ? (
+      {accessLoading ? <p role="status">Memuat hak akses…</p> : tab !== "profile" && !(tab === "sync" ? can("sync.run") : can("settings.write")) ? (
+        <p role="alert">Anda tidak memiliki izin untuk mengubah pengaturan ini. Buka Pengaturan Pengguna untuk mengelola profil Anda.</p>
+      ) : tab === "sync" ? (
+        <SyncSettings />
+      ) : tab === "system" ? (
         <>
           <GeneralSettingsPanel />
         </>

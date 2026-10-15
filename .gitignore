@@ -19,6 +19,9 @@
 
 # production
 /build
+/resources/
+/dist-desktop/
+/desktop-cache/
 
 # misc
 .DS_Store

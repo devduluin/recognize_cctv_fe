@@ -20,6 +20,8 @@ import {
 } from "lucide-react";
 import VisitorRecords from "../../components/visitor-records";
 import { connectStatusStream } from "../../components/events/status-stream";
+import { useAccess } from "../../components/auth/access";
+import EventVideoDetection from "../../components/event-video-detection";
 import EventsManager from "../../components/events/events-manager";
 import { toast } from "../../components/ui/toast";
 import Modal from "../../components/ui-modal";
@@ -108,7 +110,7 @@ function getCompanyId() {
   try {
     const user = JSON.parse(localStorage.getItem("user_info") || "null");
     return (
-      (user?.account_type === "personal" ? user.id : user?.company_id) ||
+      (user?.workspace_id || user?.company_id || (user?.account_type === "personal" ? user?.id : "")) ||
       localStorage.getItem("cctv_company_id") ||
       ""
     );
@@ -121,6 +123,8 @@ export default function EventVisitorPage({
 }: {
   eventId?: string;
 }) {
+  const { can } = useAccess();
+  const [videoOpen, setVideoOpen] = useState(false);
   const [events, setEvents] = useState<VisitorEvent[]>([]);
   const [selectedEventId, setSelectedEventId] = useState(fixedEventId);
   const [busy, setBusy] = useState(false);
@@ -362,6 +366,11 @@ export default function EventVisitorPage({
       setBusy(false);
     }
   }
+  const refreshVideoResults = useCallback(() => {
+    setResetVersion((value) => value + 1);
+    void refreshStatus();
+  }, [refreshStatus]);
+
   const currentEvent = events.find((event) => event.id === selectedEventId);
   const running = Boolean(status?.running);
   const cameraList =
@@ -411,6 +420,7 @@ export default function EventVisitorPage({
       setResetVersion((value) => value + 1);
       setStreamKey((value) => value + 1);
       setResetOpen(false);
+      setVideoOpen(false);
       toast.success("Data event berhasil direset.");
       await refreshStatus();
     } catch (error) {
@@ -446,6 +456,7 @@ export default function EventVisitorPage({
         </div>
         {fixedEventId && (
           <div className="flex flex-wrap items-center gap-2">
+          <Button type="button" variant="outline" disabled={!can("videos.analyze")} aria-expanded={videoOpen} onClick={() => setVideoOpen((open) => !open)}><Video size={16} /> {videoOpen ? "Tutup Deteksi Video" : "Upload Video"}</Button>
           <Button type="button" variant="outline" disabled={busy} onClick={() => setEditOpen(true)}>
             <Pencil size={16} /> Edit Event
           </Button>
@@ -481,6 +492,7 @@ export default function EventVisitorPage({
           </div>
         )}
       </PageHeading>
+      {fixedEventId && can("videos.analyze") && videoOpen && <EventVideoDetection key={fixedEventId} eventId={fixedEventId} onSaved={refreshVideoResults} />}
       {status && (status.in_count || 0) === 0 && cameraList.every((camera) => camera.counting_direction === "out") && (
         <p role="status" className="mb-4 rounded-lg border border-amber-300 bg-amber-50 p-4 text-sm text-amber-950">
           Event ini belum memiliki catatan Masuk. Keluar hanya dihitung untuk pengunjung yang sudah masuk di event yang sama. Gunakan satu event untuk kamera Masuk dan Keluar.

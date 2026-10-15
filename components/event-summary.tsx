@@ -52,7 +52,7 @@ export default function EventSummary({
       try {
         const user = JSON.parse(localStorage.getItem("user_info") || "null");
         const cid =
-          (user?.account_type === "personal" ? user.id : user?.company_id) ||
+          (user?.workspace_id || user?.company_id || (user?.account_type === "personal" ? user?.id : "")) ||
           localStorage.getItem("cctv_company_id");
         if (!cid) throw new Error("Workspace belum tersedia.");
         const base = `${process.env.NEXT_PUBLIC_SERVICE_RECOGNIZE_CCTV || ""}/api/v1/event_visitor`;

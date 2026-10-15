@@ -4,6 +4,11 @@ export type AuthUser = {
   id: string;
   full_name: string;
   email: string;
+  workspace_id?: string | null;
+  role?: "admin" | "operator" | "viewer";
+  permissions?: string[];
+  custom_permissions?: string[] | null;
+  is_active?: boolean;
   account_type?: string | null;
   company_id?: string | null;
 };
