@@ -148,3 +148,13 @@ You can check out [the Next.js GitHub repository](https://github.com/vercel/next
 The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
 
 Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+
+Desktop database synchronization is available in **Pengaturan → Sinkronisasi**.
+Deploy the matching backend sync protocol over HTTPS, then connect with the same
+account email/type in the desktop app. Sync requires authentication and workspace
+authorization; no additional environment flag is needed.
+Use **Sinkronkan sekarang** when online; local data stays available offline.
+This includes workspace operational SQL records and stored photos; video files,
+Chroma indexes, login credentials, and device scheduling remain separate.
+See [the backend sync guide](../recognize_cctv/docs/database-sync.md) for setup,
+conflict handling, retry behavior, and verification limits.

@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import CCTVSettingsPanel from "../../components/settings/cctv-settings";
 import GeneralSettingsPanel from "../../components/settings/general-settings";
+import SyncSettings from "../../components/settings/sync-settings";
 import ProfileSettings from "../../components/settings/profile-settings";
 import { Page, PageHeading, Tabs } from "../../components/ui/layout";
 import { ui } from "../../components/ui/styles";
@@ -11,7 +12,7 @@ function SettingsContent() {
   const params = useSearchParams();
   const requested = params.get("tab");
   const tab =
-    requested === "profile" || requested === "dashboard" || requested === "cctv"
+    requested === "sync" || requested === "profile" || requested === "dashboard" || requested === "cctv"
       ? requested
       : "system";
   return (
@@ -30,6 +31,7 @@ function SettingsContent() {
           { id: "system", label: "Sistem Kamera" },
           { id: "profile", label: "Pengaturan Pengguna" },
           { id: "dashboard", label: "Pengaturan Dashboard" },
+          { id: "sync", label: "Sinkronisasi" },
         ].map(({ id, label }) => (
           <Link
             key={id}
@@ -45,7 +47,9 @@ function SettingsContent() {
           </Link>
         ))}
       </Tabs>
-      {tab === "system" ? (
+      {tab === "sync" ? (
+        <SyncSettings />
+      ) : tab === "system" ? (
         <>
           <GeneralSettingsPanel />
         </>
