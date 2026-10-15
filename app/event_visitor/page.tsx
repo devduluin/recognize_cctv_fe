@@ -108,7 +108,7 @@ function getCompanyId() {
   try {
     const user = JSON.parse(localStorage.getItem("user_info") || "null");
     return (
-      (user?.account_type === "personal" ? user.id : user?.company_id) ||
+      (user?.workspace_id || user?.company_id || (user?.account_type === "personal" ? user?.id : "")) ||
       localStorage.getItem("cctv_company_id") ||
       ""
     );

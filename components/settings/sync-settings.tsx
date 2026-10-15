@@ -3,7 +3,7 @@
 import { FormEvent, useCallback, useEffect, useState } from "react";
 import { visitorFetch } from "../auth/visitor-fetch";
 import { Button } from "../ui/button";
-import { Field, Input } from "../ui/field";
+import { Field, Input, Select } from "../ui/field";
 import { ui } from "../ui/styles";
 
 type Conflict = {
@@ -12,8 +12,10 @@ type Conflict = {
 };
 type Status = {
   connected: boolean; server: string; running?: boolean; message?: string;
+  auto_sync: boolean; interval_seconds: number; auth_required?: boolean;
+  next_retry?: string | null; connection_state?: string;
   last_success?: string | null; error?: string | null; conflicts: Conflict[];
-  counts?: { uploaded: number; downloaded: number; conflicts: number };
+  counts?: { uploaded: number; downloaded: number; conflicts: number; deferred?: number };
 };
 const labels: Record<string, string> = {
   company: "Workspace", profile: "Profil", dashboard: "Dashboard", cameras: "Kamera",
@@ -87,14 +89,14 @@ export default function SyncSettings() {
       <p className={ui.pageDescription}>
         Kirim dan ambil perubahan workspace saat online. Data tetap tersedia saat offline.
         Gunakan akun server dengan email dan tipe akun yang sama dengan akun desktop.
-        Hentikan monitoring di kedua sisi sebelum menyinkronkan perubahan.
+        Sinkronisasi berjalan otomatis di latar belakang. Perubahan yang belum terkirim tetap tersimpan saat offline.
       </p>
       <p className="mt-3 text-sm text-muted">
         Mencakup profil, workspace, dashboard, kamera, pengaturan, event, sesi, kunjungan,
         foto, tangkapan tertunda, dan koreksi. Rekaman video serta indeks pengenalan wajah
         disimpan terpisah dari database dan belum disinkronkan melalui fitur ini.
       </p>
-      {(error || status?.error) && <p role="alert" className={ui.error}>{error || status?.error}</p>}
+      {(error || (status?.error && status.connection_state !== "offline")) && <p role="alert" className={ui.error}>{error || status?.error}</p>}
       {!status?.connected ? (
         <form onSubmit={connect} className="mt-5 grid max-w-xl gap-4">
           <Field>URL API server
@@ -121,9 +123,28 @@ export default function SyncSettings() {
               <dd>{status.last_success ? new Date(status.last_success).toLocaleString("id-ID") : "Belum pernah"}</dd>
             </div>
           </dl>
-          <p role="status" aria-live="polite">{status.running ? status.message : status.message || "Siap disinkronkan"}</p>
+          <fieldset disabled={disabled} className="flex flex-wrap items-center gap-4">
+            <legend className="sr-only">Pengaturan sinkronisasi otomatis</legend>
+            <label className="flex items-center gap-2 text-sm">
+              <input type="checkbox" checked={status.auto_sync}
+                onChange={event => void action(() => syncRequest("/settings", "PATCH", { auto_sync: event.target.checked, interval_seconds: status.interval_seconds }))} />
+              Sinkronisasi otomatis
+            </label>
+            <Field>Interval pemeriksaan
+              <Select value={status.interval_seconds} onChange={event => void action(() => syncRequest("/settings", "PATCH", { auto_sync: status.auto_sync, interval_seconds: Number(event.target.value) }))}>
+                <option value={15}>15 detik</option><option value={30}>30 detik</option>
+                <option value={60}>1 menit</option><option value={300}>5 menit</option>
+              </Select>
+            </Field>
+          </fieldset>
+          <p role="status" aria-live="polite">{status.auth_required ? "Sesi sinkronisasi perlu dihubungkan ulang." : status.connection_state === "offline"
+            ? "Server belum terhubung. Data tetap disimpan lokal dan akan dicoba lagi otomatis."
+            : status.message || (status.auto_sync ? "Menunggu sinkronisasi otomatis" : "Sinkronisasi otomatis dijeda")}</p>
+          {status.auto_sync && status.next_retry && !status.running && !status.auth_required && <p className="text-sm text-muted">
+            Pemeriksaan berikutnya: {new Date(status.next_retry).toLocaleTimeString("id-ID")}.
+          </p>}
           {status.counts && <p className="text-sm text-muted">
-            {status.counts.uploaded} dikirim · {status.counts.downloaded} diterima · {status.counts.conflicts} konflik
+            {status.counts.uploaded} dikirim · {status.counts.downloaded} diterima · {status.counts.conflicts} konflik · {status.counts.deferred || 0} ditunda
           </p>}
           <div className="flex flex-wrap gap-3">
             <Button variant="primary" disabled={disabled} onClick={() => void action(() => syncRequest("/run", "POST"))}>
@@ -133,11 +154,12 @@ export default function SyncSettings() {
               Putuskan koneksi
             </Button>
           </div>
+          {!!status.counts?.deferred && <p className="text-sm text-muted">Hasil hitung baru tetap dapat disinkronkan saat monitoring. Perubahan konfigurasi, koreksi, dan penghapusan yang ditunda akan dicoba setelah monitoring berhenti.</p>}
           <p className="text-sm text-muted">Jika sesi server kedaluwarsa, putuskan koneksi lalu hubungkan kembali. Data lokal tetap tersimpan.</p>
           {status.conflicts.length > 0 && (
             <div className="space-y-3">
               <h3>Perubahan yang perlu dipilih</h3>
-              <p className="text-sm text-muted">Kedua sisi berubah sejak sinkronisasi terakhir. Pilih versi yang dipertahankan, lalu sinkronkan kembali.</p>
+              <p className="text-sm text-muted">Kedua sisi berubah sejak sinkronisasi terakhir. Pilih versi yang dipertahankan. Sinkronisasi berikutnya akan menerapkan pilihan tersebut.</p>
               <ul className="space-y-3">
                 {status.conflicts.map(conflict => <li key={`${conflict.entity}:${conflict.key}`} className="border-b border-line pb-3">
                   <p className="text-sm">{labels[conflict.entity] || conflict.entity} · <span className="break-all">{conflict.key}</span></p>

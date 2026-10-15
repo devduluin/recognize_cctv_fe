@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import "react-toastify/dist/ReactToastify.css";
 import "./globals.css";
+import { AccessProvider } from "../components/auth/access";
 import AdminShell from "../components/admin-shell";
 import MaintenancePage from "../components/maintenance-page";
 import { Toaster } from "../components/ui/toast";
@@ -22,7 +23,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html lang="id" className="h-full antialiased">
       <body className="min-h-full">
-        {isMaintenance ? <MaintenancePage /> : <AdminShell>{children}</AdminShell>}
+        {isMaintenance ? <MaintenancePage /> : <AccessProvider><AdminShell>{children}</AdminShell></AccessProvider>}
         <Toaster />
       </body>
     </html>

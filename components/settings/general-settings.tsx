@@ -53,7 +53,7 @@ export default function GeneralSettingsPanel() {
     try {
       const user = JSON.parse(localStorage.getItem("user_info") || "null");
       const cid =
-        (user?.account_type === "personal" ? user?.id : user?.company_id) ||
+        (user?.workspace_id || user?.company_id || (user?.account_type === "personal" ? user?.id : "")) ||
         localStorage.getItem("cctv_company_id") ||
         "";
       setCompanyId(cid);

@@ -153,8 +153,17 @@ Desktop database synchronization is available in **Pengaturan → Sinkronisasi**
 Deploy the matching backend sync protocol over HTTPS, then connect with the same
 account email/type in the desktop app. Sync requires authentication and workspace
 authorization; no additional environment flag is needed.
-Use **Sinkronkan sekarang** when online; local data stays available offline.
+After connecting, background sync runs automatically (30 seconds by default).
+Offline changes stay local and retry when the server becomes reachable. Pause or
+change the interval in settings; **Sinkronkan sekarang** remains available.
+Both desktop and server backends must use sync protocol v2.
 This includes workspace operational SQL records and stored photos; video files,
 Chroma indexes, login credentials, and device scheduling remain separate.
 See [the backend sync guide](../recognize_cctv/docs/database-sync.md) for setup,
 conflict handling, retry behavior, and verification limits.
+
+The **Pengguna** menu provides workspace user creation, editing, role presets,
+custom feature permissions, and account activation. Run the matching backend's
+Alembic migrations before deploying the web UI; desktop startup migrates its
+SQLite schema with a backup. See [user management](../recognize_cctv/docs/user-management.md)
+for setup, security behavior, and verification limits.
