@@ -31,7 +31,7 @@ function SettingsContent() {
       <Tabs aria-label="Kategori pengaturan">
         {[
           { id: "system", label: "Sistem Kamera" },
-          { id: "profile", label: "Pengaturan Pengguna" },
+          { id: "profile", label: "Profil Saya" },
           { id: "dashboard", label: "Pengaturan Dashboard" },
           { id: "sync", label: "Sinkronisasi" },
         ].filter(({ id }) => id === "profile" || (id === "sync" ? can("sync.run") : can("settings.write"))).map(({ id, label }) => (
@@ -50,7 +50,7 @@ function SettingsContent() {
         ))}
       </Tabs>
       {accessLoading ? <p role="status">Memuat hak akses…</p> : tab !== "profile" && !(tab === "sync" ? can("sync.run") : can("settings.write")) ? (
-        <p role="alert">Anda tidak memiliki izin untuk mengubah pengaturan ini. Buka Pengaturan Pengguna untuk mengelola profil Anda.</p>
+        <p role="alert">Anda tidak memiliki izin untuk mengubah pengaturan ini. Buka Profil Saya untuk mengelola profil Anda.</p>
       ) : tab === "sync" ? (
         <SyncSettings />
       ) : tab === "system" ? (

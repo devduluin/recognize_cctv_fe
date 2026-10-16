@@ -28,3 +28,9 @@ Data dan respons API dalam pengujian browser menggunakan fixture. Pengujian tida
 - `tsc --noEmit` masih melaporkan error yang sudah ada di `app/recognize_cctv/page.tsx` (63) dan `app/reset-password/page.tsx` (1); tidak ada error pada berkas migrasi. Build mengikuti konfigurasi proyek yang sudah melewati pemeriksaan tipe.
 
 Screenshot dan harness sementara berada di `/private/tmp/ml-tailwind-*`, tidak ditambahkan sebagai aset aplikasi.
+
+## Pemindaian sumber pada development
+
+Tailwind memindai `app/` dan `components/` secara eksplisit melalui `source(none)` dan `@source` di `app/globals.css`, mengikuti [pengaturan deteksi sumber Tailwind](https://tailwindcss.com/docs/detecting-classes-in-source-files#disabling-automatic-detection). Semua class UI saat ini berada dalam kedua folder ini. Jika komponen dipindahkan ke folder lain, tambahkan sumber tersebut.
+
+Pemindaian otomatis sebelumnya mengikuti `public/samples` yang merupakan symlink ke `../../recognize_cctv/samples`. Log panic Turbopack menunjukkan `FileSystemPath("").join("../recognize_cctv/samples") leaves the filesystem root` saat memproses globals.css. Pembatasan sumber menghindari akses pemindai ke aset backend tanpa mengubah root Turbopack atau menghapus symlink. Kompilasi PostCSS langsung telah diperiksa: utility UI tersedia dan dependensi pemindaian tidak mencakup folder samples backend. Server development perlu direstart setelah perubahan ini.

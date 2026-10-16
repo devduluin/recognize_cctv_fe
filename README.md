@@ -91,7 +91,10 @@ platform-specific FastAPI backend. The command checks the OS and architecture
 before cleaning anything, and stops with guidance if the selected target is
 not supported on the current machine. For another OS, commit and push the
 changes and run the `Desktop native builds` workflow from GitHub Actions; its
-manual workflow currently builds the full platform matrix. macOS uses the machine's current
+manual workflow builds the full platform matrix. For **Windows EXE only**, use
+**Build Windows EXE** instead; see [the Windows build guide](docs/windows-exe-build.md)
+for the backend SHA input, private-repository access and artifact download.
+macOS uses the machine's current
 architecture (Apple Silicon arm64 or Intel x64); Windows supports x64; Linux
 builds should run on Ubuntu 24.04 x64 and produce AppImage and `.deb` installers.
 For example, choose macOS on a Mac, Windows on Windows x64, or Linux on Ubuntu
@@ -156,7 +159,7 @@ authorization; no additional environment flag is needed.
 After connecting, background sync runs automatically (30 seconds by default).
 Offline changes stay local and retry when the server becomes reachable. Pause or
 change the interval in settings; **Sinkronkan sekarang** remains available.
-Both desktop and server backends must use sync protocol v2.
+Both desktop and server backends must use sync protocol v3.
 This includes workspace operational SQL records and stored photos; video files,
 Chroma indexes, login credentials, and device scheduling remain separate.
 See [the backend sync guide](../recognize_cctv/docs/database-sync.md) for setup,
@@ -181,3 +184,14 @@ Pada Pengaturan → Sinkronisasi database, setelah server terhubung, pilih
 **Sinkronkan sekarang** tersedia pada kedua mode. Periode dihitung setelah
 proses sebelumnya selesai; percobaan ulang saat offline memakai jeda bertahap.
 Pilihan mode/periode tersimpan lokal dan tidak membutuhkan environment variable baru.
+
+
+Sync v3 menampilkan rincian perbedaan yang aman dan riwayat proses. Web menampilkan
+perangkat milik akun beserta aksi cabut akses; desktop menyediakan mode manual dan
+periodik. Token akses diperbarui otomatis selama kredensial perangkat 90 hari masih
+berlaku. Perubahan email setelah pengikatan tidak memutus workspace. Server perlu
+migrasi `alembic upgrade head` dan backend/frontend desktop harus dibangun ulang.
+File video dan indeks wajah serta akun/permission tetap di luar sync operasional.
+
+Panduan lengkap penggunaan aplikasi: [Manual Visitor Counter](docs/manual/README.md).
+Untuk menghasilkan HTML, PDF, dan screenshot UI dengan data contoh, lihat [petunjuk dokumentasi](docs/manual/capture.md) atau jalankan workflow **Application Manual**.

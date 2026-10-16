@@ -5,9 +5,16 @@ const path = require('node:path');
 const assert = require('node:assert/strict');
 const root = path.resolve(__dirname, '../..');
 const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'visitor-package-smoke-'));
-const executable = process.platform === 'win32' ? path.join(root, 'dist-desktop/win-unpacked/Visitor Counter.exe')
+const defaultExecutable = process.platform === 'win32' ? path.join(root, 'dist-desktop/win-unpacked/Visitor Counter.exe')
   : process.platform === 'darwin' ? path.join(root, `dist-desktop/mac${process.arch === 'arm64' ? '-arm64' : ''}/Visitor Counter.app/Contents/MacOS/Visitor Counter`)
     : path.join(root, 'dist-desktop/linux-unpacked/visitor-counter');
+const args = process.argv.slice(2);
+if (args.length && (args.length !== 2 || args[0] !== '--executable')) {
+  throw new Error('Usage: node scripts/desktop/packaged-smoke.cjs [--executable <installed-app-path>]');
+}
+const executable = args.length ? path.resolve(args[1]) : defaultExecutable;
+if (!fs.statSync(executable).isFile()) throw new Error('Desktop smoke executable is not a file.');
+
 async function launch() {
   await new Promise((resolve, reject) => {
     const child = spawn(executable, ['--desktop-smoke'], { env: { ...process.env, DESKTOP_TEST_DATA: directory }, stdio: 'inherit', windowsHide: true });

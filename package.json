@@ -18,7 +18,12 @@
     "desktop:build": "node scripts/desktop/build-wrapper.cjs",
     "desktop:rebuild": "node scripts/desktop/rebuild.cjs",
     "desktop:package": "node scripts/desktop/package.cjs",
-    "test": "node --test tests/*.test.mjs"
+    "test": "node --test tests/*.test.mjs",
+    "docs:build": "node scripts/docs/render.cjs",
+    "docs:capture": "node scripts/docs/capture.cjs && node scripts/docs/install-assets.cjs",
+    "docs:check": "node --test tests/manual-docs.test.cjs",
+    "docs:assets": "node scripts/docs/install-assets.cjs",
+    "docs:generate": "node scripts/docs/generate.cjs"
   },
   "dependencies": {
     "electron-updater": "6.8.9",

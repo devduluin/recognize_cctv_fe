@@ -1,0 +1,44 @@
+name: Application Manual
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  manual:
+    runs-on: windows-2025
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: Read pinned Node version
+        id: config
+        shell: pwsh
+        run: |
+          $config = Get-Content desktop.config.json | ConvertFrom-Json
+          "node=$($config.nodeVersion)" >> $env:GITHUB_OUTPUT
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ steps.config.outputs.node }}
+          cache: npm
+      - run: npm ci
+      - run: npm test
+      - run: npm run docs:check
+      - name: Build isolated documentation UI
+        run: npm run build -- --webpack
+        env:
+          DESKTOP_BUILD: 'true'
+          NEXT_PUBLIC_SERVICE_RECOGNIZE_CCTV: ''
+          IS_MAINTENANCE: 'false'
+          IS_MAINTANANCE: 'false'
+          NEXT_PUBLIC_IS_MAINTENANCE: 'false'
+          NEXT_PUBLIC_IS_MAINTANANCE: 'false'
+      - name: Capture UI and export PDF
+        run: npm run docs:capture
+      - uses: actions/upload-artifact@v4
+        with:
+          name: visitor-counter-manual-${{ github.run_number }}
+          path: artifacts/manual/
+          if-no-files-found: error
+          retention-days: 30
