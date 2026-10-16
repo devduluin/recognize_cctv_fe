@@ -60,6 +60,45 @@ Pastikan komputer desktop dapat menjangkau kamera. Pada web, yang harus dapat me
 
 URL RTSP dapat berisi kredensial kamera. Jangan menyalinnya ke screenshot atau laporan yang dibagikan. Hentikan monitoring terkait sebelum mengganti sumber kamera.
 
+### Mendapatkan URL RTSP Hikvision
+
+Siapkan alamat IP kamera atau NVR/DVR, port RTSP, akun perangkat yang memiliki izin live view, serta nomor channel. Akun perangkat berbeda dari akun Visitor Counter atau akun aplikasi Hik-Connect. Nama menu dapat berbeda menurut model dan firmware.
+
+1. Hubungkan komputer dan perangkat ke jaringan yang saling terjangkau. Lihat alamat IP pada pengaturan jaringan kamera/NVR atau daftar perangkat router; bila tidak memiliki akses, minta pengelola kamera memeriksanya.
+2. Masuk ke pengaturan perangkat dan periksa port RTSP. Port bawaan umumnya **554**; gunakan port aktual jika pernah diubah.
+3. Jika menggunakan kamera IP secara langsung, gunakan IP kamera dan channel 1. Jika melalui NVR/DVR, gunakan IP serta akun NVR/DVR, lalu pilih channel tempat kamera terdaftar.
+4. Susun URL menggunakan pola di bawah. Ganti username, password, IP, port, dan nomor stream dengan konfigurasi perangkat sendiri.
+5. Uji pada VLC melalui menu pembukaan network stream. Di macOS, biasanya **File → Open Network**; di Windows, **Media → Open Network Stream**. Pastikan gambar muncul dari mesin yang akan memproses kamera.
+6. Masukkan URL yang berhasil diuji ke **Kamera → Tambahkan Kamera**, simpan, lalu periksa preview aplikasi.
+
+Pola URL: `rtsp://USERNAME:PASSWORD@IP_PERANGKAT:554/Streaming/Channels/101`
+
+Contoh dengan kredensial dan IP fiktif: `rtsp://operator:ContohPassword123@192.0.2.10:554/Streaming/Channels/101`. Alamat ini hanya contoh dokumentasi, bukan perangkat yang bisa langsung dihubungkan.
+
+| Akhiran URL | Kamera/channel | Jenis stream |
+| --- | --- | --- |
+| 101 | 1 | Main stream |
+| 102 | 1 | Sub stream |
+| 201 | 2 pada NVR/DVR | Main stream |
+| 202 | 2 pada NVR/DVR | Sub stream |
+
+Nomor stream mengikuti pola **nomor channel × 100 + jenis stream**, dengan 1 untuk main dan 2 untuk sub. Main stream biasanya memberi detail lebih tinggi; sub stream biasanya lebih ringan, tetapi detail wajah dapat berkurang.
+
+Jika username atau password mengandung karakter pemisah URL, lakukan percent-encoding hanya pada bagian kredensial, misalnya `@` menjadi `%40`, `#` menjadi `%23`, dan `%` menjadi `%25`. Jangan membagikan URL yang sudah berisi password asli.
+
+### Jika RTSP Hikvision belum berhasil
+
+| Gejala | Yang perlu diperiksa |
+| --- | --- |
+| Tidak tersambung atau timeout | IP, port RTSP aktual, rute jaringan, firewall, dan apakah perangkat online. |
+| Autentikasi ditolak | Akun perangkat, password, izin live view/channel, dan encoding karakter khusus. |
+| Kamera yang tampil tidak sesuai | Nomor channel NVR/DVR; uji 101/102 untuk channel 1 atau 201/202 untuk channel 2. |
+| VLC berhasil tetapi aplikasi gagal | Uji dari mesin backend yang sama, periksa sumber tersimpan dan dukungan codec pada instalasi aplikasi. |
+
+Untuk akses dari luar jaringan lokasi, koordinasikan koneksi jaringan dengan pengelola. Alamat IP lokal kamera tidak otomatis bisa dijangkau server web di internet.
+
+Referensi format: [Dokumentasi resmi RTSP Hikvision](https://www.hikvision.com/content/dam/hikvision/ca/bulletin/technical-bulletin/technical-article/tb_rtsp_and_http_urls_120915us.pdf).
+
 ![Daftar kamera workspace](screenshots/03-cameras.png)
 
 ## 5. Membuat Event

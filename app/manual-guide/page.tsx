@@ -12,6 +12,7 @@ function inline(text: string): ReactNode {
     if (part.startsWith("`")) return <code key={index} className="rounded bg-slate-100 px-1">{part.slice(1, -1)}</code>;
     const link = /^\[([^\]]+)\]\(([^)]+)\)$/.exec(part);
     // Repository maintenance links do not belong to the application user flow.
+    if (link && /^https:\/\//i.test(link[2])) return <a key={index} href={link[2]} rel="noreferrer" className="text-navy underline underline-offset-4">{link[1]}</a>;
     return link ? link[1] : part;
   });
 }

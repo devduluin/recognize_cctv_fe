@@ -10,6 +10,7 @@ function inline(text) {
     .replace(/\[([^\]]+)\]\(([^)]+)\)/g, (_, label, href) => {
       if (href === 'capture.md') return label + ' (lihat capture.md dalam sumber repository)';
       if (href === '../windows-exe-build.md') return label + ' (lihat docs/windows-exe-build.md dalam sumber repository)';
+      if (/^https:\/\//i.test(href)) return `<a href="${href}" rel="noreferrer">${label}</a>`;
       return label;
     })
     .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>').replace(/`([^`]+)`/g, '<code>$1</code>');
