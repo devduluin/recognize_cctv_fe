@@ -156,7 +156,7 @@ authorization; no additional environment flag is needed.
 After connecting, background sync runs automatically (30 seconds by default).
 Offline changes stay local and retry when the server becomes reachable. Pause or
 change the interval in settings; **Sinkronkan sekarang** remains available.
-Both desktop and server backends must use sync protocol v2.
+Both desktop and server backends must use sync protocol v3.
 This includes workspace operational SQL records and stored photos; video files,
 Chroma indexes, login credentials, and device scheduling remain separate.
 See [the backend sync guide](../recognize_cctv/docs/database-sync.md) for setup,
@@ -181,3 +181,11 @@ Pada Pengaturan → Sinkronisasi database, setelah server terhubung, pilih
 **Sinkronkan sekarang** tersedia pada kedua mode. Periode dihitung setelah
 proses sebelumnya selesai; percobaan ulang saat offline memakai jeda bertahap.
 Pilihan mode/periode tersimpan lokal dan tidak membutuhkan environment variable baru.
+
+
+Sync v3 menampilkan rincian perbedaan yang aman dan riwayat proses. Web menampilkan
+perangkat milik akun beserta aksi cabut akses; desktop menyediakan mode manual dan
+periodik. Token akses diperbarui otomatis selama kredensial perangkat 90 hari masih
+berlaku. Perubahan email setelah pengikatan tidak memutus workspace. Server perlu
+migrasi `alembic upgrade head` dan backend/frontend desktop harus dibangun ulang.
+File video dan indeks wajah serta akun/permission tetap di luar sync operasional.

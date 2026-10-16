@@ -21,19 +21,21 @@ const navigationPermission: Record<string, string> = {
 };
 const navigation = [
   {
-    group: "Overview",
+    group: "Ringkasan",
     links: [{ href: "/", label: "Dashboard", icon: LayoutDashboard }],
   },
   {
-    group: "Manajemen Event",
-    links: [{ href: "/events", label: "Event", icon: Calendar }],
+    group: "Operasional",
+    links: [
+      { href: "/events", label: "Event", icon: Calendar },
+      { href: "/master-cctv", label: "Kamera", icon: Cctv },
+    ],
   },
   {
-    group: "Sistem",
+    group: "Administrasi",
     links: [
-      { href: "/master-cctv", label: "Kamera", icon: Cctv },
-      { href: "/settings", label: "Pengaturan", icon: Settings2 },
       { href: "/users", label: "Pengguna", icon: Users },
+      { href: "/settings", label: "Pengaturan", icon: Settings2 },
     ],
   },
 ];
