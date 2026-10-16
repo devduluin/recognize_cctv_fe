@@ -76,3 +76,20 @@ Periksa `data/logs/mediamtx.log`. Jika ada `dial tcp <IP>:554: connect: no route
 Buka **System Settings → Privacy & Security → Local Network**, aktifkan **Visitor Counter** jika tercantum, lalu tutup dan buka kembali aplikasi. Jika aplikasi belum tercantum, build dan pasang ulang paket yang menyertakan `NSLocalNetworkUsageDescription`; setujui permintaan jaringan lokal saat menguji kamera. Gunakan identitas signing yang konsisten antar build. Jangan mengedit Info.plist aplikasi terpasang karena dapat membatalkan tanda tangan.
 
 Menurut [Apple TN3179](https://developer.apple.com/documentation/technotes/tn3179-understanding-local-network-privacy), akses jaringan helper dihitung sebagai akses aplikasi yang menjalankannya. Konfigurasi packaging macOS kini menyertakan penjelasan izin jaringan lokal. Perubahan ini mendeklarasikan kebutuhan akses; izin tetap diberikan pengguna melalui macOS. Jika sudah diizinkan tetapi log tetap sama, periksa jaringan/VPN/filter aplikasi dan apakah aplikasi yang dibuka merupakan salinan installer terbaru. Tidak ada perubahan pada URL kamera atau penonaktifan keamanan jaringan.
+
+### Clean uninstall macOS
+
+Tutup Visitor Counter dengan **Command+Q**, lalu gunakan script dari root repository frontend:
+
+```sh
+# Preview tanpa perubahan
+zsh scripts/desktop/uninstall-macos.command --purge-data --dry-run
+
+# Hapus aplikasi dan seluruh data lokal aktif (database, akun, rekaman, sesi, cache)
+zsh scripts/desktop/uninstall-macos.command --purge-data
+
+# Alternatif: uninstall aplikasi/cache dengan mempertahankan data dan sesi
+zsh scripts/desktop/uninstall-macos.command --keep-data
+```
+
+Pilih hanya satu mode. Script menolak berjalan selama proses aplikasi terpasang masih aktif dan memverifikasi bundle ID sebelum memindahkan aplikasi. Semua target dipindahkan ke subfolder khusus Trash, sehingga dapat dipulihkan sampai pengguna mengosongkannya. Jika izin file menolak pemindahan, script melaporkan kegagalan dan tidak mengklaim uninstall selesai. Tidak menggunakan sudo atau menghapus berkas konfigurasi jaringan bersama. Source code, artifact build, data server, item Keychain OS, dan daftar Local Network tidak diubah. Script tidak dapat dijalankan oleh agent dalam sandbox karena target berada di luar direktori workspace; pengguna menjalankannya sendiri melalui Terminal.
