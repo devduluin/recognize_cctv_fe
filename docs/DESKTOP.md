@@ -107,3 +107,25 @@ Untuk Test Kamera pada macOS, aplikasi kini memeriksa koneksi TCP RTSP dari pros
 Bridge `desktopCameraNetwork.check` dibatasi ke frame utama pada origin aplikasi aktif, membutuhkan token sesi dan izin `cameras.read` yang diverifikasi ulang ke backend. Pemeriksaan socket hanya berlaku untuk alamat IPv4 privat/link-local literal dengan skema RTSP/RTSPS. Sumber DNS, IPv6, loopback, dan alamat publik tetap memakai jalur backend yang sudah ada. Tidak mengirim username/password ke kamera pada pemeriksaan TCP dan tidak mencatat URL berkredensial. Kegagalan menampilkan pesan jaringan yang dapat ditindaklanjuti sebelum beralih ke pemutar. Windows/Linux dan web mempertahankan jalur pengujian sebelumnya. Tidak ada environment baru.
 
 Perubahan ini memerlukan build frontend desktop dan packaging ulang. Pengujian otomatis memverifikasi validasi IPC/sumber, izin pengguna, timeout, dan penutupan socket dengan mock; dialog izin OS serta keberhasilan playback saat dibuka dari Finder perlu diuji di Mac target. Jika akses masih ditolak meskipun izin sudah diberikan, periksa identitas/tanda tangan aplikasi dan filter jaringan macOS; jangan mereset konfigurasi jaringan seluruh aplikasi.
+# Identitas macOS dan akses kamera jaringan lokal
+
+Jika aplikasi dapat mengakses kamera saat dijalankan dari Terminal tetapi gagal
+dari Finder, periksa juga identitas executable. Electron bawaan dapat membawa
+Mach-O `LC_UUID` yang sama pada aplikasi berbeda; macOS kemudian dapat mencatat
+Visitor Counter sebagai `com.github.Electron`, sekalipun bundle ID dan signature
+benar. Referensi: https://github.com/electron-userland/electron-builder/issues/10297.
+
+Hook `scripts/desktop/verify-package.cjs` menjalankan `macos-identity.cjs` pada
+launcher utama dan helper di staging macOS sebelum signing. UUID diturunkan dari
+app ID, jalur launcher, dan arsitektur, sehingga stabil serta berbeda dari Electron
+bawaan. Electron Framework tidak diubah. UUID launcher yang berubah tidak lagi
+cocok dengan dSYM launcher Electron bawaan; dSYM framework tetap sesuai.
+Windows tidak terpengaruh. Tidak ada variabel lingkungan tambahan.
+
+Untuk memasukkan perbaikan ini ke installer dengan resources yang sudah siap:
+`npm run desktop:package -- --mac`. Tutup aplikasi lama, pasang hasil baru ke
+Applications, lalu jalankan dari Finder dan izinkan Local Network bila diminta.
+Jangan mengubah executable aplikasi yang sudah ditandatangani secara manual.
+Tes binary dan unit tidak menggantikan verifikasi akses kamera dari Finder pada
+macOS pengguna; izin dan cache identitas sistem tetap perlu diuji setelah instalasi.
+
