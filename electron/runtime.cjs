@@ -13,6 +13,17 @@ function freePort() {
   });
 }
 
+async function mediaPorts(excluded, allocate = freePort) {
+  const used = new Set(excluded);
+  const ports = [];
+  for (let attempt = 0; ports.length < 5 && attempt < 100; attempt++) {
+    const port = await allocate();
+    if (!used.has(port)) { used.add(port); ports.push(port); }
+  }
+  if (ports.length !== 5) throw new Error('Cannot allocate distinct media ports.');
+  return ports;
+}
+
 function persistentPaths(userData) {
   const data = path.join(userData, 'data');
   fs.mkdirSync(data, { recursive: true, mode: 0o700 });
@@ -82,14 +93,15 @@ class DesktopRuntime extends EventEmitter {
     this.windowToken = randomBytes(32).toString('hex');
   }
 
-  startChild(name, executable, args, cwd, env) {
+  startChild(name, executable, args, cwd, env, { managedStartup = false } = {}) {
     if (!executable || !fs.existsSync(executable)) throw new Error(`Missing bundled ${name} executable.`);
     const log = fs.openSync(path.join(this.paths.logs, `${name}.log`), 'a');
     const child = spawn(executable, args, { cwd, env: { ...scrubbedEnvironment(), ...env }, windowsHide: true, stdio: ['pipe', log, log], detached: process.platform !== 'win32' });
+    child.desktopStarting = managedStartup;
     fs.closeSync(log);
     this.children.push({ name, child });
-    child.once('error', error => { if (!this.stopping) this.emit('failure', new Error(`${name} failed to start: ${error.message}`)); });
-    child.once('exit', (code, signal) => { if (!this.stopping) this.emit('failure', new Error(`${name} stopped unexpectedly (${code ?? signal}).`)); });
+    child.once('error', error => { child.desktopStartError = error; if (!this.stopping && !child.desktopStarting) this.emit('failure', new Error(`${name} failed to start: ${error.message}`)); });
+    child.once('exit', (code, signal) => { if (!this.stopping && !child.desktopStarting) this.emit('failure', new Error(`${name} stopped unexpectedly (${code ?? signal}).`)); });
     return child;
   }
 
@@ -138,12 +150,18 @@ class DesktopRuntime extends EventEmitter {
   }
 
   async startMedia() {
-    const ports = [];
-    for (let index = 0; index < 5; index++) {
-      let port;
-      do { port = await freePort(); } while (ports.includes(port));
-      ports.push(port);
+    const excluded = [this.frontendOrigin, this.backendOrigin].filter(Boolean).map(origin => Number(new URL(origin).port));
+    for (let attempt = 0; attempt < 3; attempt++) {
+      const ports = await mediaPorts(excluded, this.allocateMediaPort);
+      excluded.push(...ports);
+      try { await this.startMediaAttempt(ports); return; }
+      catch (error) {
+        if (error.code !== 'MEDIA_PORT_BUSY' || attempt === 2) throw error;
+      }
     }
+  }
+
+  async startMediaAttempt(ports) {
     const [api, rtsp, whep, hls, ice] = ports;
     this.mediaApiOrigin = `http://desktop:${this.serviceToken}@127.0.0.1:${api}`;
     this.mediaRtspOrigin = `rtsp://desktop:${this.serviceToken}@127.0.0.1:${rtsp}`;
@@ -152,13 +170,23 @@ class DesktopRuntime extends EventEmitter {
     const config = path.join(this.paths.data, 'mediamtx.yml');
     const recordingPath = path.join(this.paths.data, 'recordings', '%path', '%Y-%m-%d_%H-%M-%S-%f').replaceAll('\\', '/');
     fs.writeFileSync(config, `logLevel: warn\nauthInternalUsers:\n  - user: desktop\n    pass: ${this.serviceToken}\n    ips: [127.0.0.1]\n    permissions:\n      - action: api\n      - action: read\n      - action: publish\n      - action: playback\napi: yes\napiAddress: 127.0.0.1:${api}\nrtspAddress: 127.0.0.1:${rtsp}\nrtspTransports: [tcp]\nrtmp: no\nsrt: no\nmoq: no\nhlsAddress: 127.0.0.1:${hls}\nhlsAllowOrigins: [${JSON.stringify(this.frontendOrigin)}]\nwebrtcAddress: 127.0.0.1:${whep}\nwebrtcAllowOrigins: [${JSON.stringify(this.frontendOrigin)}]\nwebrtcLocalUDPAddress: ''\nwebrtcLocalTCPAddress: 127.0.0.1:${ice}\nwebrtcAdditionalHosts: [127.0.0.1]\npathDefaults:\n  source: publisher\n  record: yes\n  recordPath: ${JSON.stringify(recordingPath)}\n  recordFormat: fmp4\npaths: {}\n`, { mode: 0o600 });
-    const media = this.startChild('mediamtx', path.join(this.resources, 'media', process.platform === 'win32' ? 'mediamtx.exe' : 'mediamtx'), [config], this.paths.data, {});
+    const logFile = path.join(this.paths.logs, 'mediamtx.log');
+    const logOffset = fs.existsSync(logFile) ? fs.statSync(logFile).size : 0;
+    const media = this.startChild('mediamtx', path.join(this.resources, 'media', process.platform === 'win32' ? 'mediamtx.exe' : 'mediamtx'), [config], this.paths.data, {}, { managedStartup: true });
     const deadline = Date.now() + 30000;
     while (Date.now() < deadline) {
-      if (media.exitCode !== null) throw new Error('MediaMTX failed to start.');
-      try { if ((await fetch(`http://127.0.0.1:${api}/v3/config/global/get`, { headers: { Authorization: `Basic ${Buffer.from(`desktop:${this.serviceToken}`).toString('base64')}` }, signal: AbortSignal.timeout(1000) })).ok) return; } catch {}
+      if (media.desktopStartError) throw new Error('MediaMTX executable could not start.');
+      if (media.exitCode !== null || media.signalCode) {
+        const recentLog = fs.existsSync(logFile) ? fs.readFileSync(logFile).subarray(logOffset).toString() : '';
+        const busy = /bind:.*(?:address already in use|Only one usage of each socket address)/i.test(recentLog);
+        const error = new Error(busy ? 'Port layanan media sedang digunakan. Tutup aplikasi lalu coba lagi.' : `MediaMTX failed to start (${media.exitCode ?? media.signalCode}). Check mediamtx.log.`);
+        if (busy) error.code = 'MEDIA_PORT_BUSY';
+        throw error;
+      }
+      try { if ((await fetch(`http://127.0.0.1:${api}/v3/config/global/get`, { headers: { Authorization: `Basic ${Buffer.from(`desktop:${this.serviceToken}`).toString('base64')}` }, signal: AbortSignal.timeout(1000) })).ok && media.exitCode === null && !media.signalCode) { media.desktopStarting = false; return; } } catch {}
       await new Promise(resolve => setTimeout(resolve, 250));
     }
+    media.kill('SIGTERM');
     throw new Error('MediaMTX startup timed out.');
   }
 
@@ -191,4 +219,4 @@ class DesktopRuntime extends EventEmitter {
   }
 }
 
-module.exports = { DesktopRuntime, freePort, persistentPaths, ensureNextRuntime, waitForService, scrubbedEnvironment };
+module.exports = { DesktopRuntime, freePort, mediaPorts, persistentPaths, ensureNextRuntime, waitForService, scrubbedEnvironment };

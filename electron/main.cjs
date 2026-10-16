@@ -3,6 +3,7 @@ const path = require('node:path');
 const fs = require('node:fs');
 const { DesktopRuntime } = require('./runtime.cjs');
 const { DesktopUpdates } = require('./updates.cjs');
+const { allowedPermission } = require('./permissions.cjs');
 const { AuthSessionStore, restoreSession, trustedSender } = require('./auth-session.cjs');
 let runtime, window, updater;
 let quitting = false;
@@ -55,8 +56,10 @@ async function start() {
     else headers.Authorization = `Basic ${Buffer.from(`desktop:${runtime.serviceToken}`).toString('base64')}`;
     callback({ requestHeaders: headers });
   });
-  session.defaultSession.setPermissionRequestHandler((contents, permission, callback) => callback(contents.getURL().startsWith(`${origin}/`) && ['media', 'fullscreen'].includes(permission)));
-  session.defaultSession.setPermissionCheckHandler((contents, permission, requestingOrigin) => requestingOrigin === origin && ['media', 'fullscreen'].includes(permission));
+  session.defaultSession.setPermissionRequestHandler((contents, permission, callback, details) =>
+    callback(allowedPermission(contents, permission, origin, details.requestingUrl, details)));
+  session.defaultSession.setPermissionCheckHandler((contents, permission, requestingOrigin, details) =>
+    allowedPermission(contents, permission, origin, details.requestingUrl || requestingOrigin, details));
   window = new BrowserWindow({ show: false, width: 1440, height: 960, minWidth: 960, minHeight: 640, webPreferences: {
     nodeIntegration: false, contextIsolation: true, sandbox: true, webSecurity: true,
     preload: path.join(__dirname, 'preload.cjs'),
