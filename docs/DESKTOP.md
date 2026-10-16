@@ -67,3 +67,43 @@ Desktop menyimpan token login dan profil sesi dalam `data/auth-session.enc` di d
 Sebelum membuka jendela, aplikasi memeriksa token melalui `/api/v1/auth/me` pada backend lokal dan menggunakan profil/izin terbaru. Token kedaluwarsa, akun nonaktif/dihapus, atau sesi dicabut memerlukan login lagi. Kegagalan layanan sementara tidak menghapus token tersimpan. Tombol Keluar dan ganti akun menghapus sesi terenkripsi dan sesi halaman. Jika penyimpanan terenkripsi OS tidak tersedia, aplikasi tidak memakai fallback plaintext.
 
 Setelah memasang versi yang berisi perbaikan ini, login sekali agar sesi baru tersimpan. Installer perlu dibangun ulang. Akun web tetap memakai perilaku sesi yang sudah ada; autentikasi lokal desktop tidak ikut dihapus hanya karena akses sinkronisasi server dicabut. Uji packaged smoke sekarang memeriksa sesi yang pulih sebelum login pada startup kedua. Pengujian unit memakai enkripsi uji; Keychain/DPAPI asli dan UI packaged tetap perlu diverifikasi pada OS target.
+
+
+### RTSP berhasil di Terminal tetapi gagal di aplikasi macOS
+
+Periksa `data/logs/mediamtx.log`. Jika ada `dial tcp <IP>:554: connect: no route to host`, MediaMTX belum menerima video dari kamera; perpindahan WebRTC ke HLS tidak memperbaiki koneksi sumber. Tes `nc` dari Terminal hanya membuktikan akses proses Terminal.
+
+Buka **System Settings → Privacy & Security → Local Network**, aktifkan **Visitor Counter** jika tercantum, lalu tutup dan buka kembali aplikasi. Jika aplikasi belum tercantum, build dan pasang ulang paket yang menyertakan `NSLocalNetworkUsageDescription`; setujui permintaan jaringan lokal saat menguji kamera. Gunakan identitas signing yang konsisten antar build. Jangan mengedit Info.plist aplikasi terpasang karena dapat membatalkan tanda tangan.
+
+Menurut [Apple TN3179](https://developer.apple.com/documentation/technotes/tn3179-understanding-local-network-privacy), akses jaringan helper dihitung sebagai akses aplikasi yang menjalankannya. Konfigurasi packaging macOS kini menyertakan penjelasan izin jaringan lokal. Perubahan ini mendeklarasikan kebutuhan akses; izin tetap diberikan pengguna melalui macOS. Jika sudah diizinkan tetapi log tetap sama, periksa jaringan/VPN/filter aplikasi dan apakah aplikasi yang dibuka merupakan salinan installer terbaru. Tidak ada perubahan pada URL kamera atau penonaktifan keamanan jaringan.
+
+### Clean uninstall macOS
+
+Tutup Visitor Counter dengan **Command+Q**, lalu gunakan script dari root repository frontend:
+
+```sh
+# Preview tanpa perubahan
+zsh scripts/desktop/uninstall-macos.command --purge-data --dry-run
+
+# Hapus aplikasi dan seluruh data lokal aktif (database, akun, rekaman, sesi, cache)
+zsh scripts/desktop/uninstall-macos.command --purge-data
+
+# Alternatif: uninstall aplikasi/cache dengan mempertahankan data dan sesi
+zsh scripts/desktop/uninstall-macos.command --keep-data
+```
+
+Pilih hanya satu mode. Script menolak berjalan selama proses aplikasi terpasang masih aktif dan memverifikasi bundle ID sebelum memindahkan aplikasi. Semua target dipindahkan ke subfolder khusus Trash, sehingga dapat dipulihkan sampai pengguna mengosongkannya. Jika izin file menolak pemindahan, script melaporkan kegagalan dan tidak mengklaim uninstall selesai. Tidak menggunakan sudo atau menghapus berkas konfigurasi jaringan bersama. Source code, artifact build, data server, item Keychain OS, dan daftar Local Network tidak diubah. Script tidak dapat dijalankan oleh agent dalam sandbox karena target berada di luar direktori workspace; pengguna menjalankannya sendiri melalui Terminal.
+
+Izin browser Electron dan izin Local Network macOS merupakan dua lapisan berbeda. Handler desktop mengizinkan `local-network`, `local-network-access`, dan `loopback-network` hanya untuk frame utama pada origin frontend lokal aktif, selain izin media/fullscreen yang sudah ada. Origin lain, port lain, dan iframe tetap ditolak. Perubahan ini tidak memberikan izin OS kepada MediaMTX dan tidak mengubah pengaturan macOS. Penolakan helper dengan `no route to host` tetap perlu ditelusuri terpisah. Definisi izin diverifikasi terhadap `electron.d.ts` dari versi Electron yang terpasang.
+
+### MediaMTX berhenti karena port terpakai
+
+Jika `mediamtx.log` mencatat `bind: address already in use`, startup MediaMTX gagal membuka salah satu listener lokal. Pemilihan port media kini mengecualikan port frontend/backend dan semua port percobaan sebelumnya. Runtime mencoba ulang maksimal tiga kali khusus untuk kegagalan bind tersebut, sebelum layanan lain diluncurkan. Error konfigurasi atau executable tetap langsung dilaporkan; proses yang berhenti setelah sehat tetap memicu notifikasi kegagalan layanan. Tidak ada perubahan environment atau migrasi data. Perubahan runtime masuk melalui packaging Electron ulang; jangan menghentikan proses lain yang memakai port tersebut secara sembarang.
+
+### Kamera bekerja dari Terminal tetapi gagal dari Finder
+
+Untuk Test Kamera pada macOS, aplikasi kini memeriksa koneksi TCP RTSP dari proses utama Visitor Counter sebelum meminta preview MediaMTX. Ini merupakan pemeriksaan sumber kamera yang diminta pengguna, agar macOS dapat mengatribusikan permintaan LAN ke aplikasi utama. Jika sistem menampilkan permintaan akses jaringan lokal, pengguna perlu menyetujuinya dan mengulangi Test Kamera. Deklarasi Info.plist saja tidak otomatis memberikan izin.
+
+Bridge `desktopCameraNetwork.check` dibatasi ke frame utama pada origin aplikasi aktif, membutuhkan token sesi dan izin `cameras.read` yang diverifikasi ulang ke backend. Pemeriksaan socket hanya berlaku untuk alamat IPv4 privat/link-local literal dengan skema RTSP/RTSPS. Sumber DNS, IPv6, loopback, dan alamat publik tetap memakai jalur backend yang sudah ada. Tidak mengirim username/password ke kamera pada pemeriksaan TCP dan tidak mencatat URL berkredensial. Kegagalan menampilkan pesan jaringan yang dapat ditindaklanjuti sebelum beralih ke pemutar. Windows/Linux dan web mempertahankan jalur pengujian sebelumnya. Tidak ada environment baru.
+
+Perubahan ini memerlukan build frontend desktop dan packaging ulang. Pengujian otomatis memverifikasi validasi IPC/sumber, izin pengguna, timeout, dan penutupan socket dengan mock; dialog izin OS serta keberhasilan playback saat dibuka dari Finder perlu diuji di Mac target. Jika akses masih ditolak meskipun izin sudah diberikan, periksa identitas/tanda tangan aplikasi dan filter jaringan macOS; jangan mereset konfigurasi jaringan seluruh aplikasi.

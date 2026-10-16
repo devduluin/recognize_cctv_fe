@@ -1,4 +1,5 @@
 "use client";
+import { apiErrorMessage } from "../../components/auth/api-error";
 import { visitorFetch, downloadVisitorReport } from "../../components/auth/visitor-api";
 import { Button, ButtonLink, buttonStyles } from "../../components/ui/button";
 import { Field, Select } from "../../components/ui/field";
@@ -331,9 +332,9 @@ export default function EventVisitorPage({
         throw new Error("Pilih event sebelum memulai monitoring.");
       if (command === "start") {
         const readinessResponse = await visitorFetch(`${API_BASE}/readiness?event_id=${encodeURIComponent(selectedEventId)}`);
-        const readiness = await readinessResponse.json();
-        if (!readinessResponse.ok) throw new Error(typeof readiness.detail === "string" ? readiness.detail : "Kesiapan model belum dapat diperiksa.");
-        if (!readiness.result?.ready) throw new Error(readiness.result?.issues?.join(" ") || "Model lokal belum siap.");
+        const readiness = await readinessResponse.json().catch(() => null);
+        if (!readinessResponse.ok) throw new Error(apiErrorMessage(readiness, readinessResponse.status, "Kesiapan model belum dapat diperiksa."));
+        if (!readiness?.result?.ready) throw new Error(readiness?.result?.issues?.join(" ") || "Model lokal belum siap.");
       }
       const response = await visitorFetch(
         `${API_BASE}/${command}?company_id=${encodeURIComponent(getCompanyId())}&event_id=${encodeURIComponent(selectedEventId)}`,
@@ -347,13 +348,8 @@ export default function EventVisitorPage({
             : {}),
         },
       );
-      const payload = await response.json();
-      if (!response.ok)
-        throw new Error(
-          typeof payload.detail === "string"
-            ? payload.detail
-            : "Perintah belum berhasil.",
-        );
+      const payload = await response.json().catch(() => null);
+      if (!response.ok) throw new Error(apiErrorMessage(payload, response.status, "Perintah belum berhasil."));
       setStreamErrors({});
       setStreamKey((key) => key + 1);
       toast.success({ start: "Monitoring dimulai.", pause: "Monitoring dijeda.", stop: "Monitoring dihentikan." }[command]);

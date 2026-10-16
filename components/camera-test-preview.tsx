@@ -106,6 +106,11 @@ export default function CameraTestPreview({
       } catch {
         /* An explicit source can be tested without company defaults. */
       }
+      if (/^rtsps?:\/\//i.test(source.trim()) && window.desktopCameraNetwork) {
+        const network = await window.desktopCameraNetwork.check(source.trim());
+        if (controller.signal.aborted) return;
+        if (!network.ok) throw new Error(network.message || "Jaringan kamera belum dapat diakses dari aplikasi.");
+      }
       // 1. Try MediaMTX WebRTC Preview First (Zero latency, no Python CPU load)
       try {
         const previewUrlResp = await fetch(`${API_BASE}/camera-preview-url`, {
