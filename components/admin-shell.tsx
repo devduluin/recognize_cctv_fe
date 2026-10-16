@@ -214,7 +214,7 @@ export default function AdminShell({ children }: { children: ReactNode }) {
           )}
           <span aria-current="page">{title}</span>
         </nav>
-        <Link href="/manual-guide" target="_blank" rel="noopener noreferrer" aria-current={pathname === "/manual-guide" ? "page" : undefined}
+        <Link href="/manual-guide" aria-current={pathname === "/manual-guide" ? "page" : undefined}
           className="ml-auto inline-flex min-h-11 shrink-0 items-center gap-2 rounded-lg border border-line px-3 text-sm font-semibold text-navy hover:bg-slate-50 aria-[current]:bg-slate-100">
           <BookOpen size={18} aria-hidden="true" /><span>Manual Guide</span>
         </Link>
