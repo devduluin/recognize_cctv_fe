@@ -1,4 +1,8 @@
-@import "tailwindcss";
+@import "tailwindcss" source(none);
+
+/* Scan UI sources only; public/samples links outside the frontend root. */
+@source "./";
+@source "../components";
 
 @theme {
   --color-background: #fff;

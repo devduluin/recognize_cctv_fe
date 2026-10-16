@@ -6,6 +6,7 @@ import { BrandLogo } from "./ui/brand-logo";
 import { clearDashboardProfileCache, dashboardProfileRequest, defaultDashboardProfile, type DashboardProfile } from "./dashboard-profile";
 import { usePathname, useRouter } from "next/navigation";
 import {
+  BookOpen,
   Cctv,
   Calendar,
   ChevronRight,
@@ -116,7 +117,7 @@ export default function AdminShell({ children }: { children: ReactNode }) {
       </div>
     );
   const eventDetail = pathname.startsWith("/events/");
-  const title = eventDetail
+  const title = pathname === "/manual-guide" ? "Manual Guide" : eventDetail
     ? "Detail Event"
     : pathname === "/events"
       ? "Daftar Event"
@@ -213,6 +214,10 @@ export default function AdminShell({ children }: { children: ReactNode }) {
           )}
           <span aria-current="page">{title}</span>
         </nav>
+        <Link href="/manual-guide" aria-current={pathname === "/manual-guide" ? "page" : undefined}
+          className="ml-auto inline-flex min-h-11 shrink-0 items-center gap-2 rounded-lg border border-line px-3 text-sm font-semibold text-navy hover:bg-slate-50 aria-[current]:bg-slate-100">
+          <BookOpen size={18} aria-hidden="true" /><span>Manual Guide</span>
+        </Link>
       </header>
       <div id="page-content" tabIndex={-1} className="flex flex-1 flex-col min-w-0 outline-none">
         {children}

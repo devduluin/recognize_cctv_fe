@@ -192,3 +192,6 @@ periodik. Token akses diperbarui otomatis selama kredensial perangkat 90 hari ma
 berlaku. Perubahan email setelah pengikatan tidak memutus workspace. Server perlu
 migrasi `alembic upgrade head` dan backend/frontend desktop harus dibangun ulang.
 File video dan indeks wajah serta akun/permission tetap di luar sync operasional.
+
+Panduan lengkap penggunaan aplikasi: [Manual Visitor Counter](docs/manual/README.md).
+Untuk menghasilkan HTML, PDF, dan screenshot UI dengan data contoh, lihat [petunjuk dokumentasi](docs/manual/capture.md) atau jalankan workflow **Application Manual**.

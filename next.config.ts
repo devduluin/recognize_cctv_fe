@@ -35,6 +35,9 @@ const nextConfig: NextConfig = {
     ] };
   },
   output: "standalone",
+  outputFileTracingIncludes: {
+    "/manual-guide": ["./docs/manual/README.md", "./public/manual/screenshots/**/*"],
+  },
 };
 
 export default nextConfig;
