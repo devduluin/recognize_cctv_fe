@@ -91,7 +91,10 @@ platform-specific FastAPI backend. The command checks the OS and architecture
 before cleaning anything, and stops with guidance if the selected target is
 not supported on the current machine. For another OS, commit and push the
 changes and run the `Desktop native builds` workflow from GitHub Actions; its
-manual workflow currently builds the full platform matrix. macOS uses the machine's current
+manual workflow builds the full platform matrix. For **Windows EXE only**, use
+**Build Windows EXE** instead; see [the Windows build guide](docs/windows-exe-build.md)
+for the backend SHA input, private-repository access and artifact download.
+macOS uses the machine's current
 architecture (Apple Silicon arm64 or Intel x64); Windows supports x64; Linux
 builds should run on Ubuntu 24.04 x64 and produce AppImage and `.deb` installers.
 For example, choose macOS on a Mac, Windows on Windows x64, or Linux on Ubuntu
