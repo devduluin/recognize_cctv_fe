@@ -1,6 +1,7 @@
 "use client";
 import { useRef, useEffect, useState, type ReactNode } from "react";
 import Link from "next/link";
+import { clearAuthSession } from "./auth/auth-api";
 import { useAccess } from "./auth/access";
 import { BrandLogo } from "./ui/brand-logo";
 import { clearDashboardProfileCache, dashboardProfileRequest, defaultDashboardProfile, type DashboardProfile } from "./dashboard-profile";
@@ -103,8 +104,7 @@ export default function AdminShell({ children }: { children: ReactNode }) {
   function logout() {
     clearDashboardProfileCache();
     setBrand(defaultDashboardProfile);
-    localStorage.removeItem("auth_token");
-    localStorage.removeItem("user_info");
+    clearAuthSession();
     setAuthenticated(false);
     router.push("/login");
   }

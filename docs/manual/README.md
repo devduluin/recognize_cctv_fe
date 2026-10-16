@@ -14,6 +14,8 @@ Panduan untuk administrator, operator, dan pembaca laporan. Nama tombol mengikut
 4. Pastikan workspace benar sebelum membuat Event atau menghubungkan sinkronisasi.
 5. Untuk selesai bekerja, hentikan monitoring yang sedang berjalan lalu keluar melalui aplikasi.
 
+Sesi login desktop disimpan terenkripsi dan dipulihkan saat aplikasi dibuka kembali selama token masih valid. Setelah memasang versi dengan fitur ini, lakukan login sekali. Memilih **Keluar**, token kedaluwarsa, perubahan password yang mencabut sesi, atau akun yang dinonaktifkan/dihapus akan memerlukan login kembali.
+
 Desktop menyimpan data lokal sehingga dapat digunakan tanpa internet. Kamera jaringan tetap membutuhkan koneksi ke jaringan kamera. Tanpa internet tidak selalu berarti kamera tidak bisa diakses.
 
 ### Web

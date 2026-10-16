@@ -5,7 +5,7 @@ import { LockKeyhole, Mail } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { AuthAlert, AuthField, AuthShell, AuthSubmit, authLinkClass } from "@/components/auth/auth-ui";
-import { getAuthToken, postAuth, saveAuthSession, type AuthSession } from "@/components/auth/auth-api";
+import { clearAuthSession, getAuthToken, postAuth, saveAuthSession, type AuthSession } from "@/components/auth/auth-api";
 import { clearDashboardProfileCache } from "@/components/dashboard-profile";
 
 export default function LoginPage() {
@@ -31,8 +31,7 @@ export default function LoginPage() {
         }
         router.replace(user.account_type ? "/" : "/onboarding");
       } catch {
-        localStorage.removeItem("auth_token");
-        localStorage.removeItem("user_info");
+        clearAuthSession();
         clearDashboardProfileCache();
         setReady(true);
       }
