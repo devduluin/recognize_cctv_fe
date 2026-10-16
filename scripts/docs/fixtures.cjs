@@ -8,7 +8,7 @@ const permissions = {
   'reports.read': 'Lihat dan unduh laporan', 'visitors.correct': 'Review, gabung, dan koreksi pengunjung',
   'videos.analyze': 'Upload dan analisis video', 'recordings.read': 'Lihat dan unduh rekaman',
   'recordings.delete': 'Hapus rekaman workspace', 'settings.write': 'Ubah pengaturan sistem dan dashboard',
-  'sync.run': 'Sinkronisasi seluruh data workspace (baca, ubah, dan hapus)', 'users.manage': 'Tambah pengguna dan kelola izin pengguna',
+  'sync.run': 'Sinkronisasi seluruh data workspace (baca, ubah, dan hapus)', 'users.manage': 'Tambah, ubah, hapus pengguna dan kelola izin',
 };
 const user = { id: workspace, workspace_id: workspace, company_id: null, account_type: 'personal',
   full_name: 'Admin Contoh', email: 'admin@example.test', role: 'admin', permissions: Object.keys(permissions),

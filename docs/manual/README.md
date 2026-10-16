@@ -148,6 +148,16 @@ Izin **Sinkronisasi seluruh data workspace** memiliki cakupan luas karena proses
 
 Perubahan pengguna dan izin tidak direplikasi sebagai bagian data sinkronisasi workspace. Kelola akun pada lingkungan yang digunakan. Pencabutan akses server tidak menghapus data yang sudah tersimpan pada desktop offline.
 
+### Menghapus pengguna
+
+1. Pada daftar **Pengguna**, pilih **Hapus** pada akun yang benar.
+2. Periksa nama dan email pada dialog, lalu pilih **Hapus pengguna** untuk mengonfirmasi atau **Batal** untuk membatalkan.
+3. Setelah berhasil, akun tidak dapat login dan sesi lamanya tidak dapat dipakai untuk permintaan berikutnya. Event, laporan, dan data workspace tetap tersedia.
+
+Anda tidak dapat menghapus akun sendiri atau pemilik workspace personal. Hanya Admin yang dapat menghapus akun Admin, dan workspace harus tetap memiliki Admin aktif. Jika data akun sudah berubah sejak daftar dimuat, muat ulang daftar sebelum mencoba lagi. Penghapusan bersifat permanen; gunakan status nonaktif jika hanya ingin menonaktifkan sementara.
+
+Penghapusan akun berlaku pada lingkungan tempat tindakan dilakukan. Akun server dan akun pada desktop lain tidak ikut dihapus melalui sinkronisasi database workspace.
+
 ![Daftar pengguna](screenshots/06-users.png)
 
 ![Form pengguna dan izin per fitur](screenshots/07-user-permissions.png)

@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { useAccess } from "../../components/auth/access";
 import { visitorFetch } from "../../components/auth/visitor-fetch";
 import type { AuthUser } from "../../components/auth/auth-api";
+import Modal from "../../components/ui-modal";
 import { Button } from "../../components/ui/button";
 import { Field, Input, Select } from "../../components/ui/field";
 import { Page, PageHeading, Panel } from "../../components/ui/layout";
@@ -38,6 +39,8 @@ export default function UsersPage() {
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [editor, setEditor] = useState<{ user: ManagedUser | null } | null>(null);
+  const [deleting, setDeleting] = useState<ManagedUser | null>(null);
+  const [deleteError, setDeleteError] = useState("");
   const [draft, setDraft] = useState<Draft>(empty);
   const limit = 25;
   const load = useCallback(async () => {
@@ -82,6 +85,24 @@ export default function UsersPage() {
     } catch (cause) { setError(cause instanceof Error ? cause.message : "Pengguna belum dapat disimpan."); }
     finally { setBusy(false); }
   }
+  async function removeUser() {
+    if (!deleting || busy) return;
+    setBusy(true); setDeleteError(""); setError(""); setNotice("");
+    try {
+      await api(`/${deleting.id}`, "DELETE", { expected_version: deleting.version });
+    } catch (cause) {
+      setDeleteError(cause instanceof Error ? cause.message : "Pengguna belum dapat dihapus.");
+      setBusy(false);
+      return;
+    }
+    setDeleting(null);
+    setNotice("Pengguna berhasil dihapus. Data workspace tetap tersimpan.");
+    try {
+      if (users.length === 1 && offset > 0) setOffset(Math.max(0, offset - limit));
+      else await load();
+    } catch { setError("Pengguna telah dihapus, tetapi daftar belum dapat diperbarui. Pilih Muat ulang."); }
+    finally { setBusy(false); }
+  }
   if (accessLoading) return <Page><p role="status">Memuat hak akses…</p></Page>;
   if (!allowed) return <Page><h1>Pengguna</h1><p role="alert">{accessError || "Anda tidak memiliki izin untuk mengelola pengguna workspace ini."}</p></Page>;
   const selected = draft.custom ? draft.permissions : catalog?.roles[draft.role] || [];
@@ -95,6 +116,17 @@ export default function UsersPage() {
     </PageHeading>
     {error && <p role="alert" className={ui.error}>{error}</p>}
     {notice && <p role="status" className="mb-4 text-emerald-800">{notice}</p>}
+    {deleting && <Modal title="Hapus pengguna?" size="small" busy={busy} onClose={() => setDeleting(null)}>
+      <div className="space-y-4 p-6">
+        <p>Hapus akun <strong>{deleting.full_name || deleting.email}</strong> ({deleting.email})? Akun ini tidak dapat login lagi. Event, laporan, dan data workspace tetap tersimpan. Tindakan ini tidak dapat dibatalkan.</p>
+        <p className="text-sm text-muted">Penghapusan berlaku di lingkungan ini. Akun pada server atau desktop lain dikelola terpisah.</p>
+        {deleteError && <p role="alert" className={ui.error}>{deleteError}</p>}
+        <div className="flex flex-wrap justify-end gap-3">
+          <Button disabled={busy} onClick={() => setDeleting(null)}>Batal</Button>
+          <Button variant="stop" disabled={busy} onClick={() => void removeUser()}>{busy ? "Menghapus…" : "Hapus pengguna"}</Button>
+        </div>
+      </div>
+    </Modal>}
     {editor && <Panel className="mb-5" aria-labelledby="user-editor-title">
       <h2 id="user-editor-title">Identitas dan hak akses</h2>
       <form onSubmit={save} className="mt-4 space-y-5">
@@ -138,7 +170,13 @@ export default function UsersPage() {
           <td>{user.full_name}{user.id === current?.id && <span className="ml-2 text-muted">(Anda)</span>}</td><td>{user.email}</td>
           <td>{roleLabels[user.role]}{user.custom_permissions != null && user.role !== "admin" ? " · Izin khusus" : ""}</td>
           <td>{user.is_active ? "Aktif" : "Nonaktif"}</td>
-          <td><Button disabled={busy || (user.role === "admin" && current?.role !== "admin")} onClick={() => edit(user)}>Ubah</Button></td>
+          <td><div className="flex flex-wrap gap-2">
+            <Button disabled={busy || (user.role === "admin" && current?.role !== "admin")} onClick={() => edit(user)}>Ubah</Button>
+            <Button variant="stop" aria-label={`Hapus pengguna ${user.full_name || user.email}`}
+              disabled={busy || user.id === current?.id || (user.account_type === "personal" && !user.company_id) || (user.role === "admin" && current?.role !== "admin")}
+              title={user.id === current?.id ? "Akun sendiri tidak dapat dihapus" : user.account_type === "personal" && !user.company_id ? "Pemilik workspace personal tidak dapat dihapus" : undefined}
+              onClick={() => { setDeleting(user); setDeleteError(""); }}>Hapus</Button>
+          </div></td>
         </tr>)}</tbody>
       </table>
       {!loading && users.length === 0 && <p className="p-5" role="status">Belum ada pengguna pada halaman ini.</p>}
