@@ -14,7 +14,7 @@ app.setName('Visitor Counter');
 
 if (!app.requestSingleInstanceLock()) app.quit();
 else {
-  app.on('second-instance', () => { if (window) { if (window.isMinimized()) window.restore(); window.focus(); } });
+  app.on('second-instance', () => { if (window && !window.isDestroyed()) { if (window.isMinimized()) window.restore(); window.focus(); } });
   app.on('before-quit', event => {
     if (quitting) return;
     event.preventDefault();

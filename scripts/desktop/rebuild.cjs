@@ -17,7 +17,7 @@ async function main() {
   });
   await runWithProgress(process.execPath, [path.join(__dirname, 'package.cjs'), ...targetArgs], {
     cwd: root, label: 'Menyiapkan installer desktop',
-    env: signingEnvironment(signed),
+    env: { ...process.env, ...signingEnvironment(signed) },
     progress: { start: 78, end: 99, expectedDurationMs: 4 * 60_000 },
   });
   process.stderr.write('✓ Build selesai (100%)\n');

@@ -7,6 +7,31 @@ const config = require('../../desktop.config.json');
 const lockPath = path.join(root, 'desktop-assets.lock.json');
 const lockMode = process.argv.includes('--lock-assets');
 
+function extractArchive(archive, destination) {
+  if (process.platform === 'win32') {
+    const systemTar = path.join(process.env.SystemRoot || process.env.windir || 'C:\\Windows', 'System32', 'tar.exe');
+    if (fs.existsSync(systemTar)) {
+      execFileSync(systemTar, ['-xf', archive, '-C', destination]);
+      return;
+    }
+    if (archive.endsWith('.zip')) {
+      execFileSync('powershell.exe', [
+        '-NoProfile',
+        '-NonInteractive',
+        '-Command',
+        'Expand-Archive',
+        '-LiteralPath',
+        archive,
+        '-DestinationPath',
+        destination,
+        '-Force',
+      ]);
+      return;
+    }
+  }
+  execFileSync('tar', ['-xf', archive, '-C', destination]);
+}
+
 async function main() {
   const targets = [{ platform: 'darwin', arch: 'arm64', media: 'darwin_arm64' }, { platform: 'darwin', arch: 'x64', media: 'darwin_amd64' }, { platform: 'win32', arch: 'x64', media: 'windows_amd64' }, { platform: 'linux', arch: 'x64', media: 'linux_amd64' }];
   const mediaRelease = lockMode ? await (await fetch(`https://api.github.com/repos/bluenviron/mediamtx/releases/tags/v${config.mediaMtxVersion}`)).json() : null;
@@ -45,7 +70,7 @@ async function main() {
     if (crypto.createHash('sha256').update(fs.readFileSync(archive)).digest('hex') !== item.sha256) throw new Error(`Checksum failed: ${archive}`);
     const destination = path.join(cache, `${kind}-${process.platform}-${process.arch}`);
     fs.mkdirSync(destination, { recursive: true });
-    execFileSync('tar', ['-xf', archive, '-C', destination]);
+    extractArchive(archive, destination);
     const source = kind === 'node' ? path.join(destination, fs.readdirSync(destination).find(name => name.startsWith('node-')), process.platform === 'win32' ? 'node.exe' : 'bin/node') : path.join(destination, process.platform === 'win32' ? 'mediamtx.exe' : 'mediamtx');
     const output = path.join(resources, kind === 'node' ? 'node' : 'media', path.basename(source));
     fs.mkdirSync(path.dirname(output), { recursive: true });
