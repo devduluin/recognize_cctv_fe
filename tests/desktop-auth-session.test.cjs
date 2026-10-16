@@ -94,7 +94,7 @@ test('preload hydrates before page scripts and clears stale origin storage after
         assert.equal(name, 'electron');
         return {
           ipcRenderer: { sendSync: (channel, message) => { operations.push(message.action); return { ok: true, session: message.action === 'read' ? saved : undefined }; } },
-          contextBridge: { exposeInMainWorld: (name, value) => { assert.equal(name, 'desktopAuthSession'); bridge = value; } },
+          contextBridge: { exposeInMainWorld: (name, value) => { if (name === 'desktopAuthSession') bridge = value; else assert.equal(name, 'desktopCameraNetwork'); } },
         };
       },
       localStorage: { setItem: (key, value) => storage.set(key, value), removeItem: key => storage.delete(key) },

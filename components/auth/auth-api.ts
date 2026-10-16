@@ -16,6 +16,7 @@ export type AuthSession = { token: string; user: AuthUser };
 
 declare global {
   interface Window {
+    desktopCameraNetwork?: { check: (source: string) => Promise<{ ok: boolean; message?: string }> };
     desktopAuthSession?: { save: (session: AuthSession) => void; clear: () => void };
   }
 }

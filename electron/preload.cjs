@@ -1,5 +1,5 @@
 'use strict';
-// Only scoped session operations are exposed; no files, processes, or generic IPC.
+// Only scoped session and camera checks are exposed; no files, processes, or generic IPC.
 const { contextBridge, ipcRenderer } = require('electron');
 function request(action, session) {
   const result = ipcRenderer.sendSync('desktop-auth-session', { action, session });
@@ -18,4 +18,8 @@ if (stored) {
 contextBridge.exposeInMainWorld('desktopAuthSession', {
   save: session => request('save', session),
   clear: () => request('clear'),
+});
+
+contextBridge.exposeInMainWorld('desktopCameraNetwork', {
+  check: source => ipcRenderer.invoke('desktop-camera-network-check', source),
 });

@@ -4,6 +4,7 @@ const fs = require('node:fs');
 const { DesktopRuntime } = require('./runtime.cjs');
 const { DesktopUpdates } = require('./updates.cjs');
 const { allowedPermission } = require('./permissions.cjs');
+const { checkCameraNetwork } = require('./camera-network.cjs');
 const { AuthSessionStore, restoreSession, trustedSender } = require('./auth-session.cjs');
 let runtime, window, updater;
 let quitting = false;
@@ -64,6 +65,14 @@ async function start() {
     nodeIntegration: false, contextIsolation: true, sandbox: true, webSecurity: true,
     preload: path.join(__dirname, 'preload.cjs'),
   } });
+  let checkingCameraNetwork = false;
+  ipcMain.handle('desktop-camera-network-check', async (event, source) => {
+    if (!trustedSender(event, window, origin)) return { ok: false, message: 'Akses pengujian kamera ditolak.' };
+    if (checkingCameraNetwork) return { ok: false, message: 'Pengujian jaringan kamera masih berjalan. Coba lagi sebentar.' };
+    checkingCameraNetwork = true;
+    try { return await checkCameraNetwork(source, { token: authSession?.token, runtime }); }
+    finally { checkingCameraNetwork = false; }
+  });
   ipcMain.on('desktop-auth-session', (event, message) => {
     if (!trustedSender(event, window, origin)) { event.returnValue = { ok: false, error: 'Akses sesi ditolak.' }; return; }
     try {
