@@ -11,7 +11,7 @@ const targets = [
 ];
 
 for (const target of targets) {
-  fs.rmSync(target, { recursive: true, force: true });
+  fs.rmSync(target, { recursive: true, force: true, maxRetries: 10, retryDelay: 500 });
   console.log(`Cleaned ${path.relative(root, target) || target}`);
 }
 console.log('Kept desktop-cache and the backend Python environment.');
