@@ -75,6 +75,8 @@ export default function WebRTCPlayer({
   const whepAbortRef = useRef<AbortController | null>(null);
   const webrtcTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const hlsRef = useRef<Hls | null>(null);
+  const hlsAbortRef = useRef<AbortController | null>(null);
+  const hlsTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const whepResourceUrlRef = useRef<string | null>(null);
 
   const [activeMode, setActiveMode] = useState<StreamMode>(preferredMode);
@@ -128,6 +130,10 @@ export default function WebRTCPlayer({
       pcRef.current = null;
     }
 
+    hlsAbortRef.current?.abort();
+    hlsAbortRef.current = null;
+    if (hlsTimerRef.current !== null) clearTimeout(hlsTimerRef.current);
+    hlsTimerRef.current = null;
     if (hlsRef.current) {
       try {
         hlsRef.current.destroy();
@@ -282,95 +288,65 @@ export default function WebRTCPlayer({
     }
   }, [whepUrl, iceServers, hlsUrl, fallbackStreamUrl, cleanupStreams, updateStatus, switchMode]);
 
-  // HLS stream playback
+  // Bound startup and recovery: a manifest alone does not mean video is playing.
   const startHLS = useCallback(() => {
-    if (!hlsUrl) {
-      if (fallbackStreamUrl) {
-        switchMode("mjpeg");
-      } else {
-        updateStatus("error", "URL HLS tidak tersedia");
-      }
-      return;
-    }
-
     cleanupStreams();
     updateStatus("connecting");
-
+    const controller = new AbortController();
+    hlsAbortRef.current = controller;
+    const isCurrent = () => !controller.signal.aborted && hlsAbortRef.current === controller;
+    const fail = (message: string) => {
+      if (!isCurrent()) return;
+      cleanupStreams();
+      if (fallbackStreamUrl) switchMode("mjpeg");
+      else updateStatus("error", message);
+    };
+    if (!hlsUrl) { fail("URL HLS tidak tersedia"); return; }
     const videoEl = videoRef.current;
-    if (!videoEl) return;
-
+    if (!videoEl) { fail("Pemutar video belum tersedia."); return; }
+    const armTimeout = () => {
+      if (hlsTimerRef.current !== null) clearTimeout(hlsTimerRef.current);
+      hlsTimerRef.current = setTimeout(() => fail("Video kamera tidak diterima dalam 20 detik. Periksa koneksi kamera, layanan media lokal, dan codec kamera."), 20000);
+    };
+    armTimeout();
+    videoEl.addEventListener("playing", () => {
+      if (!isCurrent()) return;
+      if (hlsTimerRef.current !== null) clearTimeout(hlsTimerRef.current);
+      hlsTimerRef.current = null;
+      updateStatus("live");
+    }, { signal: controller.signal });
+    videoEl.addEventListener("waiting", () => {
+      if (isCurrent() && hlsTimerRef.current === null) { updateStatus("connecting"); armTimeout(); }
+    }, { signal: controller.signal });
+    videoEl.addEventListener("error", () => fail("Video kamera tidak dapat diputar. Periksa codec dan layanan media."), { signal: controller.signal });
+    const play = () => {
+      videoEl.play().catch(() => fail("Pemutaran video kamera gagal. Coba hubungkan kembali."));
+    };
     if (Hls.isSupported()) {
-      const hls = new Hls({
-        lowLatencyMode: true,
-        liveSyncDurationCount: 3,
-        enableWorker: true,
-        manifestLoadingMaxRetry: 10,
-        manifestLoadingRetryDelay: 1500,
-        levelLoadingMaxRetry: 10,
-        levelLoadingRetryDelay: 1500,
-      });
+      const hls = new Hls({ lowLatencyMode: true, liveSyncDurationCount: 3, enableWorker: true,
+        manifestLoadingMaxRetry: 2, manifestLoadingRetryDelay: 1500,
+        levelLoadingMaxRetry: 2, levelLoadingRetryDelay: 1500 });
       hlsRef.current = hls;
-
+      let networkErrors = 0;
+      let mediaErrors = 0;
+      hls.on(Hls.Events.MANIFEST_PARSED, () => { if (isCurrent()) play(); });
+      hls.on(Hls.Events.ERROR, (_, data) => {
+        if (!isCurrent() || !data.fatal) return;
+        if (data.type === Hls.ErrorTypes.NETWORK_ERROR && ++networkErrors <= 2) {
+          if (hlsTimerRef.current === null) armTimeout();
+          const timer = setTimeout(() => { if (isCurrent()) hls.startLoad(); }, 1500);
+          controller.signal.addEventListener("abort", () => clearTimeout(timer), { once: true });
+        } else if (data.type === Hls.ErrorTypes.MEDIA_ERROR && ++mediaErrors <= 2) {
+          if (hlsTimerRef.current === null) armTimeout();
+          hls.recoverMediaError();
+        } else fail("Koneksi atau pemutaran HLS gagal. Periksa kamera dan layanan media lokal.");
+      });
       hls.loadSource(hlsUrl);
       hls.attachMedia(videoEl);
-
-      hls.on(Hls.Events.MANIFEST_PARSED, () => {
-        videoEl.play().catch(() => {});
-        updateStatus("live");
-      });
-
-      let errorCount = 0;
-      hls.on(Hls.Events.ERROR, (_, data) => {
-        if (data.fatal) {
-          switch (data.type) {
-            case Hls.ErrorTypes.NETWORK_ERROR:
-              errorCount++;
-              if (errorCount > 8 && fallbackStreamUrl) {
-                cleanupStreams();
-                switchMode("mjpeg");
-              } else {
-                setTimeout(() => {
-                  if (hlsRef.current) {
-                    hls.startLoad();
-                  }
-                }, 1500);
-              }
-              break;
-            case Hls.ErrorTypes.MEDIA_ERROR:
-              hls.recoverMediaError();
-              break;
-            default:
-              cleanupStreams();
-              if (fallbackStreamUrl) {
-                switchMode("mjpeg");
-              } else {
-                updateStatus("error", "Gagal memutar HLS stream");
-              }
-              break;
-          }
-        }
-      });
     } else if (videoEl.canPlayType("application/vnd.apple.mpegurl")) {
-      // Native Safari HLS
+      videoEl.addEventListener("loadedmetadata", play, { signal: controller.signal });
       videoEl.src = hlsUrl;
-      videoEl.addEventListener("loadedmetadata", () => {
-        videoEl.play().catch(() => {});
-        updateStatus("live");
-      });
-      videoEl.addEventListener("error", () => {
-        if (fallbackStreamUrl) {
-          switchMode("mjpeg");
-        } else {
-          updateStatus("error", "Gagal memutar HLS native");
-        }
-      });
-    } else {
-      if (fallbackStreamUrl) {
-        switchMode("mjpeg");
-      } else {
-        updateStatus("error", "Format HLS tidak didukung browser ini");
-      }
-    }
+    } else fail("Format HLS tidak didukung browser ini");
   }, [hlsUrl, fallbackStreamUrl, cleanupStreams, updateStatus, switchMode]);
 
   // Main lifecycle effect for stream initialization
