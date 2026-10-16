@@ -2,7 +2,7 @@
 
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from "react";
 import { usePathname, useRouter } from "next/navigation";
-import type { AuthUser } from "./auth-api";
+import { clearAuthSession, persistDesktopSession, type AuthUser } from "./auth-api";
 import { visitorFetch } from "./visitor-fetch";
 
 const publicRoutes = new Set(["/login", "/register", "/forgot-password", "/reset-password"]);
@@ -30,13 +30,13 @@ export function AccessProvider({ children }: { children: ReactNode }) {
       if (!response.ok) {
         if (response.status === 401) {
           setUser(null);
-          localStorage.removeItem("auth_token");
-          localStorage.removeItem("user_info");
+          clearAuthSession();
           router.replace("/login");
         }
         throw new Error(typeof payload?.detail === "string" ? payload.detail : "Hak akses belum dapat dimuat.");
       }
       if (!payload?.result?.user) throw new Error("Respons hak akses tidak lengkap.");
+      persistDesktopSession({ token, user: payload.result.user });
       setUser(payload.result.user);
       localStorage.setItem("user_info", JSON.stringify(payload.result.user));
       setError("");

@@ -4,7 +4,7 @@ import { useEffect, useState, type FormEvent } from "react";
 import { Building2, Phone, UserRound } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { AccountChoice, AuthAlert, AuthField, AuthShell, AuthSubmit, authLinkClass } from "@/components/auth/auth-ui";
-import { postAuth, type AuthUser } from "@/components/auth/auth-api";
+import { clearAuthSession, saveAuthSession, postAuth, type AuthUser } from "@/components/auth/auth-api";
 import { clearDashboardProfileCache } from "@/components/dashboard-profile";
 
 export default function OnboardingPage() {
@@ -55,7 +55,7 @@ export default function OnboardingPage() {
       }, token);
       if (!result.user?.id) throw new Error("Respons akun tidak lengkap. Silakan coba lagi.");
       clearDashboardProfileCache();
-      localStorage.setItem("user_info", JSON.stringify(result.user));
+      saveAuthSession({ token, user: result.user });
       router.push("/");
     } catch (requestError) {
       setError(requestError instanceof Error ? requestError.message : "Gagal terhubung ke server.");
@@ -66,8 +66,7 @@ export default function OnboardingPage() {
 
   function switchAccount() {
     clearDashboardProfileCache();
-    localStorage.removeItem("auth_token");
-    localStorage.removeItem("user_info");
+    clearAuthSession();
     router.replace("/login");
   }
 

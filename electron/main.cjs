@@ -1,8 +1,9 @@
-const { app, BrowserWindow, Menu, dialog, session } = require('electron');
+const { app, BrowserWindow, Menu, dialog, session, ipcMain, safeStorage } = require('electron');
 const path = require('node:path');
 const fs = require('node:fs');
 const { DesktopRuntime } = require('./runtime.cjs');
 const { DesktopUpdates } = require('./updates.cjs');
+const { AuthSessionStore, restoreSession, trustedSender } = require('./auth-session.cjs');
 let runtime, window, updater;
 let quitting = false;
 const development = process.argv.includes('--desktop-dev');
@@ -46,6 +47,8 @@ async function start() {
     app.quit();
   });
   const origin = await runtime.start();
+  const authStore = new AuthSessionStore(runtime.paths.data, safeStorage);
+  let authSession = await restoreSession(authStore, runtime);
   session.defaultSession.webRequest.onBeforeSendHeaders({ urls: [`${origin}/*`, `${runtime.mediaWhepOrigin}/*`, `${runtime.mediaHlsOrigin}/*`] }, (details, callback) => {
     const headers = { ...details.requestHeaders };
     if (new URL(details.url).origin === origin) headers['X-Desktop-Window-Token'] = runtime.windowToken;
@@ -58,6 +61,20 @@ async function start() {
     nodeIntegration: false, contextIsolation: true, sandbox: true, webSecurity: true,
     preload: path.join(__dirname, 'preload.cjs'),
   } });
+  ipcMain.on('desktop-auth-session', (event, message) => {
+    if (!trustedSender(event, window, origin)) { event.returnValue = { ok: false, error: 'Akses sesi ditolak.' }; return; }
+    try {
+      if (message?.action === 'read') event.returnValue = { ok: true, session: authSession };
+      else if (message?.action === 'save') {
+        authStore.write(message.session);
+        authSession = { token: message.session.token, user: message.session.user };
+        event.returnValue = { ok: true };
+      } else if (message?.action === 'clear') {
+        authStore.clear(); authSession = null;
+        event.returnValue = { ok: true };
+      } else event.returnValue = { ok: false, error: 'Operasi sesi tidak valid.' };
+    } catch { event.returnValue = { ok: false, error: 'Penyimpanan sesi desktop gagal. Periksa penyimpanan kredensial OS lalu coba lagi.' }; }
+  });
   window.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
   window.webContents.on('will-navigate', (event, url) => { if (new URL(url).origin !== origin) event.preventDefault(); });
   window.webContents.on('will-attach-webview', event => event.preventDefault());

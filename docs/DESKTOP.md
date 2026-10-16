@@ -59,3 +59,11 @@ The workflow validates updater SHA-512 metadata, merges both macOS file lists, i
 ## Validation status
 
 Unit tests do not prove installation or updating works. Before official release, record successful native frozen-backend/model tests, packaged SSR/API/Server Action/login tests, clean Windows and Linux installations, macOS launch on both architectures, signature/notarization checks and real N-to-N+1 updates preserving user data on supported updater platforms. Verify failure/offline recovery. Production readiness must not be claimed until all gates pass.
+
+### Sesi login setelah restart
+
+Desktop menyimpan token login dan profil sesi dalam `data/auth-session.enc` di direktori userData, menggunakan [Electron safeStorage](https://www.electronjs.org/docs/latest/api/safe-storage) dengan penyimpanan kunci OS. Password tidak disimpan. Sesi tidak bergantung pada port layanan lokal yang berubah setiap startup. Tidak ada variabel environment baru.
+
+Sebelum membuka jendela, aplikasi memeriksa token melalui `/api/v1/auth/me` pada backend lokal dan menggunakan profil/izin terbaru. Token kedaluwarsa, akun nonaktif/dihapus, atau sesi dicabut memerlukan login lagi. Kegagalan layanan sementara tidak menghapus token tersimpan. Tombol Keluar dan ganti akun menghapus sesi terenkripsi dan sesi halaman. Jika penyimpanan terenkripsi OS tidak tersedia, aplikasi tidak memakai fallback plaintext.
+
+Setelah memasang versi yang berisi perbaikan ini, login sekali agar sesi baru tersimpan. Installer perlu dibangun ulang. Akun web tetap memakai perilaku sesi yang sudah ada; autentikasi lokal desktop tidak ikut dihapus hanya karena akses sinkronisasi server dicabut. Uji packaged smoke sekarang memeriksa sesi yang pulih sebelum login pada startup kedua. Pengujian unit memakai enkripsi uji; Keychain/DPAPI asli dan UI packaged tetap perlu diverifikasi pada OS target.

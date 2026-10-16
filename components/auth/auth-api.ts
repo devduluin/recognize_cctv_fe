@@ -14,6 +14,24 @@ export type AuthUser = {
 };
 export type AuthSession = { token: string; user: AuthUser };
 
+declare global {
+  interface Window {
+    desktopAuthSession?: { save: (session: AuthSession) => void; clear: () => void };
+  }
+}
+
+export function persistDesktopSession(session: AuthSession) {
+  if (typeof window !== "undefined") window.desktopAuthSession?.save(session);
+}
+
+export function clearAuthSession() {
+  if (typeof window === "undefined") return;
+  window.desktopAuthSession?.clear();
+  localStorage.removeItem("auth_token");
+  localStorage.removeItem("user_info");
+  clearDashboardProfileCache();
+}
+
 export async function postAuth<T>(path: string, body: object, token?: string): Promise<T> {
   const response = await fetch(`${process.env.NEXT_PUBLIC_SERVICE_RECOGNIZE_CCTV || ""}/api/v1/auth/${path}`, {
     method: "POST",
@@ -31,6 +49,7 @@ export async function postAuth<T>(path: string, body: object, token?: string): P
 
 export function saveAuthSession(session: AuthSession) {
   if (!session.token || !session.user?.id) throw new Error("Respons akun tidak lengkap. Silakan coba lagi.");
+  persistDesktopSession(session);
   clearDashboardProfileCache();
   localStorage.setItem("auth_token", session.token);
   localStorage.setItem("user_info", JSON.stringify(session.user));

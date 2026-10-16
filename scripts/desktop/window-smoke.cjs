@@ -6,6 +6,15 @@ module.exports = async ({ window, runtime, userData }) => {
   assert.equal(unauthorized.status, 403);
   const backendUnauthorized = await fetch(`${runtime.backendOrigin}/desktop-health`);
   assert.equal(backendUnauthorized.status, 403);
+  if (fs.existsSync(path.join(userData, 'desktop-smoke.json'))) {
+    const restored = await window.webContents.executeJavaScript(`(async () => {
+      const token = localStorage.getItem('auth_token');
+      if (!token) return false;
+      const response = await fetch('/api/v1/auth/me', { headers: { Authorization: 'Bearer ' + token } });
+      return response.ok;
+    })()`);
+    assert.equal(restored, true, 'Login session must survive application restart before any new login');
+  }
   const email = 'desktop-smoke@example.test';
   await window.webContents.executeJavaScript(`(async () => {
     const email = ${JSON.stringify(email)};
@@ -18,6 +27,7 @@ module.exports = async ({ window, runtime, userData }) => {
     const setup = await fetch('/api/v1/auth/setup-account', {method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+payload.result.token},body:JSON.stringify({account_type:'personal'})});
     if (!setup.ok && setup.status !== 400) throw new Error('Local account setup failed');
     const user = {...payload.result.user,account_type:'personal',company_id:null};
+    window.desktopAuthSession.save({token:payload.result.token,user});
     localStorage.setItem('auth_token',payload.result.token);
     localStorage.setItem('user_info',JSON.stringify(user));
     return true;
@@ -39,7 +49,16 @@ module.exports = async ({ window, runtime, userData }) => {
   await window.webContents.executeJavaScript(`document.querySelector('#run-server-action').click()`);
   await wait(`document.querySelector('#action-result')?.textContent === 'server-action-ok'`);
   assert.equal(fs.readFileSync(path.join(runtime.paths.data, 'server-action-smoke.txt'), 'utf8'), 'server-action-ok');
-  await window.loadURL(`${runtime.frontendOrigin}/video-detection`);
+  const eventId = await window.webContents.executeJavaScript(`(async () => {
+    const response = await fetch('/api/v1/events', { method: 'POST', headers: {
+      'Content-Type': 'application/json', Authorization: 'Bearer ' + localStorage.getItem('auth_token')
+    }, body: JSON.stringify({ name: 'Desktop smoke event', auto_run: false }) });
+    if (!response.ok) throw new Error('Smoke event creation failed');
+    return (await response.json()).result.id;
+  })()`);
+  await window.loadURL(`${runtime.frontendOrigin}/events/${eventId}`);
+  await wait(`[...document.querySelectorAll('button')].some(button => button.textContent.trim() === 'Upload Video')`);
+  await window.webContents.executeJavaScript(`[...document.querySelectorAll('button')].find(button => button.textContent.trim() === 'Upload Video').click()`);
   await wait(`!!document.querySelector('input[type="file"]')`);
   fs.writeFileSync(path.join(userData, 'desktop-smoke.json'), JSON.stringify({ ok: true, ssr: true, apiRoutes: true, serverActions: true, localAuth: true, uploadUI: true }));
   await runtime.stop();
