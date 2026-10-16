@@ -42,4 +42,7 @@ module.exports = async context => {
     }
   }
   inspect(root);
+  if (context.electronPlatformName === 'darwin') {
+    require('./macos-identity.cjs').prepareMacIdentity(path.dirname(path.dirname(root)), context.packager.appInfo.id);
+  }
 };
