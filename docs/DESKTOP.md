@@ -67,3 +67,12 @@ Desktop menyimpan token login dan profil sesi dalam `data/auth-session.enc` di d
 Sebelum membuka jendela, aplikasi memeriksa token melalui `/api/v1/auth/me` pada backend lokal dan menggunakan profil/izin terbaru. Token kedaluwarsa, akun nonaktif/dihapus, atau sesi dicabut memerlukan login lagi. Kegagalan layanan sementara tidak menghapus token tersimpan. Tombol Keluar dan ganti akun menghapus sesi terenkripsi dan sesi halaman. Jika penyimpanan terenkripsi OS tidak tersedia, aplikasi tidak memakai fallback plaintext.
 
 Setelah memasang versi yang berisi perbaikan ini, login sekali agar sesi baru tersimpan. Installer perlu dibangun ulang. Akun web tetap memakai perilaku sesi yang sudah ada; autentikasi lokal desktop tidak ikut dihapus hanya karena akses sinkronisasi server dicabut. Uji packaged smoke sekarang memeriksa sesi yang pulih sebelum login pada startup kedua. Pengujian unit memakai enkripsi uji; Keychain/DPAPI asli dan UI packaged tetap perlu diverifikasi pada OS target.
+
+
+### RTSP berhasil di Terminal tetapi gagal di aplikasi macOS
+
+Periksa `data/logs/mediamtx.log`. Jika ada `dial tcp <IP>:554: connect: no route to host`, MediaMTX belum menerima video dari kamera; perpindahan WebRTC ke HLS tidak memperbaiki koneksi sumber. Tes `nc` dari Terminal hanya membuktikan akses proses Terminal.
+
+Buka **System Settings → Privacy & Security → Local Network**, aktifkan **Visitor Counter** jika tercantum, lalu tutup dan buka kembali aplikasi. Jika aplikasi belum tercantum, build dan pasang ulang paket yang menyertakan `NSLocalNetworkUsageDescription`; setujui permintaan jaringan lokal saat menguji kamera. Gunakan identitas signing yang konsisten antar build. Jangan mengedit Info.plist aplikasi terpasang karena dapat membatalkan tanda tangan.
+
+Menurut [Apple TN3179](https://developer.apple.com/documentation/technotes/tn3179-understanding-local-network-privacy), akses jaringan helper dihitung sebagai akses aplikasi yang menjalankannya. Konfigurasi packaging macOS kini menyertakan penjelasan izin jaringan lokal. Perubahan ini mendeklarasikan kebutuhan akses; izin tetap diberikan pengguna melalui macOS. Jika sudah diizinkan tetapi log tetap sama, periksa jaringan/VPN/filter aplikasi dan apakah aplikasi yang dibuka merupakan salinan installer terbaru. Tidak ada perubahan pada URL kamera atau penonaktifan keamanan jaringan.

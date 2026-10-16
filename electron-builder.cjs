@@ -17,6 +17,7 @@ module.exports = {
   linux: { target: [{ target: 'AppImage', arch: ['x64'] }, { target: 'deb', arch: ['x64'] }], category: 'Utility', maintainer: 'Duluin', executableName: 'visitor-counter', icon: 'electron/linux-icon.png' },
   nsis: { oneClick: false, perMachine: false, allowToChangeInstallationDirectory: true, deleteAppDataOnUninstall: false },
   mac: { target: ['dmg', 'zip'], category: 'public.app-category.business', hardenedRuntime: true,
+    extendInfo: { NSLocalNetworkUsageDescription: 'Visitor Counter memerlukan akses jaringan lokal untuk terhubung ke kamera CCTV dan NVR melalui RTSP.' },
     entitlements: 'electron/entitlements.mac.plist', entitlementsInherit: 'electron/entitlements.mac.plist',
     // Local signing is for development/testing and avoids a network timestamp
     // request for every bundled native library. Official releases retain Apple's
