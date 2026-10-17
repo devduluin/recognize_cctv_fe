@@ -1,5 +1,20 @@
 # Runner frontend dan backend di Windows
 
+Untuk menjalankan tanpa jendela CMD/PowerShell, klik dua kali `run-windows.vbs`.
+Buat shortcut Desktop dari file VBS tersebut; biarkan file asli di repo.
+Browser tetap dibuka setelah kedua layanan siap. `stop-windows.vbs` menghentikan
+paksa pohon proses runner background untuk checkout ini; tunggu pekerjaan
+deteksi/upload selesai sebelum menggunakannya. Menutup browser tidak menghentikan
+server. Runner memeriksa PID dan waktu mulai agar PID yang dipakai ulang tidak
+menghentikan proses lain. Jangan menjalankan stop saat startup masih berlangsung.
+Error startup ditampilkan melalui dialog dan proses startup yang sudah dimulai
+dibersihkan. Log disimpan pada `%LOCALAPPDATA%\VisitorCounterRunner\<project-id>`
+(terpisah per lokasi checkout), ditimpa pada peluncuran berikutnya. Perlakukan log
+backend sebagai data lokal yang mungkin sensitif. VBScript/Windows Script Host
+harus tersedia dan diizinkan pada Windows. Alternatif untuk diagnosis adalah
+`run-windows.cmd` yang tetap menampilkan terminal. Mode background belum diuji
+langsung pada Windows dari lingkungan macOS ini.
+
 Klik dua kali `run-windows.cmd` di folder frontend. Untuk shortcut Desktop,
 klik kanan file tersebut → Show more options → Send to → Desktop (create shortcut).
 Shortcut tetap menunjuk ke checkout ini; jangan pindahkan file CMD sendirian.

@@ -1,4 +1,21 @@
+param([switch] $Background, [switch] $Stop)
 $ErrorActionPreference = 'Stop'
+$frontendRoot = Split-Path -Parent $PSScriptRoot
+$hash = [Security.Cryptography.SHA256]::Create()
+try { $projectKey = ([BitConverter]::ToString($hash.ComputeHash([Text.Encoding]::UTF8.GetBytes($frontendRoot.ToLowerInvariant())))).Replace('-', '').Substring(0, 16) } finally { $hash.Dispose() }
+$stateDirectory = Join-Path $env:LOCALAPPDATA "VisitorCounterRunner\$projectKey"
+$stateFile = Join-Path $stateDirectory 'processes.json'
+$script:ownedProcesses = @()
+
+function Stop-OwnedServices($Records) {
+    foreach ($record in $Records) {
+        $process = Get-Process -Id $record.Id -ErrorAction SilentlyContinue
+        if ($process -and $process.StartTime.ToUniversalTime().Ticks.ToString() -eq $record.StartTicks) {
+            & taskkill.exe /PID $process.Id /T /F | Out-Null
+            if ($LASTEXITCODE -ne 0) { throw "Tidak dapat menghentikan proses runner $($process.Id)." }
+        }
+    }
+}
 
 function Quote-Literal([string] $Value) {
     return "'" + $Value.Replace("'", "''") + "'"
@@ -6,8 +23,18 @@ function Quote-Literal([string] $Value) {
 
 function Open-Service([string] $Title, [string] $Directory, [string] $Command) {
     $script = "`$Host.UI.RawUI.WindowTitle = $(Quote-Literal $Title); Set-Location -LiteralPath $(Quote-Literal $Directory); $Command"
+    if ($Background) {
+        $log = Join-Path $stateDirectory ($Title.Replace(' ', '-').ToLowerInvariant() + '.log')
+        $script = "Set-Location -LiteralPath $(Quote-Literal $Directory); & { $Command } *> $(Quote-Literal $log)"
+    }
     $encoded = [Convert]::ToBase64String([Text.Encoding]::Unicode.GetBytes($script))
-    Start-Process -FilePath 'powershell.exe' -ArgumentList @('-NoLogo', '-NoProfile', '-NoExit', '-EncodedCommand', $encoded) | Out-Null
+    if ($Background) {
+        $process = Start-Process -FilePath 'powershell.exe' -WindowStyle Hidden -ArgumentList @('-NoLogo', '-NoProfile', '-EncodedCommand', $encoded) -PassThru
+        $script:ownedProcesses += @{ Id = $process.Id; StartTicks = $process.StartTime.ToUniversalTime().Ticks.ToString() }
+        ConvertTo-Json -InputObject @($script:ownedProcesses) | Set-Content -LiteralPath $stateFile -Encoding UTF8
+    } else {
+        Start-Process -FilePath 'powershell.exe' -ArgumentList @('-NoLogo', '-NoProfile', '-NoExit', '-EncodedCommand', $encoded) | Out-Null
+    }
 }
 
 function Test-HttpReady([string] $Url) {
@@ -20,6 +47,24 @@ function Test-HttpReady([string] $Url) {
 }
 
 try {
+    if ($Stop) {
+        if (Test-Path -LiteralPath $stateFile) {
+            Stop-OwnedServices @(Get-Content -LiteralPath $stateFile -Raw | ConvertFrom-Json)
+            Remove-Item -LiteralPath $stateFile
+        }
+        exit 0
+    }
+    if ($Background) {
+        New-Item -ItemType Directory -Path $stateDirectory -Force | Out-Null
+        if (Test-Path -LiteralPath $stateFile) {
+            foreach ($record in @(Get-Content -LiteralPath $stateFile -Raw | ConvertFrom-Json)) {
+                $existing = Get-Process -Id $record.Id -ErrorAction SilentlyContinue
+                if ($existing -and $existing.StartTime.ToUniversalTime().Ticks.ToString() -eq $record.StartTicks) {
+                    throw 'Runner masih aktif. Gunakan stop-windows.vbs sebelum menjalankan ulang.'
+                }
+            }
+        }
+    }
     $frontend = Split-Path -Parent $PSScriptRoot
     $backend = if ($env:DESKTOP_BACKEND_ROOT) { $env:DESKTOP_BACKEND_ROOT } else { Join-Path (Split-Path -Parent $frontend) 'recognize_cctv' }
     $backend = (Resolve-Path -LiteralPath $backend).Path
@@ -61,6 +106,11 @@ try {
     Start-Process 'http://127.0.0.1:3000'
     Write-Host 'Aplikasi dibuka pada browser default: http://127.0.0.1:3000'
 } catch {
-    Write-Host ("Runner gagal: " + $_.Exception.Message) -ForegroundColor Red
+    $message = "Runner gagal: " + $_.Exception.Message
+    if ($Background) {
+        try { Stop-OwnedServices $script:ownedProcesses } catch { $message += "`n" + $_.Exception.Message }
+        $message += "`nLog: $stateDirectory"
+        (New-Object -ComObject WScript.Shell).Popup($message, 0, 'Visitor Counter', 16) | Out-Null
+    } else { Write-Host $message -ForegroundColor Red }
     exit 1
 }
