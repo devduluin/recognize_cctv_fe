@@ -7,6 +7,7 @@ const root = path.resolve(__dirname, '../..');
 async function main() {
   const targetArgs = await selectTargetArgs();
   const signed = await selectSigningPreference(targetArgs);
+  const packageEnv = signingEnvironment(signed);
   await runWithProgress(process.execPath, [path.join(__dirname, 'clean.cjs')], {
     cwd: root, label: 'Membersihkan output build lama',
     progress: { start: 0, end: 4, expectedDurationMs: 8_000 },
@@ -17,7 +18,7 @@ async function main() {
   });
   await runWithProgress(process.execPath, [path.join(__dirname, 'package.cjs'), ...targetArgs], {
     cwd: root, label: 'Menyiapkan installer desktop',
-    env: { ...process.env, ...signingEnvironment(signed) },
+    env: packageEnv,
     progress: { start: 78, end: 99, expectedDurationMs: 4 * 60_000 },
   });
   process.stderr.write('✓ Build selesai (100%)\n');

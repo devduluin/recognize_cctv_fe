@@ -47,7 +47,10 @@ type UnresolvedCrossings = {
   out: number;
   reasons?: { reason: string; count: number; message: string }[];
 };
+type InferenceDevice = { name: string; device: string; initial_device?: string; fallback_reason?: string | null };
 type Status = {
+  inference_devices?: InferenceDevice[];
+  inference_runtime?: { torch_version: string; cuda_built: boolean; cuda_available: boolean; cuda_version: string | null; mps_available: boolean } | null;
   running: boolean;
   starting?: boolean;
   startup?: { state: string; message: string; error?: string | null };
@@ -80,6 +83,7 @@ type Status = {
   mirror?: boolean;
   counting_frame_size?: { width: number; height: number };
   cameras?: {
+    inference_devices?: InferenceDevice[];
     camera_id: string;
     counting_direction?: string;
     counting_frame_size?: { width: number; height: number };
@@ -923,6 +927,33 @@ export default function EventVisitorPage({
         </Panel>
 
         <div className="grid gap-6">
+          {Boolean(status?.inference_devices?.length) && (
+            <Panel>
+              <h2>Perangkat Deteksi</h2>
+              <p className="mb-3 text-sm text-slate-600">Device yang digunakan setiap model. Jika GPU gagal, model yang mendukung fallback mencoba kembali di CPU.</p>
+              {status?.inference_runtime && (
+                <p className="mb-3 text-xs text-slate-600">
+                  PyTorch {status.inference_runtime.torch_version} · {status.inference_runtime.cuda_built ? `Runtime CUDA ${status.inference_runtime.cuda_version}` : "Runtime tanpa CUDA"}
+                </p>
+              )}
+              {(status?.cameras?.some(camera => camera.inference_devices?.length)
+                ? status.cameras.filter(camera => camera.inference_devices?.length).map(camera => ({ name: camera.name, devices: camera.inference_devices! }))
+                : [{ name: "Mesin deteksi", devices: status?.inference_devices || [] }]
+              ).map(group => (
+                <div key={group.name} className="mb-3 last:mb-0">
+                  <h3 className="mb-1 text-sm font-semibold">{group.name}</h3>
+                  <dl className="divide-y divide-slate-100">
+                    {group.devices.map(device => (
+                      <div key={device.name} className="grid grid-cols-[1fr_auto] gap-x-3 py-2 text-sm">
+                        <dt>{device.name}</dt><dd className="font-medium">{device.device.startsWith("cuda") ? "GPU NVIDIA (CUDA)" : device.device === "mps" ? "GPU Apple (MPS)" : device.device === "cpu" ? "CPU" : "TensorFlow"}</dd>
+                        {device.fallback_reason && <dd className="col-span-2 mt-1 text-xs text-slate-600">{device.fallback_reason}</dd>}
+                      </div>
+                    ))}
+                  </dl>
+                </div>
+              ))}
+            </Panel>
+          )}
           <Panel>
             <h2>Informasi Event</h2>
             {row(

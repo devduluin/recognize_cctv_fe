@@ -40,6 +40,19 @@ hanya mengatur build/validasi CI. Build tidak memerlukan database produksi.
 
 ## Pemeriksaan dan hasil
 
+Build memeriksa CUDA dari executable backend hasil PyInstaller melalui
+`--runtime-info`. Kemampuan runtime disimpan pada `build-manifest.json` sebagai
+`inferenceRuntime` dan ditampilkan di ringkasan Actions. `cuda_built` menunjukkan
+dukungan CUDA paket; `cuda_available` menunjukkan GPU/driver di mesin build saja.
+Runner GitHub tanpa GPU tetap dapat menghasilkan paket dengan runtime CUDA.
+Paket CPU-only tetap valid dan diberi peringatan saat build; pemeriksaan ini tidak
+mengubah dependency PyTorch menjadi versi CUDA secara otomatis.
+
+Frontend dan backend harus sama-sama memuat perubahan runtime ini. Setelah
+commit/push backend, gunakan SHA tersebut pada input **backend_ref** saat Run
+workflow atau perbarui pin `desktop.config.json`. Backend lama yang belum mengenal
+`--runtime-info` tidak dapat dipakai oleh build baru ini.
+
 Artifact hanya diunggah setelah semua langkah wajib berhasil:
 
 - Tes backend, lint/test/typecheck frontend dan tes lifecycle desktop.

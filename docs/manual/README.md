@@ -220,11 +220,19 @@ Gunakan **Profil Saya** untuk mengelola profil akun sendiri. Gunakan **Pengatura
 ### Menghubungkan pertama kali
 
 1. Di desktop, buka **Pengaturan → Sinkronisasi**.
-2. Masukkan URL API server yang diberikan administrator; contoh format: `https://api.example.com`.
+2. Pilih **API backend** dan masukkan URL server, misalnya `https://api.example.com`, atau pilih **PostgreSQL langsung** seperti petunjuk di bawah.
 3. Gunakan akun server dengan email dan tipe akun yang sama dengan akun desktop, serta izin sinkronisasi yang sesuai.
 4. Isi nama perangkat yang mudah dibedakan dari desktop lain.
 5. Hubungkan akun dan tunggu sinkronisasi selesai. Password server tidak perlu dimasukkan setiap kali sinkronisasi normal berjalan.
 6. Periksa status, waktu keberhasilan terakhir, jumlah dikirim/diterima, konflik, serta perubahan yang masih tertunda.
+
+### PostgreSQL langsung tanpa backend web
+
+Pilih **PostgreSQL langsung**, lalu isi host, port, nama database, username/password database, serta schema yang diberikan administrator. Email dan password akun aplikasi tetap diperlukan untuk memverifikasi akses workspace; akun aplikasi berbeda dari akun database. Kredensial database disimpan terenkripsi pada desktop; password akun aplikasi tidak disimpan.
+
+Jika PostgreSQL Docker berjalan pada komputer yang sama, gunakan `127.0.0.1` dan port host yang dipublikasikan. Jika pada komputer lain, gunakan IP atau DNS komputer Docker. Host selain localhost memerlukan TLS dan sertifikat server valid; masukkan lokasi file CA pada komputer desktop jika diperlukan. Skema database harus sudah dimigrasikan oleh administrator.
+
+Backend web tidak harus aktif untuk mode ini. PostgreSQL harus berjalan dan dapat dijangkau; desktop tetap menyimpan pekerjaan lokal ketika offline. Jika backend web sedang hidup, upload perubahan/penghapusan data lama dapat ditunda untuk melindungi proses monitoring server. Download dan penambahan record baru tetap mengikuti perlindungan monitoring yang berlaku.
 
 ### Manual dan otomatis
 

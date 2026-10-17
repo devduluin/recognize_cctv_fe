@@ -16,6 +16,7 @@ type Device = { id: string; name: string; created_at: string; expires_at: string
 type SyncHistory = { id: string; started_at: string; finished_at?: string; trigger: string; outcome: string; error_code?: number;
   counts: { uploaded?: number; downloaded?: number; conflicts?: number; deferred?: number } };
 type Status = {
+  transport?: "api" | "postgresql";
   conflicts_total?: number; history?: SyncHistory[]; complete?: boolean; last_complete?: string; device_expires_at?: string;
   connected: boolean; server: string; running?: boolean; message?: string;
   auto_sync: boolean; interval_seconds: number; auth_required?: boolean;
@@ -51,6 +52,9 @@ export default function SyncSettings() {
   const [status, setStatus] = useState<Status | null>(null);
   const [deviceName, setDeviceName] = useState("Visitor Counter Desktop");
   const [server, setServer] = useState("");
+  const [transport, setTransport] = useState<"api" | "postgresql">("postgresql");
+  const [database, setDatabase] = useState({ host: "127.0.0.1", port: 5432, database: "", username: "", password: "", schema_name: "public", ssl_root_cert: "" });
+  const updateDatabase = (key: keyof typeof database, value: string | number) => setDatabase(previous => ({ ...previous, [key]: value }));
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
@@ -108,9 +112,13 @@ export default function SyncSettings() {
 
   async function connect(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    const credentials = { server: server || status?.server || "", email, password, device_name: deviceName };
+    const selectedTransport = status?.connected ? status.transport || "api" : transport;
+    const credentials = selectedTransport === "postgresql"
+      ? { database, email, password, device_name: deviceName }
+      : { server: server || status?.server || "", email, password, device_name: deviceName };
     setPassword("");
-    await action(() => syncRequest("/connect", "POST", credentials));
+    setDatabase(previous => ({ ...previous, password: "" }));
+    await action(() => syncRequest(selectedTransport === "postgresql" ? "/connect-postgres" : "/connect", "POST", credentials));
   }
 
   const disabled = busy || status?.running;
@@ -140,18 +148,34 @@ export default function SyncSettings() {
         </li>)}</ul>
       </div> : !status?.connected ? (
         <form onSubmit={connect} className="mt-5 grid max-w-xl gap-4">
+          <Field>Jenis koneksi
+            <Select value={transport} onChange={event => setTransport(event.target.value as "api" | "postgresql")} disabled={busy}>
+              <option value="postgresql">PostgreSQL langsung</option>
+              <option value="api">API backend</option>
+            </Select>
+          </Field>
           <Field>Nama perangkat
             <Input required maxLength={100} value={deviceName} onChange={event => setDeviceName(event.target.value)} disabled={busy} placeholder="Contoh: Komputer pintu masuk" />
           </Field>
-          <Field>URL API server
+          {transport === "api" ? <Field>URL API server
             <Input type="url" required value={server} placeholder="https://api.example.com"
               onChange={event => setServer(event.target.value)} disabled={busy} />
-          </Field>
-          <Field>Email akun server
+          </Field> : <>
+            <p className="text-sm text-muted">Terhubung langsung ke PostgreSQL tanpa menjalankan backend web. SQLite lokal tetap digunakan saat offline. Gunakan alamat komputer yang menjalankan Docker dan port PostgreSQL yang dipublikasikan.</p>
+            <Field>Host PostgreSQL<Input required maxLength={253} value={database.host} onChange={event => updateDatabase("host", event.target.value)} disabled={busy} placeholder="127.0.0.1 atau db.example.com" /></Field>
+            <Field>Port PostgreSQL<Input required type="number" min={1} max={65535} value={database.port} onChange={event => updateDatabase("port", Number(event.target.value))} disabled={busy} /></Field>
+            <Field>Nama database<Input required maxLength={63} value={database.database} onChange={event => updateDatabase("database", event.target.value)} disabled={busy} /></Field>
+            <Field>Username database<Input required maxLength={63} autoComplete="off" value={database.username} onChange={event => updateDatabase("username", event.target.value)} disabled={busy} /></Field>
+            <Field>Password database<Input required type="password" autoComplete="off" value={database.password} onChange={event => updateDatabase("password", event.target.value)} disabled={busy} /></Field>
+            <Field>Schema database<Input required maxLength={63} value={database.schema_name} onChange={event => updateDatabase("schema_name", event.target.value)} disabled={busy} /></Field>
+            <Field>Lokasi file sertifikat CA (opsional)<Input value={database.ssl_root_cert} onChange={event => updateDatabase("ssl_root_cert", event.target.value)} disabled={busy} placeholder="C:\sertifikat\root.crt atau /path/root.crt" /></Field>
+            <p className="text-sm text-muted">Kredensial database disimpan terenkripsi di desktop. Koneksi di luar localhost wajib memakai TLS dengan sertifikat server yang valid. Nama dan password akun aplikasi di bawah dipakai untuk memverifikasi akses workspace, bukan sebagai akun database.</p>
+          </>}
+          <Field>Email akun aplikasi server
             <Input type="email" autoComplete="username" required value={email}
               onChange={event => setEmail(event.target.value)} disabled={busy} />
           </Field>
-          <Field>Password akun server
+          <Field>Password akun aplikasi server
             <Input type="password" autoComplete="current-password" required value={password}
               onChange={event => setPassword(event.target.value)} disabled={busy} />
           </Field>
@@ -162,6 +186,7 @@ export default function SyncSettings() {
       ) : (
         <div className="mt-5 space-y-4">
           <dl className="grid gap-2 text-sm">
+            <div><dt className="text-muted">Jenis koneksi</dt><dd>{status.transport === "postgresql" ? "PostgreSQL langsung · backend web tidak diperlukan" : "API backend"}</dd></div>
             <div><dt className="text-muted">Server</dt><dd className="break-all">{status.server}</dd></div>
             <div><dt className="text-muted">Siklus terakhir selesai</dt>
               <dd>{status.last_success ? new Date(status.last_success).toLocaleString("id-ID") : "Belum pernah"}</dd>
@@ -210,8 +235,12 @@ export default function SyncSettings() {
               Putuskan koneksi
             </Button>
           </div>
-          {!!status.counts?.deferred && <p className="text-sm text-muted">Hasil hitung baru tetap dapat disinkronkan saat monitoring. Perubahan konfigurasi, koreksi, dan penghapusan yang ditunda akan dicoba setelah monitoring berhenti.</p>}
-          <p className="text-sm text-muted">Sesi akses diperbarui otomatis selama kredensial perangkat masih berlaku. Jika akses dicabut atau masa perangkat habis, hubungkan ulang menggunakan form di bawah. Data lokal tetap tersimpan. Jika memutus koneksi saat offline, cabut juga akses perangkat lama melalui web.</p>
+          {!!status.counts?.deferred && <p className="text-sm text-muted">{status.transport === "postgresql"
+            ? "Perubahan dapat ditunda selama monitoring desktop atau proses backend web masih berjalan. Backend web yang aktif tetap melindungi data meskipun eventnya idle. Setelah proses terkait berhenti, sinkronisasi berikutnya mencoba perubahan tertunda."
+            : "Hasil hitung baru tetap dapat disinkronkan saat monitoring. Perubahan konfigurasi, koreksi, dan penghapusan yang ditunda akan dicoba setelah monitoring berhenti."}</p>}
+          <p className="text-sm text-muted">{status.transport === "postgresql"
+            ? "Kredensial perangkat berlaku hingga tanggal di atas. Jika akses dicabut atau kedaluwarsa, putuskan koneksi lalu hubungkan PostgreSQL kembali. Data lokal dan baseline sinkronisasi tetap tersimpan."
+            : "Sesi akses diperbarui otomatis selama kredensial perangkat masih berlaku. Jika akses dicabut atau masa perangkat habis, hubungkan ulang menggunakan form di bawah. Data lokal tetap tersimpan. Jika memutus koneksi saat offline, cabut juga akses perangkat lama melalui web."}</p>
           {status.conflicts.length > 0 && (
             <div className="space-y-3">
               <h3>Perubahan yang perlu dipilih ({status.conflicts_total ?? status.conflicts.length})</h3>
@@ -252,7 +281,8 @@ export default function SyncSettings() {
             <p className="text-sm text-muted">Ringkasan 20 proses terakhir. Hitungan konflik dan penundaan menunjukkan hasil pemeriksaan saat proses tersebut, bukan jumlah perubahan baru setelahnya.</p>
             <div className="overflow-x-auto"><table className="w-full text-left text-sm"><thead><tr><th>Waktu mulai</th><th>Pemicu</th><th>Hasil</th><th>Dikirim / diterima</th><th>Konflik / ditunda</th></tr></thead><tbody>{status.history.map(run => <tr key={run.id} className="border-b border-line"><td className="py-2">{new Date(run.started_at).toLocaleString("id-ID")}</td><td>{run.trigger === "automatic" ? "Otomatis" : "Manual"}</td><td>{({ complete: "Selesai", attention: "Perlu tindakan", failed: "Gagal", interrupted: "Terputus", running: "Berjalan" } as Record<string, string>)[run.outcome] || run.outcome}{run.error_code ? ` (${run.error_code})` : ""}</td><td>{run.counts.uploaded || 0} / {run.counts.downloaded || 0}</td><td>{run.counts.conflicts || 0} / {run.counts.deferred || 0}</td></tr>)}</tbody></table></div>
           </div>}
-          {status.auth_required && <form onSubmit={connect} className="grid max-w-xl gap-3 border-t border-line pt-4"><h3>Hubungkan ulang sesi perangkat</h3>
+          {status.auth_required && status.transport === "postgresql" && <p role="alert" className={ui.error}>Akses PostgreSQL perlu diperbarui. Pilih Putuskan koneksi, kemudian isi kembali koneksi database dan akun aplikasi.</p>}
+          {status.auth_required && status.transport !== "postgresql" && <form onSubmit={connect} className="grid max-w-xl gap-3 border-t border-line pt-4"><h3>Hubungkan ulang sesi perangkat</h3>
             <Field>URL API server<Input type="url" required value={server || status.server} onChange={event => setServer(event.target.value)} disabled={busy} /></Field>
             <Field>Email akun server<Input type="email" required autoComplete="username" value={email} onChange={event => setEmail(event.target.value)} disabled={busy} /></Field>
             <Field>Password akun server<Input type="password" required autoComplete="current-password" value={password} onChange={event => setPassword(event.target.value)} disabled={busy} /></Field>

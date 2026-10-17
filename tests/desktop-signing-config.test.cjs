@@ -30,3 +30,7 @@ test('official releases keep Apple timestamping, signing, and notarization', () 
   assert.equal(config.mac.timestamp, undefined);
   assert.equal(config.mac.notarize, true);
 });
+
+test('macOS local packaging cannot skip signing patched launchers', { skip: process.platform !== 'darwin' }, () => {
+  assert.equal(loadConfig({ release: false, requireSigning: false }).forceCodeSigning, true);
+});
