@@ -183,6 +183,9 @@ jobs:
               assert executable.read(2) == b'MZ', 'Installer is not a Windows executable'
           manifest = json.loads(pathlib.Path('resources/build-manifest.json').read_text())
           assert manifest['platform'] == 'win32' and manifest['arch'] == 'x64', 'Wrong target platform'
+          inference = manifest['inferenceRuntime']
+          assert isinstance(inference['cuda_built'], bool), 'Missing packaged CUDA capability check'
+          assert isinstance(inference['cuda_available'], bool) and inference['torch_version'], 'Invalid packaged runtime report'
           assert manifest['version'] == os.environ['EXPECTED_VERSION'], 'Version mismatch'
           assert manifest['backendRevision'] == os.environ['EXPECTED_BACKEND_REF'], 'Wrong backend bundled'
           assert manifest['frontendRevision'] == subprocess.check_output(['git', 'rev-parse', 'HEAD'], text=True).strip(), 'Wrong frontend bundled'
@@ -196,6 +199,7 @@ jobs:
           with open(os.environ['GITHUB_STEP_SUMMARY'], 'a', encoding='utf-8') as summary:
               summary.write(f"## Windows x64 build {manifest['version']}\n\n")
               summary.write('Development installer; not an official signed release.\n\n')
+              summary.write(f"PyTorch: `{inference['torch_version']}`; CUDA runtime: `{inference.get('cuda_version') or 'CPU-only'}`; GPU usable on build runner: `{inference['cuda_available']}`.\n\n")
               summary.write(f"Backend: `{manifest['backendRevision']}`\n\nFrontend: `{manifest['frontendRevision']}`\n\n")
               summary.write('Packaged and installed app startup/restart checks passed. Download the EXE from this run’s artifact.\n')
           PY

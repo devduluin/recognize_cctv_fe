@@ -23,8 +23,15 @@ run(python, ['-m', 'PyInstaller', '--noconfirm', '--clean', '--distpath', resour
   { PYINSTALLER_CONFIG_DIR: path.join(backend, 'desktop/cache'), MPLCONFIGDIR: path.join(backend, 'desktop/cache/matplotlib'), YOLO_AUTOINSTALL: 'false' });
 const backendExecutable = path.join(backendBundle, process.platform === 'win32' ? 'visitor-backend.exe' : 'visitor-backend');
 const selfTestData = fs.mkdtempSync(path.join(os.tmpdir(), 'visitor-backend-selftest-'));
+let inferenceRuntime;
 try {
   fs.writeFileSync(path.join(selfTestData, 'jwt-secret'), randomBytes(48).toString('hex'), { mode: 0o600 });
+  const report = execFileSync(backendExecutable, ['--data-dir', selfTestData, '--resources', path.join(backendBundle, '_internal'),
+    '--port', '0', '--frontend-origin', 'http://127.0.0.1:3000', '--runtime-info'], { cwd: backend, encoding: 'utf8', windowsHide: true, stdio: ['ignore', 'pipe', 'inherit'] });
+  inferenceRuntime = JSON.parse(report.trim().split(/\r?\n/).at(-1));
+  if (typeof inferenceRuntime.cuda_built !== 'boolean' || !inferenceRuntime.torch_version || typeof inferenceRuntime.cuda_available !== 'boolean') throw new Error('Invalid packaged inference runtime report.');
+  console.log(`Packaged PyTorch ${inferenceRuntime.torch_version}; CUDA build: ${inferenceRuntime.cuda_version || 'none'}; CUDA usable on build machine: ${inferenceRuntime.cuda_available}`);
+  if (process.platform === 'win32' && !inferenceRuntime.cuda_built) console.warn('This Windows installer uses a CPU-only PyTorch build. NVIDIA acceleration will not be available.');
   run(backendExecutable, ['--data-dir', selfTestData, '--resources', path.join(backendBundle, '_internal'),
     '--port', '0', '--frontend-origin', 'http://127.0.0.1:3000', '--self-test'], backend);
 } finally {
@@ -53,5 +60,6 @@ function removeEnvironmentFiles(directory) {
 }
 removeEnvironmentFiles(path.join(resources, 'next'));
 fs.writeFileSync(path.join(resources, 'build-manifest.json'), JSON.stringify({ version, buildNumber, platform: process.platform, arch: process.arch,
+  inferenceRuntime,
   backendRevision: execFileSync('git', ['rev-parse', 'HEAD'], { cwd: backend, encoding: 'utf8' }).trim(),
   frontendRevision: execFileSync('git', ['rev-parse', 'HEAD'], { cwd: root, encoding: 'utf8' }).trim() }, null, 2));

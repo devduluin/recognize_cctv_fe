@@ -10,6 +10,7 @@ import {
   useEffect,
   useCallback,
   useMemo,
+  useRef,
   type FormEvent,
 } from "react";
 import Link from "next/link";
@@ -160,6 +161,8 @@ export default function EventsManager({ editEventId, onClose, onSaved }: {
   const [formError, setFormError] = useState("");
   const [monitoringActive, setMonitoringActive] = useState(false);
   const [startingId, setStartingId] = useState<string | null>(null);
+  const startupRequest = useRef<AbortController | null>(null);
+  useEffect(() => () => startupRequest.current?.abort(), []);
   const [actionAlert, setActionAlert] = useState<{
     type: "success" | "error";
     message: string;
@@ -190,6 +193,9 @@ export default function EventsManager({ editEventId, onClose, onSaved }: {
   }, []);
 
   const startEvent = useCallback(async (eventId: string, eventName: string) => {
+    startupRequest.current?.abort();
+    const controller = new AbortController();
+    startupRequest.current = controller;
     setStartingId(eventId);
     setActionAlert(null);
     try {
@@ -199,8 +205,9 @@ export default function EventsManager({ editEventId, onClose, onSaved }: {
         `${process.env.NEXT_PUBLIC_SERVICE_RECOGNIZE_CCTV || ""}/api/v1/event_visitor/start?company_id=${encodeURIComponent(cid)}&event_id=${encodeURIComponent(eventId)}`,
         {
           method: "POST",
+          signal: controller.signal,
           headers: getAuthHeaders({ "Content-Type": "application/json" }),
-          body: JSON.stringify({ event_id: eventId }),
+          body: JSON.stringify({ event_id: eventId, background: true }),
         },
       );
       const payload = await response.json().catch(() => null);
@@ -213,6 +220,25 @@ export default function EventsManager({ editEventId, onClose, onSaved }: {
               : "Gagal memulai event.",
         );
       }
+      let result = payload?.result;
+      const deadline = Date.now() + 10 * 60_000;
+      while (result?.starting) {
+        setActionAlert({ type: "success", message: `${eventName}: ${result.startup?.message || "Menyiapkan monitoring"}…` });
+        await new Promise<void>((resolve, reject) => {
+          const aborted = () => { clearTimeout(timer); reject(new DOMException("Aborted", "AbortError")); };
+          const timer = setTimeout(() => { controller.signal.removeEventListener("abort", aborted); resolve(); }, 1500);
+          controller.signal.addEventListener("abort", aborted, { once: true });
+          if (controller.signal.aborted) aborted();
+        });
+        if (Date.now() > deadline) throw new Error("Persiapan masih berlangsung. Buka detail event untuk memantau statusnya.");
+        const statusResponse = await visitorFetch(
+          `${process.env.NEXT_PUBLIC_SERVICE_RECOGNIZE_CCTV || ""}/api/v1/event_visitor/status?company_id=${encodeURIComponent(cid)}&event_id=${encodeURIComponent(eventId)}`,
+          { signal: controller.signal, cache: "no-store", headers: getAuthHeaders() },
+        );
+        if (!statusResponse.ok) throw new Error("Status persiapan belum dapat dimuat. Periksa detail event.");
+        result = (await statusResponse.json()).result;
+      }
+      if (!result?.running) throw new Error(result?.startup?.error || result?.startup?.message || "Monitoring belum aktif.");
       setActionAlert({
         type: "success",
         message: `Event "${eventName}" berhasil dimulai! Monitoring kamera sedang aktif.`,
@@ -223,6 +249,7 @@ export default function EventsManager({ editEventId, onClose, onSaved }: {
       );
       void load();
     } catch (err) {
+      if (controller.signal.aborted) return;
       toast.error(err instanceof Error ? err.message : "Gagal memulai event.");
       setActionAlert({
         type: "error",
@@ -702,7 +729,7 @@ export default function EventsManager({ editEventId, onClose, onSaved }: {
                       ) : (
                         <button
                           type="button"
-                          disabled={startingId === event.id}
+                          disabled={Boolean(startingId)}
                           onClick={() => startEvent(event.id, event.name)}
                           className="inline-flex items-center gap-1 rounded-md bg-emerald-600 px-2.5 py-1.5 text-xs font-medium text-white hover:bg-emerald-700 disabled:opacity-50 transition-colors cursor-pointer"
                           title="Mulai monitoring event ini langsung dari tabel"
@@ -712,7 +739,7 @@ export default function EventsManager({ editEventId, onClose, onSaved }: {
                           ) : (
                             <Play size={13} fill="currentColor" />
                           )}
-                          Mulai Event
+                          {startingId === event.id ? "Menyiapkan…" : "Mulai Event"}
                         </button>
                       )}
 

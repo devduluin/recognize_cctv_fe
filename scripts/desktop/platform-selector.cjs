@@ -83,6 +83,10 @@ async function selectSigningPreference(targetArgs, options = {}) {
   const target = targetName(targetArgs, options.platform || process.platform);
   const input = options.input || process.stdin;
   const output = options.output || process.stdout;
+  if (target === 'mac') {
+    output.write('macOS memerlukan signing ulang setelah penyesuaian identitas launcher; menggunakan sertifikat signing.\n');
+    return true;
+  }
   if (target === 'linux') {
     output.write('Signing code tidak berlaku untuk paket Linux; melanjutkan tanpa code signing.\n');
     return false;
@@ -104,16 +108,21 @@ async function selectSigningPreference(targetArgs, options = {}) {
   }
 }
 
-function signingEnvironment(signed) {
-  if (signed) return { DESKTOP_REQUIRE_SIGNING: 'true', CSC_IDENTITY_AUTO_DISCOVERY: 'true' };
-  return {
-    DESKTOP_REQUIRE_SIGNING: 'false',
-    CSC_IDENTITY_AUTO_DISCOVERY: 'false',
-    CSC_LINK: '',
-    CSC_NAME: '',
-    WIN_CSC_LINK: '',
-    WIN_CSC_NAME: '',
-  };
+function signingEnvironment(signed, base = process.env) {
+  if (!signed && base.DESKTOP_RELEASE === 'true') {
+    throw new Error('Build release wajib signed. Pilih Signed dan siapkan sertifikat signing.');
+  }
+  const env = { ...base };
+  if (!signed) {
+    // Empty certificate links resolve to the project directory in electron-builder.
+    // Remove inherited signing credentials rather than passing empty strings.
+    for (const key of Object.keys(env)) {
+      if (/^(?:WIN_)?CSC_/i.test(key)) delete env[key];
+    }
+  }
+  env.DESKTOP_REQUIRE_SIGNING = String(signed);
+  env.CSC_IDENTITY_AUTO_DISCOVERY = String(signed);
+  return env;
 }
 
 module.exports = { resolveTargetArgs, selectTargetArgs, selectSigningPreference, signingEnvironment, targetForHost };

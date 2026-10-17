@@ -9,7 +9,9 @@ module.exports = {
     { from: 'resources/node', to: 'node' }, { from: 'resources/media', to: 'media' },
     { from: 'resources/build-manifest.json', to: 'build-manifest.json' },
   ],
-  asar: true, forceCodeSigning: release || process.env.DESKTOP_REQUIRE_SIGNING === 'true',
+  // afterPack modifies Mach-O UUIDs, invalidating Electron's original signature.
+  // Never emit a macOS bundle without signing those launchers again.
+  asar: true, forceCodeSigning: process.platform === 'darwin' || release || process.env.DESKTOP_REQUIRE_SIGNING === 'true',
   extraMetadata: { desktopRelease: release },
   artifactName: 'Visitor-Counter-${version}-${os}-${arch}.${ext}',
   publish: [{ provider: 'github', owner: config.releaseOwner, repo: config.releaseRepository, releaseType: 'draft' }],
