@@ -49,6 +49,8 @@ type UnresolvedCrossings = {
 };
 type Status = {
   running: boolean;
+  starting?: boolean;
+  startup?: { state: string; message: string; error?: string | null };
   camera_source: string | number | null;
   session_id: string | null;
   status?: string;
@@ -322,7 +324,7 @@ export default function EventVisitorPage({
   async function action(command: "start" | "pause" | "stop") {
     if (
       command === "stop" &&
-      !confirm("Stop monitoring event ini? Sesi aktif akan ditandai selesai.")
+      !confirm(status?.starting ? "Batalkan persiapan event ini? Pemuatan model yang sedang berlangsung akan diselesaikan sebelum dihentikan." : "Stop monitoring event ini? Sesi aktif akan ditandai selesai.")
     )
       return;
     setBusy(true);
@@ -330,12 +332,6 @@ export default function EventVisitorPage({
     try {
       if (!selectedEventId)
         throw new Error("Pilih event sebelum memulai monitoring.");
-      if (command === "start") {
-        const readinessResponse = await visitorFetch(`${API_BASE}/readiness?event_id=${encodeURIComponent(selectedEventId)}`);
-        const readiness = await readinessResponse.json().catch(() => null);
-        if (!readinessResponse.ok) throw new Error(apiErrorMessage(readiness, readinessResponse.status, "Kesiapan model belum dapat diperiksa."));
-        if (!readiness?.result?.ready) throw new Error(readiness?.result?.issues?.join(" ") || "Model lokal belum siap.");
-      }
       const response = await visitorFetch(
         `${API_BASE}/${command}?company_id=${encodeURIComponent(getCompanyId())}&event_id=${encodeURIComponent(selectedEventId)}`,
         {
@@ -343,7 +339,7 @@ export default function EventVisitorPage({
           headers: getAuthHeaders(command === "start" ? { "Content-Type": "application/json" } : {}),
           ...(command === "start"
             ? {
-                body: JSON.stringify({ event_id: selectedEventId }),
+                body: JSON.stringify({ event_id: selectedEventId, background: true }),
               }
             : {}),
         },
@@ -352,7 +348,8 @@ export default function EventVisitorPage({
       if (!response.ok) throw new Error(apiErrorMessage(payload, response.status, "Perintah belum berhasil."));
       setStreamErrors({});
       setStreamKey((key) => key + 1);
-      toast.success({ start: "Monitoring dimulai.", pause: "Monitoring dijeda.", stop: "Monitoring dihentikan." }[command]);
+      if (payload?.result) applyStatus(payload.result);
+      toast.success(command === "start" ? "Persiapan monitoring dimulai." : payload?.result?.starting ? "Persiapan sedang dibatalkan." : { pause: "Monitoring dijeda.", stop: "Monitoring dihentikan." }[command]);
       await refreshStatus();
     } catch (error) {
       const message = error instanceof Error ? error.message : "Perintah gagal.";
@@ -369,6 +366,7 @@ export default function EventVisitorPage({
 
   const currentEvent = events.find((event) => event.id === selectedEventId);
   const running = Boolean(status?.running);
+  const preparing = Boolean(status?.starting);
   const cameraList =
     status?.cameras && status.cameras.length > 0
       ? status.cameras
@@ -488,6 +486,11 @@ export default function EventVisitorPage({
           </div>
         )}
       </PageHeading>
+      {preparing && (
+        <p role="status" className="mb-4 rounded-lg border border-sky-200 bg-sky-50 p-4 text-sm text-sky-950">
+          {status?.startup?.message || "Menyiapkan monitoring"}. Proses pertama dapat memerlukan waktu untuk memuat model.
+        </p>
+      )}
       {fixedEventId && can("videos.analyze") && videoOpen && <EventVideoDetection key={fixedEventId} eventId={fixedEventId} onSaved={refreshVideoResults} />}
       {status && (status.in_count || 0) === 0 && cameraList.every((camera) => camera.counting_direction === "out") && (
         <p role="status" className="mb-4 rounded-lg border border-amber-300 bg-amber-50 p-4 text-sm text-amber-950">
@@ -501,7 +504,7 @@ export default function EventVisitorPage({
             <Select
               className="w-auto!"
               value={selectedEventId}
-              disabled={running}
+              disabled={running || preparing}
               onChange={(e) => {
                 setSelectedEventId(e.target.value);
                 localStorage.setItem("event_visitor_event_id", e.target.value);
@@ -542,7 +545,7 @@ export default function EventVisitorPage({
                 <h2 className="m-0! text-base font-semibold text-[#101c30]">Live Monitoring Kamera</h2>
                 <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-0.5 text-xs font-medium text-emerald-700">
                   <span className={`inline-block size-2 rounded-full ${running ? "bg-emerald-500 animate-pulse" : "bg-slate-400"}`} />
-                  {running ? `${cameraList.length} Kamera Aktif` : "Standby"}
+                  {preparing ? status?.startup?.message : running ? `${cameraList.length} Kamera Aktif` : "Standby"}
                 </span>
               </div>
               <p className="mt-1 text-xs text-[#52647f]">
@@ -885,6 +888,7 @@ export default function EventVisitorPage({
                   className="h-8! w-auto! px-3! text-xs!"
                   disabled={
                     busy ||
+                    preparing ||
                     running ||
                     !status ||
                     status.camera_source == null ||
@@ -907,11 +911,11 @@ export default function EventVisitorPage({
                 <Button
                   variant="stop"
                   className="h-8! w-auto! px-3! text-xs!"
-                  disabled={busy || !status?.session_id}
+                  disabled={busy || (!preparing && !status?.session_id)}
                   onClick={() => action("stop")}
                 >
                   <Square size={13} className="mr-1" />
-                  Selesai
+                  {preparing ? "Batalkan persiapan" : "Selesai"}
                 </Button>
               </div>
             </div>
