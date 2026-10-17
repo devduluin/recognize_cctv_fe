@@ -219,8 +219,9 @@ export default function SyncSettings() {
               : "Sinkronisasi hanya berjalan saat Anda menekan Sinkronkan sekarang. Periode pilihan tetap tersimpan saat mode otomatis dimatikan."}
           </p>
           <p role="status" aria-live="polite">{status.auth_required ? "Sesi sinkronisasi perlu dihubungkan ulang." : status.connection_state === "offline"
-            ? (status.auto_sync ? "Server belum terhubung. Data tetap disimpan lokal dan akan dicoba lagi otomatis." : "Server belum terhubung. Data tetap disimpan lokal. Tekan Sinkronkan sekarang untuk mencoba lagi.")
+            ? (status.auto_sync ? "Sinkronisasi terakhir gagal. Data tetap disimpan lokal dan akan dicoba lagi otomatis." : "Sinkronisasi terakhir gagal. Data tetap disimpan lokal. Tekan Sinkronkan sekarang untuk mencoba lagi.")
             : !status.auto_sync && !status.running ? "Mode manual aktif. Sinkronisasi otomatis tidak berjalan." : status.message || "Menunggu sinkronisasi otomatis"}</p>
+          {status.error && !status.running && <p role="alert" className={ui.error}>{status.error}</p>}
           {status.auto_sync && status.next_retry && !status.running && !status.auth_required && <p className="text-sm text-muted">
             Pemeriksaan berikutnya: {new Date(status.next_retry).toLocaleTimeString("id-ID")}.
           </p>}
