@@ -134,7 +134,7 @@ Mulai dengan nilai bawaan. Detail gambar, interval pemrosesan frame, dan ambang 
 4. Gunakan kontrol jeda atau berhenti sesuai kebutuhan yang tersedia. Jangan menganggap menutup tab browser otomatis menghentikan layanan monitoring di server.
 5. Periksa catatan pengunjung dan statistik setelah pengujian.
 
-Jika kamera terputus, periksa jaringan dan sumber kamera. Tunggu proses sambung ulang; jika status meminta tindakan, hentikan lalu mulai kembali monitoring setelah jaringan pulih.
+Jika kamera terputus, periksa jaringan dan sumber kamera. Tunggu proses sambung ulang; jika masih tersangkut, pilih **Restart kamera** pada kontrol sesi. Aksi ini menghentikan koneksi lama dan memulai ulang seluruh kamera event di latar belakang, sambil melanjutkan sesi yang sama dan mempertahankan data hitungan. Pemantauan terjeda selama restart. Tombol tersedia bagi akun dengan izin kontrol monitoring. Jika restart gagal, periksa pesan status sebelum mencoba lagi; jangan memakai Reset Event karena tindakan itu menghapus data event.
 
 ### Koreksi dan tangkapan tertunda
 
