@@ -325,7 +325,7 @@ export default function EventVisitorPage({
       clearTimeout(initial);
     };
   }, [fixedEventId, eventVersion]);
-  async function action(command: "start" | "pause" | "stop") {
+  async function action(command: "start" | "pause" | "stop" | "restart") {
     if (
       command === "stop" &&
       !confirm(status?.starting ? "Batalkan persiapan event ini? Pemuatan model yang sedang berlangsung akan diselesaikan sebelum dihentikan." : "Stop monitoring event ini? Sesi aktif akan ditandai selesai.")
@@ -336,14 +336,15 @@ export default function EventVisitorPage({
     try {
       if (!selectedEventId)
         throw new Error("Pilih event sebelum memulai monitoring.");
+      const starting = command === "start" || command === "restart";
       const response = await visitorFetch(
-        `${API_BASE}/${command}?company_id=${encodeURIComponent(getCompanyId())}&event_id=${encodeURIComponent(selectedEventId)}`,
+        `${API_BASE}/${command === "restart" ? "start" : command}?company_id=${encodeURIComponent(getCompanyId())}&event_id=${encodeURIComponent(selectedEventId)}`,
         {
           method: "POST",
-          headers: getAuthHeaders(command === "start" ? { "Content-Type": "application/json" } : {}),
-          ...(command === "start"
+          headers: getAuthHeaders(starting ? { "Content-Type": "application/json" } : {}),
+          ...(starting
             ? {
-                body: JSON.stringify({ event_id: selectedEventId, background: true }),
+                body: JSON.stringify({ event_id: selectedEventId, background: true, restart: command === "restart" }),
               }
             : {}),
         },
@@ -353,7 +354,7 @@ export default function EventVisitorPage({
       setStreamErrors({});
       setStreamKey((key) => key + 1);
       if (payload?.result) applyStatus(payload.result);
-      toast.success(command === "start" ? "Persiapan monitoring dimulai." : payload?.result?.starting ? "Persiapan sedang dibatalkan." : { pause: "Monitoring dijeda.", stop: "Monitoring dihentikan." }[command]);
+      toast.success(command === "restart" ? "Kamera sedang dimulai ulang. Data hitungan tetap tersimpan." : command === "start" ? "Persiapan monitoring dimulai." : payload?.result?.starting ? "Persiapan sedang dibatalkan." : { pause: "Monitoring dijeda.", stop: "Monitoring dihentikan." }[command]);
       await refreshStatus();
     } catch (error) {
       const message = error instanceof Error ? error.message : "Perintah gagal.";
@@ -911,6 +912,15 @@ export default function EventVisitorPage({
                 >
                   <Pause size={13} className="mr-1" />
                   Jeda
+                </Button>
+                <Button
+                  variant="outline"
+                  className="h-8! w-auto! px-3! text-xs!"
+                  disabled={busy || preparing || !selectedEventId || !can("monitoring.control")}
+                  onClick={() => void action("restart")}
+                >
+                  <RefreshCw size={13} className="mr-1" />
+                  Restart kamera
                 </Button>
                 <Button
                   variant="stop"
