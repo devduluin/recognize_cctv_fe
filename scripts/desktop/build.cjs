@@ -15,6 +15,10 @@ console.log(`Building Visitor Counter ${version} (Build ${buildNumber})`);
 const run = (executable, args, cwd = root, env = {}) => execFileSync(executable, args, { cwd, stdio: 'inherit', env: { ...process.env, ...env }, windowsHide: true });
 run(process.execPath, [path.join(__dirname, 'prepare.cjs')]);
 run(python, [path.join(backend, 'tools/prepare_models.py'), '--models-dir', path.join(backend, 'models')], backend);
+if (process.platform === 'win32') {
+  const directml = execFileSync(python, ['-c', 'import onnxruntime; print(int("DmlExecutionProvider" in onnxruntime.get_available_providers()))'], { encoding: 'utf8', windowsHide: true }).trim() === '1';
+  if (directml) run(python, [path.join(backend, 'tools/export_directml_models.py')], backend);
+}
 run(python, ['-c', 'from keras_facenet import FaceNet; FaceNet()'], backend);
 const backendBundle = path.join(resources, 'visitor-backend');
 fs.rmSync(backendBundle, { recursive: true, force: true });
