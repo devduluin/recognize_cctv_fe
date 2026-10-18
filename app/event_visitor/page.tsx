@@ -955,7 +955,7 @@ export default function EventVisitorPage({
                   <dl className="divide-y divide-slate-100">
                     {group.devices.map(device => (
                       <div key={device.name} className="grid grid-cols-[1fr_auto] gap-x-3 py-2 text-sm">
-                        <dt>{device.name}</dt><dd className="font-medium">{device.device.startsWith("cuda") ? "GPU NVIDIA (CUDA)" : device.device === "mps" ? "GPU Apple (MPS)" : device.device === "cpu" ? "CPU" : "TensorFlow"}</dd>
+                        <dt>{device.name}</dt><dd className="font-medium">{device.device.startsWith("cuda") ? "GPU NVIDIA (CUDA)" : device.device === "mps" ? "GPU Apple (MPS)" : device.device.startsWith("directml:") ? "GPU (DirectML)" : device.device === "cpu" ? "CPU" : device.device === "tensorflow" ? "TensorFlow" : device.device}</dd>
                         {device.fallback_reason && <dd className="col-span-2 mt-1 text-xs text-slate-600">{device.fallback_reason}</dd>}
                       </div>
                     ))}
