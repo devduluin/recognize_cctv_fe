@@ -7,13 +7,58 @@ $stateDirectory = Join-Path $env:LOCALAPPDATA "VisitorCounterRunner\$projectKey"
 $stateFile = Join-Path $stateDirectory 'processes.json'
 $script:ownedProcesses = @()
 
-function Stop-OwnedServices($Records) {
+function Get-OwnedProcess($Record) {
+    $candidate = Get-Process -Id $Record.Id -ErrorAction SilentlyContinue
+    if ($candidate -and $candidate.StartTime.ToUniversalTime().Ticks.ToString() -eq $Record.StartTicks) {
+        return $candidate
+    }
+    return $null
+}
+
+function Get-OwnedTree($Records) {
+    # Capture children before killing parents. Keep exact creation times so
+    # an unrelated process reusing a PID can never be selected by a stale file.
+    $owned = @{}
+    $pending = New-Object System.Collections.Queue
     foreach ($record in $Records) {
-        $process = Get-Process -Id $record.Id -ErrorAction SilentlyContinue
-        if ($process -and $process.StartTime.ToUniversalTime().Ticks.ToString() -eq $record.StartTicks) {
-            & taskkill.exe /PID $process.Id /T /F | Out-Null
-            if ($LASTEXITCODE -ne 0) { throw "Tidak dapat menghentikan proses runner $($process.Id)." }
+        $process = Get-OwnedProcess $record
+        if ($process) { $pending.Enqueue($process) }
+    }
+    $snapshot = @(Get-CimInstance Win32_Process -ErrorAction Stop)
+    while ($pending.Count -gt 0) {
+        $parent = $pending.Dequeue()
+        if ($owned.ContainsKey($parent.Id)) { continue }
+        $owned[$parent.Id] = @{ Id = $parent.Id; StartTicks = $parent.StartTime.ToUniversalTime().Ticks.ToString() }
+        foreach ($child in @($snapshot | Where-Object { $_.ParentProcessId -eq $parent.Id })) {
+            $live = Get-Process -Id $child.ProcessId -ErrorAction SilentlyContinue
+            # CIM timestamps have microsecond precision; Get-Process preserves
+            # Windows' 100ns timestamp. Compare within that rounding interval.
+            if ($live -and [Math]::Abs($live.StartTime.ToUniversalTime().Ticks - $child.CreationDate.ToUniversalTime().Ticks) -lt 10 -and $live.StartTime -ge $parent.StartTime) {
+                $pending.Enqueue($live)
+            }
         }
+    }
+    return @($owned.Values)
+}
+
+function Save-OwnedServices {
+    $script:ownedProcesses = @(Get-OwnedTree $script:ownedProcesses)
+    $temporary = "$stateFile.$PID.tmp"
+    ConvertTo-Json -InputObject @($script:ownedProcesses) | Set-Content -LiteralPath $temporary -Encoding UTF8
+    Move-Item -LiteralPath $temporary -Destination $stateFile -Force
+}
+
+function Stop-OwnedServices($Records) {
+    $targets = @(Get-OwnedTree $Records)
+    foreach ($record in $targets) {
+        $process = Get-OwnedProcess $record
+        if ($process) {
+            $kill = Start-Process -FilePath (Join-Path $env:SystemRoot 'System32\taskkill.exe') -ArgumentList @('/PID', $process.Id, '/T', '/F') -WindowStyle Hidden -Wait -PassThru
+            if ($kill.ExitCode -ne 0 -and (Get-OwnedProcess $record)) { throw "Tidak dapat menghentikan proses runner $($process.Id)." }
+        }
+    }
+    foreach ($record in $targets) {
+        if (Get-OwnedProcess $record) { throw "Proses runner $($record.Id) masih aktif. Coba stop kembali." }
     }
 }
 
@@ -30,11 +75,11 @@ function Open-Service([string] $Title, [string] $Directory, [string] $Command) {
     $encoded = [Convert]::ToBase64String([Text.Encoding]::Unicode.GetBytes($script))
     if ($Background) {
         $process = Start-Process -FilePath 'powershell.exe' -WindowStyle Hidden -ArgumentList @('-NoLogo', '-NoProfile', '-EncodedCommand', $encoded) -PassThru
-        $script:ownedProcesses += @{ Id = $process.Id; StartTicks = $process.StartTime.ToUniversalTime().Ticks.ToString() }
-        ConvertTo-Json -InputObject @($script:ownedProcesses) | Set-Content -LiteralPath $stateFile -Encoding UTF8
     } else {
-        Start-Process -FilePath 'powershell.exe' -ArgumentList @('-NoLogo', '-NoProfile', '-NoExit', '-EncodedCommand', $encoded) | Out-Null
+        $process = Start-Process -FilePath 'powershell.exe' -ArgumentList @('-NoLogo', '-NoProfile', '-NoExit', '-EncodedCommand', $encoded) -PassThru
     }
+    $script:ownedProcesses += @{ Id = $process.Id; StartTicks = $process.StartTime.ToUniversalTime().Ticks.ToString() }
+    Save-OwnedServices
 }
 
 function Test-HttpReady([string] $Url) {
@@ -51,17 +96,18 @@ try {
         if (Test-Path -LiteralPath $stateFile) {
             Stop-OwnedServices @(Get-Content -LiteralPath $stateFile -Raw | ConvertFrom-Json)
             Remove-Item -LiteralPath $stateFile
+            if ($Background) { (New-Object -ComObject WScript.Shell).Popup('Layanan Visitor Counter sudah dihentikan. Tab browser boleh ditutup.', 5, 'Visitor Counter', 64) | Out-Null }
+        } else {
+            throw 'Daftar proses runner tidak ditemukan. Jalankan aplikasi dari run-windows.cmd atau run-windows.vbs versi terbaru di folder project yang sama. Proses versi lama perlu dihentikan manual satu kali.'
         }
         exit 0
     }
-    if ($Background) {
-        New-Item -ItemType Directory -Path $stateDirectory -Force | Out-Null
-        if (Test-Path -LiteralPath $stateFile) {
-            foreach ($record in @(Get-Content -LiteralPath $stateFile -Raw | ConvertFrom-Json)) {
-                $existing = Get-Process -Id $record.Id -ErrorAction SilentlyContinue
-                if ($existing -and $existing.StartTime.ToUniversalTime().Ticks.ToString() -eq $record.StartTicks) {
-                    throw 'Runner masih aktif. Gunakan stop-windows.vbs sebelum menjalankan ulang.'
-                }
+    New-Item -ItemType Directory -Path $stateDirectory -Force | Out-Null
+    if (Test-Path -LiteralPath $stateFile) {
+        foreach ($record in @(Get-Content -LiteralPath $stateFile -Raw | ConvertFrom-Json)) {
+            $existing = Get-OwnedProcess $record
+            if ($existing) {
+                throw 'Runner masih aktif. Gunakan stop-windows.vbs sebelum menjalankan ulang.'
             }
         }
     }
@@ -94,12 +140,14 @@ try {
     $deadline = [DateTime]::UtcNow.AddMinutes(3)
     $ready = $false
     while ([DateTime]::UtcNow -lt $deadline) {
+        Save-OwnedServices
         if ((Test-HttpReady 'http://127.0.0.1:8000/') -and (Test-HttpReady 'http://127.0.0.1:3000/')) {
             $ready = $true
             break
         }
         Start-Sleep -Seconds 2
     }
+    Save-OwnedServices
     if (-not $ready) {
         throw 'Server belum siap dalam 3 menit. Periksa error di terminal backend/frontend. Setelah diperbaiki, buka http://127.0.0.1:3000 secara manual. Kedua terminal tetap terbuka.'
     }

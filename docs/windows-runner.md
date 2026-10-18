@@ -3,10 +3,15 @@
 Untuk menjalankan tanpa jendela CMD/PowerShell, klik dua kali `run-windows.vbs`.
 Buat shortcut Desktop dari file VBS tersebut; biarkan file asli di repo.
 Browser tetap dibuka setelah kedua layanan siap. `stop-windows.vbs` menghentikan
-paksa pohon proses runner background untuk checkout ini; tunggu pekerjaan
+paksa pohon proses runner background maupun terminal untuk checkout ini; tunggu pekerjaan
 deteksi/upload selesai sebelum menggunakannya. Menutup browser tidak menghentikan
 server. Runner memeriksa PID dan waktu mulai agar PID yang dipakai ulang tidak
-menghentikan proses lain. Jangan menjalankan stop saat startup masih berlangsung.
+menghentikan proses lain. PID anak Python/Node juga dicatat saat startup agar
+tetap bisa dihentikan bila shell induk sudah keluar. Jangan menjalankan stop saat startup masih berlangsung.
+Setelah stop berhasil, dialog konfirmasi muncul; tab browser tidak ditutup otomatis.
+Jika skrip lama belum mencatat proses (terutama peluncuran lewat CMD), hentikan
+server lama dengan Ctrl+C satu kali, lalu gunakan runner terbaru. Jangan menyalin
+file VBS sendirian ke Desktop; buat shortcut ke file asli pada checkout yang sama.
 Error startup ditampilkan melalui dialog dan proses startup yang sudah dimulai
 dibersihkan. Log disimpan pada `%LOCALAPPDATA%\VisitorCounterRunner\<project-id>`
 (terpisah per lokasi checkout), ditimpa pada peluncuran berikutnya. Perlakukan log
@@ -55,3 +60,7 @@ environment Python khusus, variabel yang sudah ada `DESKTOP_BACKEND_ROOT` dan
 Windows PowerShell menjalankan skrip dengan ExecutionPolicy Bypass hanya untuk
 proses runner; kebijakan permanen sistem tidak diubah. Kebijakan organisasi dapat
 tetap membatasi eksekusi. Perilaku launch Windows perlu diverifikasi di Windows.
+
+`npm test` menjalankan uji lifecycle proses runner hanya pada Windows: mode
+terminal/background, penghentian anak proses saat induknya sudah keluar, dan
+perlindungan PID lama. Uji tersebut dilewati pada macOS/Linux.
