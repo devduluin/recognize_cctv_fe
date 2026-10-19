@@ -3,7 +3,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
-const { DesktopRuntime, mediaPorts } = require('../electron/runtime.cjs');
+const { DesktopRuntime, mediaPorts } = require('../desktop/runtime.cjs');
 
 function runtime(t) {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'visitor-media-'));

@@ -14,7 +14,7 @@ function ensureNpmOnPath(env = process.env, nodeExecutable = process.execPath, p
     additions.push(nodeBin);
     existing.add(normalized(nodeBin));
   }
-  // electron-builder delegates macOS signing to codesign in /usr/bin. Some
+  // Native packaging delegates macOS signing to codesign in /usr/bin. Some
   // GUI-launched npm environments omit the system tool directories from PATH.
   if (platform === 'darwin' || platform === 'linux') {
     for (const directory of ['/usr/local/bin', '/usr/bin', '/bin', '/usr/sbin', '/sbin']) {

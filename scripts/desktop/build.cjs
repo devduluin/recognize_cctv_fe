@@ -54,7 +54,7 @@ fs.cpSync(path.join(root, '.next/static'), path.join(resources, 'next/.next/stat
 fs.rmSync(path.join(resources, 'next/public'), { recursive: true, force: true });
 fs.cpSync(path.join(root, 'public'), path.join(resources, 'next/public'), { recursive: true, dereference: true });
 // Next's standalone output may contain the developer's .env. Desktop secrets
-// are created under Electron userData and injected at runtime instead.
+// are created under the desktop application data directory and injected at runtime instead.
 function removeEnvironmentFiles(directory) {
   for (const entry of fs.readdirSync(directory, { withFileTypes: true })) {
     const file = path.join(directory, entry.name);

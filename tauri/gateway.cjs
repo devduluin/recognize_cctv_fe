@@ -1,5 +1,6 @@
 'use strict';
 const http = require('node:http');
+const { attachDevWebSocket } = require('./dev-websocket.cjs');
 const { randomBytes, timingSafeEqual, createCipheriv, createDecipheriv } = require('node:crypto');
 
 function sessionEncryption(hex) {
@@ -41,7 +42,7 @@ const bridge = `(() => {
     return response.json();
   }};
 })();`;
-function equal(a, b) { return typeof a === 'string' && a.length === b.length && timingSafeEqual(Buffer.from(a), Buffer.from(b)); }
+function equal(a, b) { return typeof a === 'string' && Buffer.byteLength(a) === Buffer.byteLength(b) && timingSafeEqual(Buffer.from(a), Buffer.from(b)); }
 async function jsonBody(request) {
   const parts = []; let bytes = 0;
   for await (const part of request) {
@@ -54,6 +55,10 @@ async function jsonBody(request) {
 async function createGateway({ runtime, authStore, checkCamera, transport = http }) {
   const session = randomBytes(32).toString('hex'), bootstrap = randomBytes(32).toString('hex');
   let used = false, origin;
+  const authorized = req => {
+    const cookie = (req.headers.cookie || '').split(';').map(x => x.trim()).find(x => x.startsWith('visitor_tauri='))?.slice(14);
+    return equal(cookie, session);
+  };
   const server = transport.createServer(async (req, res) => {
     const fail = (status, message) => { res.writeHead(status, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }); res.end(JSON.stringify({ message })); };
     try {
@@ -63,11 +68,33 @@ async function createGateway({ runtime, authStore, checkCamera, transport = http
       res.setHeader('Referrer-Policy', 'no-referrer');
       if (req.method === 'GET' && !used && equal(url.pathname, `/__desktop/bootstrap/${bootstrap}`)) {
         used = true;
-        res.writeHead(303, { 'Set-Cookie': `visitor_tauri=${session}; HttpOnly; SameSite=Strict; Path=/`, Location: '/', 'Cache-Control': 'no-store' });
-        return res.end();
+        // Commit a document on the gateway origin before making authenticated
+        // requests. A cross-site HTTP redirect from the Tauri splash can omit
+        // Strict cookies on the redirected request, especially in WKWebView.
+        const nonce = randomBytes(18).toString('base64');
+        res.writeHead(200, {
+          'Set-Cookie': `visitor_tauri=${session}; HttpOnly; SameSite=Strict; Path=/`,
+          'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store',
+          'X-Content-Type-Options': 'nosniff',
+          'Content-Security-Policy': `default-src 'none'; script-src 'nonce-${nonce}'; style-src 'unsafe-inline'; connect-src 'self'; base-uri 'none'; frame-ancestors 'none'; form-action 'none'`,
+        });
+        return res.end(`<!doctype html><html lang="id"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Visitor Counter</title><style>body{margin:0;min-height:100vh;display:grid;place-items:center;background:#f5f8fa;color:#183042;font:16px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}main{padding:32px;max-width:420px;line-height:1.6}h1{font-size:24px}p{color:#607583}</style></head><body><main><h1>Visitor Counter</h1><p id="status" role="status">Menghubungkan sesi aplikasi…</p></main><script nonce="${nonce}">
+          window.addEventListener('pageshow', async () => {
+            try {
+              const response = await fetch('/__desktop/session-check', { credentials: 'same-origin', cache: 'no-store', signal: AbortSignal.timeout(10000) });
+              if (!response.ok) throw new Error('Session unavailable');
+              window.location.replace('/');
+            } catch {
+              document.getElementById('status').textContent = 'Sesi aplikasi belum dapat dihubungkan. Tutup Visitor Counter lalu buka kembali. Data lokal tetap tersimpan.';
+            }
+          }, { once: true });
+        </script></body></html>`);
+
       }
-      const cookie = (req.headers.cookie || '').split(';').map(x => x.trim()).find(x => x.startsWith('visitor_tauri='))?.slice(14);
-      if (!equal(cookie, session)) return fail(403, 'Local application access denied');
+      if (!authorized(req)) return fail(403, 'Local application access denied');
+      if (url.pathname === '/__desktop/session-check' && req.method === 'GET') {
+        res.writeHead(204, { 'Cache-Control': 'no-store' }); return res.end();
+      }
       if (url.pathname === '/__desktop/bridge.js' && req.method === 'GET') {
         res.writeHead(200, { 'Content-Type': 'text/javascript', 'Cache-Control': 'no-store' }); return res.end(bridge);
       }
@@ -131,8 +158,9 @@ async function createGateway({ runtime, authStore, checkCamera, transport = http
       res.on('close', () => upstream.destroy()); req.pipe(upstream);
     } catch { if (!res.headersSent) fail(400, 'Invalid local request'); else res.destroy(); }
   });
+  const closeSockets = attachDevWebSocket(server, { runtime, transport, getOrigin: () => origin, authorized });
   await new Promise((resolve, reject) => { server.once('error', reject); server.listen(0, '127.0.0.1', resolve); });
   origin = `http://127.0.0.1:${server.address().port}`;
-  return { origin, bootstrapUrl: `${origin}/__desktop/bootstrap/${bootstrap}`, close: () => new Promise(resolve => { server.close(resolve); server.closeAllConnections(); }) };
+  return { origin, bootstrapUrl: `${origin}/__desktop/bootstrap/${bootstrap}`, close: () => new Promise(resolve => { closeSockets(); server.close(resolve); server.closeAllConnections(); }) };
 }
 module.exports = { createGateway, sessionEncryption };

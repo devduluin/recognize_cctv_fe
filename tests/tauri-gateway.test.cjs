@@ -5,7 +5,7 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const { createGateway, sessionEncryption } = require('../tauri/gateway.cjs');
-const { AuthSessionStore } = require('../electron/auth-session.cjs');
+const { AuthSessionStore } = require('../desktop/auth-session.cjs');
 async function fixture(t) {
   const { EventEmitter } = require('node:events');
   const { Readable, Writable } = require('node:stream');
@@ -49,11 +49,11 @@ async function fixture(t) {
     response.writeHead = (code, values) => { response.headersSent = true; status = code; for (const [key, value] of Object.entries(values)) headers.set(key, value); };
     const finished = new Promise((resolve, reject) => { response.on('finish', resolve); response.on('error', reject); });
     await handler(request, response); await finished;
-    return new Response(Buffer.concat(chunks), { status, headers });
+    return new Response(status === 204 ? null : Buffer.concat(chunks), { status, headers });
   }
   const boot = await localFetch(gateway.bootstrapUrl, { redirect: 'manual' });
   const cookie = boot.headers.get('set-cookie').split(';')[0];
-  return { gateway, store, requests, cookie, fetch: localFetch, request: (url, options = {}) => localFetch(gateway.origin + url, { ...options, headers: { cookie, ...options.headers } }) };
+  return { gateway, store, requests, cookie, boot, fetch: localFetch, request: (url, options = {}) => localFetch(gateway.origin + url, { ...options, headers: { cookie, ...options.headers } }) };
 }
 test('gateway requires bootstrap session, rejects foreign origins and consumes bootstrap once', async t => {
   const { gateway, request, fetch } = await fixture(t);
@@ -103,8 +103,8 @@ test('encrypted session rejects tampering and wrong OS key', () => {
   assert.throws(() => cipher.decryptString(data));
 });
 
-test('shared profile lock prevents simultaneous Electron/Tauri writers and releases safely', () => {
-  const { acquireProfile } = require('../electron/profile-lock.cjs');
+test('shared profile lock prevents simultaneous desktop writers and releases safely', () => {
+  const { acquireProfile } = require('../desktop/profile-lock.cjs');
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'visitor-profile-test-'));
   try {
     const release = acquireProfile(directory);
@@ -115,4 +115,45 @@ test('shared profile lock prevents simultaneous Electron/Tauri writers and relea
     assert.throws(() => acquireProfile(directory), /sudah berjalan/);
     again();
   } finally { fs.rmSync(directory, { recursive: true, force: true }); }
+});
+
+test('cross-origin startup commits a local document and verifies the Strict cookie before navigating', async t => {
+  const { boot, cookie, gateway, request, fetch } = await fixture(t);
+  assert.equal(boot.status, 200);
+  assert.equal(boot.headers.get('location'), null);
+  assert.match(boot.headers.get('set-cookie'), /; HttpOnly; SameSite=Strict; Path=\//);
+  assert.equal(boot.headers.get('cache-control'), 'no-store');
+  const html = await boot.text();
+  assert.equal(html.includes(cookie.split('=')[1]), false, 'session secret stays HttpOnly');
+  const nonce = html.match(/<script nonce="([^"]+)">/)[1];
+  assert.ok(boot.headers.get('content-security-policy').includes(`script-src 'nonce-${nonce}'`));
+  const vm = require('node:vm');
+  let pageShow, navigated, verified = false;
+  vm.runInNewContext(html.match(/<script nonce="[^"]+">([\s\S]*?)<\/script>/)[1], {
+    window: { addEventListener(name, callback) { assert.equal(name, 'pageshow'); pageShow = callback; }, location: { replace(target) { assert.equal(verified, true); navigated = target; } } },
+    fetch: async (target, options) => {
+      assert.equal(options.credentials, 'same-origin');
+      const response = await request(target);
+      verified = response.status === 204;
+      return response;
+    }, AbortSignal, document: { getElementById() { throw new Error('Unexpected failure UI'); } },
+  });
+  assert.equal(navigated, undefined, 'no navigation before the local document is committed');
+  await pageShow();
+  assert.equal(navigated, '/');
+  assert.equal((await fetch(gateway.origin + '/__desktop/session-check')).status, 403);
+  assert.equal((await fetch(gateway.bootstrapUrl)).status, 403, 'bootstrap remains single-use');
+});
+
+test('blocked startup cookie shows recovery guidance instead of navigating to a forbidden page', async t => {
+  const { boot } = await fixture(t);
+  const html = await boot.text(), status = { textContent: '' };
+  let pageShow, navigated = false;
+  require('node:vm').runInNewContext(html.match(/<script nonce="[^"]+">([\s\S]*?)<\/script>/)[1], {
+    window: { addEventListener(name, callback) { pageShow = callback; }, location: { replace() { navigated = true; } } },
+    fetch: async () => ({ ok: false }), AbortSignal, document: { getElementById: () => status },
+  });
+  await pageShow();
+  assert.equal(navigated, false);
+  assert.match(status.textContent, /Tutup Visitor Counter lalu buka kembali/);
 });

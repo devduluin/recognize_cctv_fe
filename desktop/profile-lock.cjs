@@ -19,7 +19,7 @@ function acquireProfile(directory) {
         if (error.code === 'ESRCH') { fs.unlinkSync(file); continue; }
         throw new Error('Profil desktop sedang digunakan atau tidak dapat diperiksa.');
       }
-      throw new Error('Visitor Counter sudah berjalan menggunakan profil ini. Tutup Electron/Tauri lain terlebih dahulu.');
+      throw new Error('Visitor Counter sudah berjalan menggunakan profil ini. Tutup aplikasi lain terlebih dahulu.');
     }
   }
   throw new Error('Profil desktop tidak dapat dikunci.');

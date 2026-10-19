@@ -4,7 +4,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const os = require('node:os');
 const { randomBytes, createCipheriv, createDecipheriv } = require('node:crypto');
-const { AuthSessionStore, restoreSession, trustedSender } = require('../electron/auth-session.cjs');
+const { AuthSessionStore, restoreSession } = require('../desktop/auth-session.cjs');
 const key = randomBytes(32);
 const encryption = {
   isEncryptionAvailable: () => true,
@@ -70,38 +70,4 @@ test('invalid or unreadable credentials fail closed', t => {
   assert.throws(() => store.write({ token: 'x', user: {} }));
   fs.writeFileSync(store.file, 'corrupt');
   assert.equal(store.read(), null);
-});
-
-test('session IPC accepts only the current window main frame and exact origin', () => {
-  const frame = { url: 'http://127.0.0.1:40001/events' };
-  const window = { webContents: { mainFrame: frame } };
-  const event = { sender: window.webContents, senderFrame: frame };
-  assert.equal(trustedSender(event, window, 'http://127.0.0.1:40001'), true);
-  assert.equal(trustedSender(event, window, 'http://127.0.0.1:40002'), false);
-  assert.equal(trustedSender({ ...event, sender: {} }, window, 'http://127.0.0.1:40001'), false);
-  assert.equal(trustedSender({ ...event, senderFrame: { url: frame.url } }, window, 'http://127.0.0.1:40001'), false);
-});
-
-test('preload hydrates before page scripts and clears stale origin storage after logout', () => {
-  const vm = require('node:vm');
-  const source = fs.readFileSync(path.join(__dirname, '../electron/preload.cjs'), 'utf8');
-  for (const saved of [session, null]) {
-    const storage = new Map([['auth_token', 'stale-origin-token'], ['user_info', '{}']]);
-    const operations = [];
-    let bridge;
-    vm.runInNewContext(source, {
-      require: name => {
-        assert.equal(name, 'electron');
-        return {
-          ipcRenderer: { sendSync: (channel, message) => { operations.push(message.action); return { ok: true, session: message.action === 'read' ? saved : undefined }; } },
-          contextBridge: { exposeInMainWorld: (name, value) => { if (name === 'desktopAuthSession') bridge = value; else assert.equal(name, 'desktopCameraNetwork'); } },
-        };
-      },
-      localStorage: { setItem: (key, value) => storage.set(key, value), removeItem: key => storage.delete(key) },
-    });
-    assert.equal(storage.get('auth_token'), saved?.token);
-    if (saved) assert.equal(JSON.parse(storage.get('user_info')).id, saved.user.id);
-    bridge.save(session); bridge.clear();
-    assert.deepEqual(operations, ['read', 'save', 'clear']);
-  }
 });

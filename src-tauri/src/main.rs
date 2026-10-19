@@ -16,11 +16,11 @@ fn credential_key() -> Result<String, Box<dyn std::error::Error>> {
         Err(error) => Err(error.into()),
     }
 }
-fn start(app: &tauri::App) -> Result<(Arc<Services>, BufReader<std::process::ChildStdout>, String), Box<dyn std::error::Error>> {
+fn start(app: &tauri::AppHandle) -> Result<(Arc<Services>, BufReader<std::process::ChildStdout>, String), Box<dyn std::error::Error>> {
     let root = if cfg!(debug_assertions) { PathBuf::from(env!("CARGO_MANIFEST_DIR")).parent().unwrap().to_path_buf() }
         else { app.path().resource_dir()?.join("runtime") };
     let data_root = app.path().app_data_dir()?;
-    // Reuse Electron's OS-appropriate profile so the SQLite DB and photos remain.
+    // Reuse the existing OS-appropriate profile so the SQLite DB and photos remain.
     let user_data = data_root.parent().ok_or("Invalid application data path")?.join("Visitor Counter");
     let node = root.join("resources/node").join(if cfg!(windows) { "node.exe" } else { "node" });
     let mut command = Command::new(node);
@@ -32,13 +32,32 @@ fn start(app: &tauri::App) -> Result<(Arc<Services>, BufReader<std::process::Chi
         use std::os::windows::process::CommandExt;
         command.creation_flags(0x08000000);
     }
+    if app.state::<Startup>().cancelled.load(Ordering::SeqCst) { return Err("Startup cancelled".into()); }
     let mut child = command.spawn()?;
     let stdout = child.stdout.take().ok_or("Host output unavailable")?;
     let services = Arc::new(Services { child: Mutex::new(child), stopping: AtomicBool::new(false) });
+    app.manage(services.clone());
+    if app.state::<Startup>().cancelled.load(Ordering::SeqCst) { shutdown(&services); return Err("Startup cancelled".into()); }
     let (tx, rx) = std::sync::mpsc::channel();
+    let handle = app.clone();
     std::thread::spawn(move || {
-        let mut reader = BufReader::new(stdout); let mut line = String::new();
-        let result = reader.read_line(&mut line).map(|_| line);
+        let mut reader = BufReader::new(stdout);
+        let result = loop {
+            let mut line = String::new();
+            match reader.read_line(&mut line) {
+                Ok(0) => break Err(std::io::Error::new(std::io::ErrorKind::UnexpectedEof, "Host stopped")),
+                Err(error) => break Err(error),
+                Ok(_) => {
+                    if let Ok(payload) = serde_json::from_str::<serde_json::Value>(&line) {
+                        if let Some(stage) = payload["stage"].as_str() {
+                            if ["media", "backend", "frontend", "session", "interface"].contains(&stage) { startup_status(&handle, stage); }
+                            continue;
+                        }
+                    }
+                    break Ok(line);
+                }
+            }
+        };
         let _ = tx.send((reader, result));
     });
     let result = rx.recv_timeout(Duration::from_secs(240));
@@ -68,35 +87,69 @@ fn shutdown(services: &Services) {
         let _ = child.kill(); let _ = child.wait();
     }
 }
+struct Startup { cancelled: AtomicBool, stage: Mutex<String> }
+fn startup_status(app: &tauri::AppHandle, stage: &str) {
+    *app.state::<Startup>().stage.lock().unwrap() = stage.to_string();
+    if let Some(window) = app.get_webview_window("main") {
+        let _ = window.eval(&format!("window.setStartupStage?.({})", serde_json::json!(stage)));
+    }
+}
 fn main() {
     let app = tauri::Builder::default()
+        .manage(Startup { cancelled: AtomicBool::new(false), stage: Mutex::new("initial".into()) })
         .plugin(tauri_plugin_single_instance::init(|app, _, _| {
             if let Some(window) = app.get_webview_window("main") { let _ = window.unminimize(); let _ = window.set_focus(); }
         }))
         .setup(|app| {
-            let (services, mut output, url) = start(app)?;
-            app.manage(services.clone());
-            let target = tauri::Url::parse(&url)?;
-            let allowed_origin = target.origin();
-            let window = WebviewWindowBuilder::new(app, "main", WebviewUrl::External(target))
-                .title("Visitor Counter").inner_size(1440.0, 960.0).min_inner_size(960.0, 640.0)
-                .on_navigation(move |url| url.origin() == allowed_origin)
+            let allowed_origin = Arc::new(Mutex::new(None::<String>));
+            let navigation = allowed_origin.clone();
+            WebviewWindowBuilder::new(app, "main", WebviewUrl::App("index.html".into()))
+                .title("Visitor Counter").inner_size(620.0, 500.0).resizable(false).center()
+                .on_navigation(move |url| {
+                    match navigation.lock().unwrap().as_ref() {
+                        Some(origin) => url.origin().ascii_serialization() == *origin,
+                        None => url.scheme() == "tauri" || (url.host_str() == Some("tauri.localhost") && ["http", "https"].contains(&url.scheme())),
+                    }
+                })
+                .on_page_load(|window, payload| {
+                    if payload.url().host_str() != Some("127.0.0.1") {
+                        let stage = window.app_handle().state::<Startup>().stage.lock().unwrap().clone();
+                        let _ = window.eval(&format!("window.setStartupStage?.({})", serde_json::json!(stage)));
+                    }
+                })
                 .on_new_window(|_, _| tauri::webview::NewWindowResponse::Deny)
-                .build();
-            if let Err(error) = window { shutdown(&services); return Err(error.into()); }
+                .build()?;
             let handle = app.handle().clone();
             std::thread::spawn(move || {
-                let mut line = String::new(); while output.read_line(&mut line).is_ok_and(|n| n > 0) { line.clear(); }
-                if !services.stopping.load(Ordering::SeqCst) { handle.exit(1); }
+                match start(&handle) {
+                    Ok((services, mut output, url)) => {
+                        if handle.state::<Startup>().cancelled.load(Ordering::SeqCst) { shutdown(&services); return; }
+                        let target = match tauri::Url::parse(&url) { Ok(url) => url, Err(_) => { startup_status(&handle, "failed"); shutdown(&services); return; } };
+                        *allowed_origin.lock().unwrap() = Some(target.origin().ascii_serialization());
+                        let ui = handle.clone();
+                        let _ = handle.run_on_main_thread(move || {
+                            if let Some(window) = ui.get_webview_window("main") {
+                                let _ = window.set_resizable(true);
+                                let _ = window.set_min_size(Some(tauri::LogicalSize::new(960.0, 640.0)));
+                                let _ = window.set_size(tauri::LogicalSize::new(1440.0, 960.0));
+                                let _ = window.center();
+                                if window.navigate(target).is_err() { startup_status(&ui, "failed"); }
+                            }
+                        });
+                        let mut line = String::new();
+                        while output.read_line(&mut line).is_ok_and(|n| n > 0) { line.clear(); }
+                        if !services.stopping.load(Ordering::SeqCst) { handle.exit(1); }
+                    },
+                    Err(_) => startup_status(&handle, "failed"),
+                }
             });
             Ok(())
         })
         .build(tauri::generate_context!()).expect("Visitor Counter Tauri startup failed");
     app.run(|handle, event| {
-        if let tauri::RunEvent::WindowEvent { event: tauri::WindowEvent::Destroyed, .. } = &event {
-            handle.exit(0);
-        }
+        if let tauri::RunEvent::WindowEvent { event: tauri::WindowEvent::Destroyed, .. } = &event { handle.exit(0); }
         if let tauri::RunEvent::ExitRequested { api, .. } = event {
+            handle.state::<Startup>().cancelled.store(true, Ordering::SeqCst);
             let Some(services) = handle.try_state::<Arc<Services>>() else { return; };
             if !services.stopping.load(Ordering::SeqCst) {
                 api.prevent_exit(); let services = services.inner().clone(); let app = handle.clone();

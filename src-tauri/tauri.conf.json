@@ -23,15 +23,22 @@
     "resources": {
       "../resources/": "runtime/resources/",
       "../tauri/": "runtime/tauri/",
-      "../electron/runtime.cjs": "runtime/electron/runtime.cjs",
-      "../electron/auth-session.cjs": "runtime/electron/auth-session.cjs",
-      "../electron/camera-network.cjs": "runtime/electron/camera-network.cjs",
+      "../desktop/runtime.cjs": "runtime/desktop/runtime.cjs",
+      "../desktop/auth-session.cjs": "runtime/desktop/auth-session.cjs",
+      "../desktop/camera-network.cjs": "runtime/desktop/camera-network.cjs",
       "../scripts/desktop/python-path.cjs": "runtime/scripts/desktop/python-path.cjs",
       "../package.json": "runtime/package.json",
-      "../electron/profile-lock.cjs": "runtime/electron/profile-lock.cjs"
+      "../desktop/profile-lock.cjs": "runtime/desktop/profile-lock.cjs"
     },
     "macOS": {
       "infoPlist": "Info.plist"
-    }
+    },
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ]
   }
 }

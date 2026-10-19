@@ -119,7 +119,9 @@ class DesktopRuntime extends EventEmitter {
     const backendAssets = this.development ? this.backendRoot : path.join(this.resources, 'backend', '_internal');
     const backendCommand = this.development ? this.python : path.join(this.resources, 'backend', executable);
     const backendArgs = [...(this.development ? [path.join(this.backendRoot, 'desktop_backend.py')] : []), '--data-dir', this.paths.data, '--resources', backendAssets, '--port', String(backendPort), '--frontend-origin', this.frontendOrigin];
+    this.emit('startup-stage', 'media');
     await this.startMedia();
+    this.emit('startup-stage', 'backend');
     const backend = this.startChild('backend', backendCommand, backendArgs, this.paths.data, {
       YOLO_AUTOINSTALL: 'false',
       DESKTOP_SERVICE_TOKEN: this.serviceToken, MEDIAMTX_ENABLED: 'true', MEDIAMTX_NETWORK_MODE: 'host',
@@ -131,6 +133,7 @@ class DesktopRuntime extends EventEmitter {
       DESKTOP_RESOURCE_ROOT: this.resources,
     });
     await waitForService(`${this.backendOrigin}/desktop-health`, { 'X-Desktop-Service-Token': this.serviceToken }, () => backend.exitCode === null && !this.stopping);
+    this.emit('startup-stage', 'frontend');
     const nextDirectory = this.development ? this.frontendRoot : path.join(this.userData, 'next-runtime', this.version);
     if (!this.development) {
       // The app version can stay the same across local rebuilds. Validate the

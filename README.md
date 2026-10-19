@@ -20,122 +20,33 @@ You can start editing the page by modifying `app/page.tsx`. The page auto-update
 
 This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
 
-## Build the desktop installer
+## Desktop — Tauri
 
-Desktop builds use the backend in the sibling `recognize_cctv` directory. Use
-Node.js 24.14.0 and the backend's locked Python environment. On a fresh checkout,
-prepare those dependencies and the verified models once:
+The desktop runtime is Tauri 2. FastAPI/PyInstaller and Next.js standalone continue
+running as managed local services, with bundled Node.js and media executables.
 
-```bash
-nvm install 24.14.0
-nvm use 24.14.0
+```sh
 npm ci
-
-cd ../recognize_cctv
-python3 -m pip install uv==0.9.5
-uv sync --project desktop --locked
-desktop/.venv/bin/python tools/prepare_models.py --models-dir models
-desktop/.venv/bin/python -c 'from keras_facenet import FaceNet; FaceNet()'
-cd ../recognize_cctv_fe
+npm run desktop:assets
+npm run desktop:dev
 ```
 
-To build after changing the frontend or backend, run on the target OS and
-architecture. The build automatically finds the locked Python environment at
-`../recognize_cctv/desktop/.venv`. Set `DESKTOP_PYTHON` only if that environment
-is stored somewhere else. Create the environment first on a fresh checkout as
-shown above.
+Development requires Rust, Tauri CLI, and the backend's locked Python environment.
+See [the setup and verification guide](tauri/README.md).
 
-```bash
-nvm use 24.14.0
-BACKEND_PYTHON="$(cd ../recognize_cctv && pwd)/desktop/.venv/bin/python"
+- `npm run desktop:resources`: build platform-specific Python/Next.js resources.
+- `npm run desktop:build`: build resources and the native app/installer (macOS APP/DMG, Windows NSIS).
+- `npm run desktop:package`: bundle an existing release build without rebuilding Python or Next.js.
+- `npm run desktop:test`: test the shared local-service host and Tauri gateway.
+- `npm run docs:generate`: generate screenshots/PDF using headless Chrome/Edge.
 
-# Optional: verify which accelerator the backend environment can use.
-"$BACKEND_PYTHON" -c 'import torch; print("CUDA:", torch.cuda.is_available()); print("MPS:", torch.backends.mps.is_available())'
-
-npm run desktop:clean
-npm run desktop:build
-npm run desktop:package -- --mac --arm64
-```
-
-Replace the package target with `--mac --x64` on Intel Mac, `--win --x64` on
-Windows x64, or `--linux --x64` on Ubuntu 24.04 x64. Linux creates AppImage and
-`.deb` installers. The installer and app archive are written to
-`dist-desktop/`. The build bundles the local sibling backend source, so backend
-changes are included. Inference selects CUDA, Apple MPS, or CPU based on what
-the installed runtime reports; if MPS reports unavailable, the app uses CPU.
-
-Every `npm run desktop:build` prints and embeds the SemVer from `package.json`
-plus a newly randomized six-digit build number. Both appear in Pengaturan →
-Sistem Kamera → Tentang aplikasi. The build number identifies that particular
-build; it does not replace or increment the release version.
-
-For a one-command clean build and installer, run `npm run desktop:rebuild`.
-Without arguments, it shows a numbered menu: `1` for macOS, `2` for Windows,
-and `3` for Linux. After you choose, it cleans generated outputs, rebuilds the
-backend and Next.js app, and packages the installer. During quiet parts of a
-build or macOS signing, the command shows a spinner with an estimated overall
-percentage and current stage; detailed tool logs still appear as they are
-produced. It also shows an estimated remaining time for the current stage.
-Both percentage and remaining time are time-based estimates, so they can pause
-or jump and may be less accurate when caches are cold. If a stage takes longer
-than estimated, the display reports how long the estimate has been exceeded;
-100% appears only after every stage finishes. This command already includes
-clean, so no separate clean step is needed:
-
-```bash
-npm run desktop:rebuild
-```
-
-The selected build must run on its target OS because PyInstaller creates a
-platform-specific FastAPI backend. The command checks the OS and architecture
-before cleaning anything, and stops with guidance if the selected target is
-not supported on the current machine. For another OS, commit and push the
-changes and run the `Desktop native builds` workflow from GitHub Actions; its
-manual workflow builds the full platform matrix. For **Windows EXE only**, use
-**Build Windows EXE** instead; see [the Windows build guide](docs/windows-exe-build.md)
-for the backend SHA input, private-repository access and artifact download.
-macOS uses the machine's current
-architecture (Apple Silicon arm64 or Intel x64); Windows supports x64; Linux
-builds should run on Ubuntu 24.04 x64 and produce AppImage and `.deb` installers.
-For example, choose macOS on a Mac, Windows on Windows x64, or Linux on Ubuntu
-24.04 x64. You can skip the prompt by passing a target explicitly, for example
-`npm run desktop:rebuild -- --mac --arm64` or `npm run desktop:rebuild -- --win --x64`.
-After choosing macOS or Windows, the menu asks whether to sign the build.
-Choose signed only when the matching signing certificate and credentials are
-available; the build is configured to fail instead of silently producing an
-unsigned installer. Choose unsigned for local development. Linux packages do
-not use this code-signing selection. In a non-interactive terminal the command
-defaults to unsigned. Official GitHub Release builds retain their required
-signing and notarization checks independently of this local build choice.
-Locally signed development builds skip Apple's per-file timestamp service to
-avoid network delays; do not use these artifacts as official releases.
-The separate
-`desktop:build` and `desktop:package` commands remain available when you only
-need one build stage. `desktop:clean` removes `.next/`, `resources/`,
-`dist-desktop/`, and the backend PyInstaller work directory. It keeps
-`desktop-cache/` (verified Node.js and MediaMTX downloads) and the backend
-Python environment for reuse. Installed app data, including the SQLite
-database, is stored separately under the operating system's application data
-directory and is unaffected.
-
-On macOS, local packaging may spend time signing the large bundled application.
-For a development build, disable automatic signing-identity discovery:
-
-```bash
-CSC_IDENTITY_AUTO_DISCOVERY=false npm run desktop:package -- --mac --arm64
-```
-
-This packages already-built resources. To clean, rebuild, and package in one
-command, use `CSC_IDENTITY_AUTO_DISCOVERY=false npm run desktop:rebuild -- --mac --arm64`.
-Official releases must use the configured signing certificate and notarization;
-do not disable signing for release builds.
-
-If macOS signing reports `invalid destination for symbolic link in bundle`,
-retry with `npm run desktop:package -- --mac --arm64` after applying the packaging
-fix. Public assets such as `public/samples` are copied as actual files, including
-when reusing previously staged resources. Other absolute, escaping, or broken
-resource symlinks fail validation before signing with their offending path.
-No additional environment variables are required.
+App bundles include the local runtime resources. macOS output is under
+`src-tauri/target/release/bundle/macos` and `bundle/dmg`; Windows output is under
+`src-tauri/target/release/bundle/nsis`. Packaging an existing build requires its
+resources to be current; otherwise use the full `desktop:build` command.
+Signing, verified updates and native video/upgrade tests remain release blockers.
+Existing local databases, photos and recordings remain in the original application
+profile. Do not delete that profile when switching runtime.
 
 ## Learn More
 
@@ -195,10 +106,3 @@ File video dan indeks wajah serta akun/permission tetap di luar sync operasional
 
 Panduan lengkap penggunaan aplikasi: [Manual Visitor Counter](docs/manual/README.md).
 Untuk menghasilkan HTML, PDF, dan screenshot UI dengan data contoh, lihat [petunjuk dokumentasi](docs/manual/capture.md) atau jalankan workflow **Application Manual**.
-
-## Tauri migration trial
-
-An additional Tauri 2 launcher preserves the bundled Next.js server, FastAPI, and media services.
-See [setup, verification status, and release blockers](tauri/README.md).
-Use `npm run tauri:dev` after installing Rust/Tauri prerequisites.
-The Electron release path remains available until native builds, video, signing, and updater validation are complete.

@@ -1,19 +1,17 @@
-# Migrasi Tauri — jalur percobaan
+# Desktop Tauri — status pengembangan
 
-Tauri 2 menggantikan jendela Electron pada jalur ini. Next.js tetap menggunakan
+Tauri 2 adalah satu-satunya runtime jendela desktop. Next.js tetap menggunakan
 standalone dan Node.js yang dibundel. FastAPI/PyInstaller, MediaMTX, FFmpeg,
 API, SSR, serta UI dipertahankan. Tidak memakai static export.
 
 ## Status verifikasi
 
 Kode host/gateway dan tes keamanan tersedia. Kompilasi Rust, jendela WebView,
-installer, penandatanganan, serta kamera nyata BELUM terverifikasi. Mesin kerja
-saat implementasi tidak memiliki Rust/Cargo; sandbox juga menolak listen localhost.
+installer, penandatanganan, serta kamera nyata BELUM terverifikasi. Pada pengujian awal Rust/Cargo belum tersedia; sandbox juga menolak listen localhost.
 Tes gateway memakai transport HTTP dalam memori dan bukan pengujian WebView.
 Pengunduhan Rust juga gagal karena DNS `static.rust-lang.org` tidak dapat diakses.
-Tes packaging Electron yang dijalankan terpisah memiliki dua kegagalan pada fixture
-macOS (`No packaged macOS launchers found`); file hook/tes itu tidak diubah oleh migrasi ini.
-Ini belum menggantikan jalur rilis Electron dan belum siap produksi.
+Runtime sebelumnya, dependensi serta workflow installernya sudah dihapus.
+Tauri CLI dan dependensi native tetap dibutuhkan untuk validasi; aplikasi belum siap produksi.
 
 ## Menjalankan
 
@@ -43,27 +41,37 @@ Validasi host/gateway:
 npm run tauri:check
 ```
 
-Build executable native percobaan dengan resource backend/frontend produksi:
+Build aplikasi native dengan resource backend/frontend produksi:
 
 ```sh
 npm run tauri:build
 ```
 
 Build menggunakan pipeline `scripts/desktop/build.cjs` untuk PyInstaller,
-Next.js standalone, model, dan Node. Setelah itu `cargo tauri build --no-bundle`
-mengompilasi host native. Tahap ini membutuhkan jaringan untuk dependensi Cargo.
-Executable belum menjadi installer mandiri; resource belum dikemas oleh tahap
-`--no-bundle`. Jangan menyalin executable tersebut ke komputer pengguna.
+Next.js standalone, model, dan Node. Setelah itu `cargo tauri build --bundles app,dmg -- --locked`
+di macOS atau `cargo tauri build --bundles nsis -- --locked` di Windows mengompilasi dan mengemas aplikasi.
+Dependensi Cargo harus sudah tersedia atau dapat diunduh.
+Hasil berada di `src-tauri/target/release/bundle/macos/Visitor Counter.app`,
+`bundle/dmg/`, atau `bundle/nsis/`.
+
+Jika release executable dan resource sudah dibangun, jalankan `npm run desktop:package`
+untuk packaging saja. Perintah ini tidak membangun ulang kode; gunakan full build
+setelah perubahan backend/frontend. Installer, signing/notarization distribusi dan
+peluncuran di mesin bersih masih perlu validasi native sebelum rilis produksi.
 Versi aplikasi berasal dari `package.json` melalui `tauri.conf.json`.
 
 ## Lifecycle dan keamanan
 
 1. Host Rust memperoleh kunci sesi dari Keychain macOS atau Credential Manager Windows.
-2. Node menjalankan pengelola layanan yang sama seperti Electron.
+2. Node menjalankan pengelola layanan bersama di `desktop/`.
 3. FastAPI dan Next sehat sebelum jendela utama dibuat.
 4. Gateway hanya bind 127.0.0.1 dan hanya meneruskan ke layanan yang ditentukan.
-5. URL bootstrap sekali pakai membuat cookie HttpOnly/SameSite=Strict. Gateway
-   memeriksa Host, Origin, dan cookie sebelum meneruskan request dengan token lokal.
+5. URL bootstrap sekali pakai membuat cookie HttpOnly/SameSite=Strict dan
+   memuat dokumen lokal sebelum navigasi. Dokumen ini memverifikasi sesi lewat
+   `/__desktop/session-check`, baru membuka workspace. Ini menghindari hilangnya
+   cookie Strict pada redirect lintas origin dari layar startup Tauri. Jika
+   cookie belum tersedia, tampilkan petunjuk pemulihan tanpa membuka workspace.
+   Gateway memeriksa Host, Origin, dan cookie sebelum meneruskan request dengan token lokal.
 6. Stream WHEP/HLS diarahkan melalui gateway; kredensial layanan tidak diberikan
    ke JavaScript. SSE dan data video diteruskan sebagai stream.
 7. Bridge hanya menyediakan penyimpanan sesi dan pemeriksaan kamera; tidak ada
@@ -79,31 +87,37 @@ setelah encryption store dibuat dan tidak diteruskan ke layanan anak.
 
 ## Data dan kompatibilitas
 
-Profil memakai folder Electron yang ada: `~/Library/Application Support/Visitor Counter`
+Profil memakai folder aplikasi yang sudah ada: `~/Library/Application Support/Visitor Counter`
 atau `%APPDATA%/Visitor Counter`. Tidak memindahkan/menghapus database, foto, model,
-atau rekaman. Lock profil dipakai bersama oleh kode Electron dan Tauri terbaru;
-jangan jalankan Electron versi lama secara bersamaan karena belum mengenali lock.
-Sesi login Tauri memakai `tauri-auth-session.enc`; file sesi Electron dipertahankan,
+atau rekaman. Lock profil mencegah dua proses host desktop memakai data yang sama;
+jangan jalankan aplikasi versi lama secara bersamaan.
+Sesi login Tauri memakai `tauri-auth-session.enc`; file sesi versi lama dipertahankan,
 namun tidak dapat langsung didekripsi oleh Tauri. Login sekali setelah beralih.
 Cadangkan folder profil sebelum pengujian terhadap data operasional.
 
 ## Pekerjaan sebelum migrasi rilis dinyatakan selesai
 
-- Kompilasi native dan commit Cargo.lock hasil resolver; build CI selanjutnya
-  wajib menggunakan lock tersebut. Saat ini dependency Rust belum dikunci secara
-  transitif karena Cargo belum tersedia. Jangan menerbitkan build ini.
+- Cargo.lock tersedia dan kompilasi native macOS telah berhasil. Commit lockfile
+  tersebut dan gunakan `--locked` untuk build berikutnya. Distribusi installer
+  tetap memerlukan pengujian native dan penandatanganan sebelum rilis.
 - Verifikasi macOS arm64/x64 dan Windows, startup/shutdown normal dan crash,
   login ulang, profil lama, SSR, API proxy, Server Actions, dan download laporan.
 - Uji WebRTC, WHEP session DELETE, HLS playlist/segmen, SSE, izin Local Network,
   serta codec pada WKWebView dan WebView2. Perbedaan WebView dapat memengaruhi video.
-- WebSocket HMR development belum diteruskan gateway; reload halaman saat diperlukan.
-- Migrasikan automatic updater Electron ke Tauri updater dengan verifikasi tanda
+- Gateway meneruskan WebSocket development Next.js (`/_next/hmr` dan `/_next/webpack-hmr`) hanya untuk sesi desktop yang sah dan origin lokal yang sama. Target selalu server frontend lokal; koneksi ini dinonaktifkan dalam production. Ini juga menjaga kanal debug development agar hydration tidak tertahan. Validasi HMR di WebView native masih perlu dilakukan di macOS/Windows.
+- Implementasikan Tauri updater dengan verifikasi tanda
   tangan, metadata GitHub Releases, aksi manual dan UI progres. Belum tersedia.
 - Siapkan signing semua binary pendamping, notarization macOS dan installer NSIS;
   tidak menonaktifkan pemeriksaan signature untuk melewati kegagalan build.
 - Tambahkan CI native ketiga target dan uji installer/upgrade bersih. Workflow
-  Electron tetap dipertahankan sampai seluruh gerbang ini lulus.
+  validasi native tidak memublikasikan release sampai seluruh gerbang ini lulus.
 
 Referensi: https://v2.tauri.app/start/frontend/nextjs/,
 https://v2.tauri.app/develop/sidecar/,
 https://v2.tauri.app/start/prerequisites/.
+
+### Startup window
+
+The bundled `src-tauri/bootstrap/index.html` opens immediately while local services start on a background thread. Its icon is bundled locally; it makes no network requests. Status messages come from service startup stages over the private host stdout pipe, followed by session restoration and gateway readiness. No fabricated percentage is displayed. The window opens the authenticated local workspace only after health checks pass. Startup failures remain visible with instructions to close and reopen the application. Closing during startup cancels startup and stops managed services. Reduced-motion settings are respected.
+
+Validate with `npm run desktop:test` and `cargo check --manifest-path src-tauri/Cargo.toml --locked --offline`. Native rendering and close-during-startup behavior still require a manual macOS/Windows run.

@@ -5,6 +5,7 @@ import {
   useRef,
   useEffect,
   type ReactNode,
+  type CSSProperties,
   type MouseEvent as ReactMouseEvent,
 } from "react";
 import { MoreHorizontal } from "lucide-react";
@@ -28,6 +29,8 @@ export function RowMenu({
   const [isOpen, setIsOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+  const [position, setPosition] = useState<CSSProperties>({});
 
   useEffect(() => {
     if (!isOpen) return;
@@ -48,11 +51,19 @@ export function RowMenu({
       }
     }
 
+    function closeOnMove(event: Event) {
+      if (event.target instanceof Node && menuRef.current?.contains(event.target)) return;
+      setIsOpen(false);
+    }
+    window.addEventListener("resize", closeOnMove);
+    document.addEventListener("scroll", closeOnMove, true);
     document.addEventListener("mousedown", handleClickOutside);
     document.addEventListener("touchstart", handleClickOutside);
     document.addEventListener("keydown", handleKeyDown);
 
     return () => {
+      window.removeEventListener("resize", closeOnMove);
+      document.removeEventListener("scroll", closeOnMove, true);
       document.removeEventListener("mousedown", handleClickOutside);
       document.removeEventListener("touchstart", handleClickOutside);
       document.removeEventListener("keydown", handleKeyDown);
@@ -66,7 +77,17 @@ export function RowMenu({
     if (!isOpen && triggerRef.current) {
       const rect = triggerRef.current.getBoundingClientRect();
       const spaceBelow = window.innerHeight - rect.bottom;
-      setOpenUpward(spaceBelow < 180);
+      const upward = spaceBelow < 180 && rect.top > spaceBelow;
+      setOpenUpward(upward);
+      setPosition({
+        position: "fixed", width: 150,
+        left: Math.max(8, Math.min(rect.right - 150, window.innerWidth - 158)),
+        top: upward ? undefined : rect.bottom + 4,
+        bottom: upward ? window.innerHeight - rect.top + 4 : undefined,
+        right: "auto", zIndex: 100,
+        maxHeight: Math.max(48, (upward ? rect.top : spaceBelow) - 12),
+        overflowY: "auto",
+      });
     }
     setIsOpen((prev) => !prev);
   };
@@ -89,7 +110,9 @@ export function RowMenu({
         {trigger || <MoreHorizontal size={18} />}
       </button>
 
-      <div
+      {isOpen && <div
+        ref={menuRef}
+        style={position}
         role="menu"
         className={cx(
           "absolute right-0 z-30 w-[150px] rounded-lg border border-line bg-white p-[5px] shadow-[0_4px_16px_#00000014]",
@@ -111,7 +134,7 @@ export function RowMenu({
         <div className="[&>*]:block [&>*]:w-full [&>*]:rounded [&>*]:p-2.5 [&>*]:text-left [&>*]:text-xs [&>*]:font-medium [&>*]:text-neutral-700 [&>*:hover]:bg-[#f0f4f8] [&>*:hover]:text-neutral-900 [&>*.text-red-700]:text-red-600 [&>*.text-red-700:hover]:bg-red-50 [&>*.text-red-700:hover]:text-red-700 transition-colors">
           {children}
         </div>
-      </div>
+      </div>}
     </div>
   );
 }

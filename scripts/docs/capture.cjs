@@ -20,13 +20,12 @@ async function main() {
   const port = await new Promise((resolve, reject) => { const s = net.createServer(); s.once('error', reject); s.listen(0, '127.0.0.1', () => { const p = s.address().port; s.close(() => resolve(p)); }); });
   const origin = `http://127.0.0.1:${port}`;
   const env = { ...process.env, DESKTOP_MODE: 'false', HOSTNAME: '127.0.0.1', PORT: String(port), IS_MAINTENANCE: 'false', IS_MAINTANANCE: 'false', NEXT_PUBLIC_IS_MAINTENANCE: 'false', NEXT_PUBLIC_IS_MAINTANANCE: 'false' };
-  delete env.ELECTRON_RUN_AS_NODE;
   const profile = fs.mkdtempSync(path.join(os.tmpdir(), 'visitor-manual-'));
-  let electron;
+  let renderer;
   const server = spawn(process.execPath, [entry], { cwd: standalone, env, stdio: 'inherit' });
   let serverError;
   server.on('error', error => { serverError = error; });
-  const stop = () => { electron?.kill(); server.kill(); };
+  const stop = () => { renderer?.kill(); server.kill(); };
   process.once('SIGINT', stop); process.once('SIGTERM', stop);
   try {
     let ready = false;
@@ -40,9 +39,9 @@ async function main() {
     // A previous run must never make an interrupted capture appear complete.
     for (const name of ['manifest.json', 'Visitor-Counter-Manual.pdf']) fs.rmSync(path.join(output, name), { force: true });
     await new Promise((resolve, reject) => {
-      electron = spawn(require('electron'), [path.join(__dirname, 'capture-window.cjs'), origin, output, profile], { cwd: root, env, stdio: 'inherit' });
-      electron.once('error', reject);
-      electron.once('exit', code => code === 0 ? resolve() : reject(new Error(`Capture gagal (${code}).`)));
+      renderer = spawn(process.execPath, [path.join(__dirname, 'capture-window.cjs'), origin, output, profile], { cwd: root, env, stdio: 'inherit' });
+      renderer.once('error', reject);
+      renderer.once('exit', code => code === 0 ? resolve() : reject(new Error(`Capture gagal (${code}).`)));
     });
     validatePackage(output);
   } finally {

@@ -1,4 +1,5 @@
 "use client";
+import { useConfirmation } from "../../components/ui/confirmation";
 import { apiErrorMessage } from "../../components/auth/api-error";
 import { visitorFetch, downloadVisitorReport } from "../../components/auth/visitor-api";
 import { Button, ButtonLink, buttonStyles } from "../../components/ui/button";
@@ -136,6 +137,7 @@ export default function EventVisitorPage({
   eventId?: string;
 }) {
   const { can } = useAccess();
+  const { confirm, confirmation } = useConfirmation();
   const [videoOpen, setVideoOpen] = useState(false);
   const [events, setEvents] = useState<VisitorEvent[]>([]);
   const [selectedEventId, setSelectedEventId] = useState(fixedEventId);
@@ -333,7 +335,7 @@ export default function EventVisitorPage({
   async function action(command: "start" | "pause" | "stop" | "restart") {
     if (
       command === "stop" &&
-      !confirm(status?.starting ? "Batalkan persiapan event ini? Pemuatan model yang sedang berlangsung akan diselesaikan sebelum dihentikan." : "Stop monitoring event ini? Sesi aktif akan ditandai selesai.")
+      !await confirm({ title: status?.starting ? "Batalkan persiapan" : "Hentikan monitoring", confirmLabel: "Hentikan", message: status?.starting ? "Batalkan persiapan event ini? Pemuatan model yang sedang berlangsung akan diselesaikan sebelum dihentikan." : "Stop monitoring event ini? Sesi aktif akan ditandai selesai." })
     )
       return;
     setBusy(true);
@@ -1079,6 +1081,7 @@ export default function EventVisitorPage({
           eventId={selectedEventId}
         />
       </div>
+      {confirmation}
     </Page>
   );
 }

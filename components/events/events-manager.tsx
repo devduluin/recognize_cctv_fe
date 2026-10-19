@@ -1,6 +1,8 @@
 "use client";
+import { useConfirmation } from "../ui/confirmation";
 import { visitorFetch } from "../../components/auth/visitor-api";
 import { Button } from "../../components/ui/button";
+import { TimePicker } from "../ui/time-picker";
 import { Field, Input, Select, DateRangePicker } from "../../components/ui/field";
 import { Page, PageHeading, Toolbar } from "../../components/ui/layout";
 import { DataTable, StatusBadge, TableContainer } from "../../components/ui/data-table";
@@ -146,6 +148,7 @@ export default function EventsManager({ editEventId, onClose, onSaved }: {
   onClose?: () => void;
   onSaved?: () => void;
 }) {
+  const { confirm, confirmation } = useConfirmation();
   const [events, setEvents] = useState<VisitorEvent[]>([]);
   const [cameras, setCameras] = useState<CameraOption[]>([]);
   const [loading, setLoading] = useState(true);
@@ -489,7 +492,7 @@ export default function EventsManager({ editEventId, onClose, onSaved }: {
     }
   }
   async function remove(id: string) {
-    if (!confirm("Hapus event ini?")) return;
+    if (!await confirm({ title: "Hapus event", message: "Hapus event ini?", confirmLabel: "Hapus event" })) return;
     try {
       const response = await visitorFetch(
         `${API_BASE}/${encodeURIComponent(id)}?company_id=${encodeURIComponent(companyId())}`,
@@ -840,14 +843,8 @@ export default function EventsManager({ editEventId, onClose, onSaved }: {
                           update("eventEndDate", end);
                         }} />
                       </fieldset>
-                      <Field>
-                        Jam mulai
-                        <Input type="time" required value={form.eventStart} onChange={(e) => update("eventStart", e.target.value)} />
-                      </Field>
-                      <Field>
-                        Jam selesai
-                        <Input type="time" required value={form.eventEnd} onChange={(e) => update("eventEnd", e.target.value)} />
-                      </Field>
+                      <TimePicker label="Jam mulai" required value={form.eventStart} onChange={value => update("eventStart", value)} />
+                      <TimePicker label="Jam selesai" required value={form.eventEnd} onChange={value => update("eventEnd", value)} />
                     </div>
                     <label className="mt-4 flex min-h-11 cursor-pointer items-start gap-3 rounded-lg bg-neutral-50 p-3">
                       <input type="checkbox" className="mt-0.5 size-4 shrink-0 accent-navy" checked={form.autoRun} onChange={(e) => update("autoRun", e.target.checked)} />
@@ -1144,6 +1141,7 @@ export default function EventsManager({ editEventId, onClose, onSaved }: {
           onClose={() => setSummaryEvents(null)}
         />
       )}
+      {confirmation}
     </>
   );
 }

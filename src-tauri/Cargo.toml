@@ -1,5 +1,5 @@
 [package]
-name = "visitor-counter-tauri"
+name = "visitor-counter"
 version = "0.0.0"
 edition = "2021"
 publish = false

@@ -60,10 +60,4 @@ async function restoreSession(store, runtime, request = fetch) {
   return restored;
 }
 
-function trustedSender(event, window, origin) {
-  try {
-    return event.sender === window.webContents && event.senderFrame === window.webContents.mainFrame &&
-      new URL(event.senderFrame.url).origin === origin;
-  } catch { return false; }
-}
-module.exports = { AuthSessionStore, restoreSession, trustedSender, validSession };
+module.exports = { AuthSessionStore, restoreSession, validSession };

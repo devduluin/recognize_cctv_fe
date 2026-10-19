@@ -1,4 +1,4 @@
-name: Desktop native builds
+name: Tauri native validation
 on:
   workflow_dispatch:
     inputs:
@@ -6,202 +6,89 @@ on:
         description: Backend commit SHA (empty uses desktop.config.json)
         required: false
         type: string
-  push:
-    tags: ['desktop-v*']
 permissions:
   contents: read
 concurrency:
-  group: desktop-${{ github.ref }}
+  group: tauri-${{ github.ref }}
   cancel-in-progress: false
 jobs:
-  prepare:
-    runs-on: ubuntu-24.04
-    outputs:
-      backend_ref: ${{ steps.config.outputs.backend_ref }}
-      backend_repo: ${{ steps.config.outputs.backend_repo }}
-      node_version: ${{ steps.config.outputs.node_version }}
-      python_version: ${{ steps.config.outputs.python_version }}
-      version: ${{ steps.config.outputs.version }}
-      release: ${{ steps.config.outputs.release }}
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
-      - id: config
-        env:
-          BACKEND_REF_INPUT: ${{ inputs.backend_ref }}
-        run: |
-          python3 - <<'PY'
-          import json, os, re
-          from pathlib import Path
-          config = json.loads(Path('desktop.config.json').read_text())
-          version = json.loads(Path('package.json').read_text())['version']
-          assert re.fullmatch(r'\d+\.\d+\.\d+', version), 'Invalid semantic version'
-          ref = os.environ.get('BACKEND_REF_INPUT') or config['backendRef']
-          assert re.fullmatch(r'[0-9a-f]{40}', ref), 'Backend reference must be an immutable commit SHA'
-          release = os.environ['GITHUB_REF'].startswith('refs/tags/desktop-v')
-          if release:
-              assert os.environ['GITHUB_REF_NAME'] == 'desktop-v' + version, 'Tag/version mismatch'
-              assert Path('docs/releases/' + version + '.md').is_file(), 'Missing release notes'
-          with open(os.environ['GITHUB_OUTPUT'], 'a') as output:
-              for key, value in {'backend_ref': ref, 'backend_repo': config['backendRepository'], 'node_version': config['nodeVersion'], 'python_version': config['pythonVersion'], 'version': version, 'release': str(release).lower()}.items():
-                  output.write(f'{key}={value}\n')
-          PY
   build:
-    needs: prepare
     strategy:
       fail-fast: false
       matrix:
         include:
-          - {os: windows-2025, platform: win32, arch: x64}
-          - {os: macos-15, platform: darwin, arch: arm64}
-          - {os: macos-15-intel, platform: darwin, arch: x64}
-          - {os: ubuntu-24.04, platform: linux, arch: x64}
+          - {os: windows-2025, arch: x64}
+          - {os: macos-15, arch: arm64}
+          - {os: macos-15-intel, arch: x64}
     runs-on: ${{ matrix.os }}
     timeout-minutes: 120
-    environment: ${{ needs.prepare.outputs.release == 'true' && 'desktop-production' || 'desktop-development' }}
     defaults:
       run:
         shell: bash
-    env:
-      DESKTOP_RELEASE: ${{ needs.prepare.outputs.release }}
-      NEXT_TELEMETRY_DISABLED: '1'
+        working-directory: frontend
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           path: frontend
+          persist-credentials: false
+      - id: config
+        name: Read pinned configuration
+        env:
+          BACKEND_REF_INPUT: ${{ inputs.backend_ref }}
+        run: |
+          node - <<'JS'
+          const fs = require('node:fs');
+          const config = require('./desktop.config.json');
+          const ref = process.env.BACKEND_REF_INPUT || config.backendRef;
+          if (!/^[0-9a-f]{40}$/.test(ref)) throw new Error('Full backend commit SHA required');
+          fs.appendFileSync(process.env.GITHUB_OUTPUT, `backend_repo=${config.backendRepository}\nbackend_ref=${ref}\nnode=${config.nodeVersion}\npython=${config.pythonVersion}\n`);
+          JS
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
-          repository: ${{ needs.prepare.outputs.backend_repo }}
-          ref: ${{ needs.prepare.outputs.backend_ref }}
+          repository: ${{ steps.config.outputs.backend_repo }}
+          ref: ${{ steps.config.outputs.backend_ref }}
           path: recognize_cctv
           token: ${{ secrets.DESKTOP_SOURCE_TOKEN || github.token }}
+          persist-credentials: false
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
         with:
-          node-version: ${{ needs.prepare.outputs.node_version }}
+          node-version: ${{ steps.config.outputs.node }}
           architecture: ${{ matrix.arch }}
           cache: npm
           cache-dependency-path: frontend/package-lock.json
       - uses: actions/setup-python@v7
         with:
-          python-version: ${{ needs.prepare.outputs.python_version }}
+          python-version: ${{ steps.config.outputs.python }}
           architecture: ${{ matrix.arch }}
-      - uses: actions/cache@v4
-        with:
-          path: |
-            ~/.cache/uv
-            frontend/desktop-cache
-          key: desktop-${{ matrix.platform }}-${{ matrix.arch }}-${{ hashFiles('recognize_cctv/desktop/uv.lock', 'frontend/desktop-assets.lock.json') }}
-      - name: Verify source and prepare locked Python
+      - name: Install locked frontend dependencies
+        run: npm ci
+      - name: Prepare locked Python environment
         working-directory: recognize_cctv
         run: |
-          test -f desktop_backend.py
           python -m pip install uv==0.9.5
           uv sync --project desktop --locked
-          python - <<'PY'
-          import os, pathlib, platform
-          root = pathlib.Path.cwd()
-          executable = root / ('desktop/.venv/Scripts/python.exe' if os.name == 'nt' else 'desktop/.venv/bin/python')
-          with open(os.environ['GITHUB_ENV'], 'a') as output:
-              output.write(f'DESKTOP_PYTHON={executable}\nDESKTOP_BACKEND_ROOT={root}\n')
-          PY
-      - name: Install locked frontend dependencies
-        working-directory: frontend
-        run: npm ci
-      - name: Validate backend
-        working-directory: recognize_cctv
-        env:
-          DB_TYPE: postgresql
-          DB_HOST: 127.0.0.1
-          DB_PORT: '5432'
-          DB_USERNAME: visitor
-          DB_NAME: visitor_test
-          IS_PRODUCTION: 'false'
-        run: '"$DESKTOP_PYTHON" -m pytest -q tests'
-      - name: Validate frontend and lifecycle
-        working-directory: frontend
+      - name: Install Rust CLI
         run: |
-          npm run lint
+          rustup update stable
+          rustup default stable
+          cargo install tauri-cli --version '^2' --locked
+      - name: Validate web and desktop host
+        run: |
           npm test
-          npm run typecheck
           npm run desktop:test
-      - name: Build native runtimes and standalone frontend
-        working-directory: frontend
-        run: npm run desktop:build
-      - name: Prepare signing credentials for official release
-        if: needs.prepare.outputs.release == 'true' && runner.os != 'Linux'
-        working-directory: frontend
-        env:
-          CSC_LINK: ${{ runner.os == 'Windows' && secrets.WINDOWS_CSC_LINK || secrets.MACOS_CSC_LINK }}
-          CSC_KEY_PASSWORD: ${{ runner.os == 'Windows' && secrets.WINDOWS_CSC_KEY_PASSWORD || secrets.MACOS_CSC_KEY_PASSWORD }}
-          APPLE_ID: ${{ secrets.APPLE_ID }}
-          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
-          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          npm run docs:check
+      - name: Build local resources
+        run: npm run desktop:resources
+      - name: Resolve initial native lockfile
         run: |
-          test -n "$CSC_LINK"
-          test -n "$CSC_KEY_PASSWORD"
-          if [[ "$RUNNER_OS" == macOS ]]; then
-            test -n "$APPLE_ID"
-            test -n "$APPLE_APP_SPECIFIC_PASSWORD"
-            test -n "$APPLE_TEAM_ID"
+          if [ ! -f src-tauri/Cargo.lock ]; then
+            echo 'Initial development lockfile: review and commit before enabling releases.'
+            cargo generate-lockfile --manifest-path src-tauri/Cargo.toml
           fi
-      - name: Package installer and updater metadata
-        working-directory: frontend
-        env:
-          CSC_LINK: ${{ runner.os == 'Windows' && secrets.WINDOWS_CSC_LINK || secrets.MACOS_CSC_LINK }}
-          CSC_KEY_PASSWORD: ${{ runner.os == 'Windows' && secrets.WINDOWS_CSC_KEY_PASSWORD || secrets.MACOS_CSC_KEY_PASSWORD }}
-          APPLE_ID: ${{ secrets.APPLE_ID }}
-          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
-          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-        run: npm run desktop:package -- --${{ matrix.platform == 'win32' && 'win' || matrix.platform == 'darwin' && 'mac' || 'linux' }} --${{ matrix.arch }}
-      - name: Launch packaged desktop twice and verify persistent local state
-        working-directory: frontend
-        run: |
-          if [[ "$RUNNER_OS" == Linux ]]; then
-            xvfb-run -a node scripts/desktop/packaged-smoke.cjs
-          else
-            node scripts/desktop/packaged-smoke.cjs
-          fi
-      - name: Verify macOS production signature and notarization
-        if: runner.os == 'macOS' && needs.prepare.outputs.release == 'true'
-        working-directory: frontend
-        run: |
-          codesign --verify --deep --strict --verbose=2 "dist-desktop/mac${{ matrix.arch == 'arm64' && '-arm64' || '' }}/Visitor Counter.app"
-          spctl --assess --type execute --verbose=2 "dist-desktop/mac${{ matrix.arch == 'arm64' && '-arm64' || '' }}/Visitor Counter.app"
-      - uses: actions/upload-artifact@v7
+      - name: Validate native host (no installer or release publication)
+        run: cargo tauri build --no-bundle -- --locked
+      - uses: actions/upload-artifact@v4
         with:
-          name: desktop-${{ matrix.platform }}-${{ matrix.arch }}
-          path: |
-            frontend/dist-desktop/*.exe
-            frontend/dist-desktop/*.dmg
-            frontend/dist-desktop/*.zip
-            frontend/dist-desktop/*.AppImage
-            frontend/dist-desktop/*.deb
-            frontend/dist-desktop/*.blockmap
-            frontend/dist-desktop/latest*.yml
+          name: tauri-native-validation-${{ matrix.os }}-${{ matrix.arch }}
+          path: frontend/src-tauri/Cargo.lock
           if-no-files-found: error
-  release:
-    needs: [prepare, build]
-    if: needs.prepare.outputs.release == 'true'
-    runs-on: ubuntu-24.04
-    environment: desktop-production
-    permissions:
-      contents: write
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
-      - uses: actions/download-artifact@v7
-        with:
-          pattern: desktop-*
-          path: artifacts
-      - name: Verify and assemble release
-        run: |
-          python3 -m pip install PyYAML==6.0.3
-          python3 scripts/desktop/release.py artifacts release-assets
-      - name: Publish verified assets to GitHub Releases
-        env:
-          GH_TOKEN: ${{ secrets.DESKTOP_RELEASE_TOKEN || github.token }}
-          APP_VERSION: ${{ needs.prepare.outputs.version }}
-        run: |
-          release_repo=$(python3 -c 'import json; c=json.load(open("desktop.config.json")); print(c["releaseOwner"]+"/"+c["releaseRepository"])')
-          test "$(gh api "repos/$release_repo" --jq '.private')" = false
-          gh release create "v$APP_VERSION" --repo "$release_repo" --draft --title "Visitor Counter $APP_VERSION" --notes-file "docs/releases/$APP_VERSION.md" release-assets/*
-          gh release view "v$APP_VERSION" --repo "$release_repo" --json assets --jq '.assets[].name'
-          gh release edit "v$APP_VERSION" --repo "$release_repo" --draft=false

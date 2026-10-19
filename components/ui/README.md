@@ -8,6 +8,7 @@ Komponen di folder ini memakai utility Tailwind v4. Warna bersama (`navy`, `acce
 | `Panel`, `InfoRow`, `Tabs` | Bagian pengaturan, rincian label/nilai, dan navigasi tab |
 | `Button`, `ButtonLink` | Aksi native button dan navigasi Next Link dengan tampilan sama |
 | `Field`, `Input`, `Select`, `Switch` | Form dengan label, kontrol, dan state native |
+| `TimePicker` | Pilihan jam 00–23 dan menit 00–59; nilai lengkap berformat `HH:mm`, mendukung validasi wajib dan disabled |
 | `StatCard` | Metrik berikon, label, dan nilai |
 | `TableContainer`, `DataTable`, `StatusBadge` | Tabel yang dapat digulir horizontal dan status baris |
 | `ScrollArea` | Scroll lokal dengan dukungan keyboard; wajib beri `aria-label` atau `aria-labelledby` |

@@ -1,4 +1,5 @@
 "use client";
+import { useConfirmation } from "../../components/ui/confirmation";
 import { visitorFetch } from "../../components/auth/visitor-api";
 import { Button } from "../../components/ui/button";
 import { toast } from "../../components/ui/toast";
@@ -27,6 +28,7 @@ type CCTVCamera = {
 };
 const API_BASE = `${process.env.NEXT_PUBLIC_SERVICE_RECOGNIZE_CCTV || ""}/api/v1/cctv`;
 export default function KameraPage() {
+  const { confirm, confirmation } = useConfirmation();
   const [cameras, setCameras] = useState<CCTVCamera[]>([]);
   const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState("");
@@ -136,7 +138,7 @@ export default function KameraPage() {
     }
   }
   async function remove(id: string) {
-    if (!confirm("Hapus kamera ini?")) return;
+    if (!await confirm({ title: "Hapus kamera", message: "Hapus kamera ini?", confirmLabel: "Hapus kamera" })) return;
     try {
       const response = await visitorFetch(
         `${API_BASE}/cameras/${encodeURIComponent(companyId)}/${encodeURIComponent(id)}`,
@@ -543,6 +545,7 @@ export default function KameraPage() {
           </footer>
         </Modal>
       )}
+      {confirmation}
     </Page>
   );
 }

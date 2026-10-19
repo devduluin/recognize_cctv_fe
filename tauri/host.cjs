@@ -1,9 +1,9 @@
 'use strict';
 const fs = require('node:fs');
 const path = require('node:path');
-const { DesktopRuntime } = require('../electron/runtime.cjs');
-const { AuthSessionStore, restoreSession } = require('../electron/auth-session.cjs');
-const { checkCameraNetwork } = require('../electron/camera-network.cjs');
+const { DesktopRuntime } = require('../desktop/runtime.cjs');
+const { AuthSessionStore, restoreSession } = require('../desktop/auth-session.cjs');
+const { checkCameraNetwork } = require('../desktop/camera-network.cjs');
 const { createGateway, sessionEncryption } = require('./gateway.cjs');
 const { resolveBackendPython } = require('../scripts/desktop/python-path.cjs');
 
@@ -21,6 +21,8 @@ async function main() {
   store.file = path.join(runtime.paths.data, 'tauri-auth-session.enc');
   delete process.env.VISITOR_TAURI_KEY;
   let gateway, closing = false;
+  const stage = value => process.stdout.write(JSON.stringify({ stage: value }) + '\n');
+  runtime.on('startup-stage', stage);
   const startup = runtime.start();
   async function stop(code) {
     if (closing) return;
@@ -41,7 +43,9 @@ async function main() {
   try {
     await startup;
     if (closing) return;
+    stage('session');
     await restoreSession(store, runtime);
+    stage('interface');
     gateway = await createGateway({ runtime, authStore: store,
       checkCamera: (source, session) => checkCameraNetwork(source, { runtime, token: session?.token }) });
     if (closing) { await gateway.close(); return; }
