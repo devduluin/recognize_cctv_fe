@@ -195,3 +195,10 @@ File video dan indeks wajah serta akun/permission tetap di luar sync operasional
 
 Panduan lengkap penggunaan aplikasi: [Manual Visitor Counter](docs/manual/README.md).
 Untuk menghasilkan HTML, PDF, dan screenshot UI dengan data contoh, lihat [petunjuk dokumentasi](docs/manual/capture.md) atau jalankan workflow **Application Manual**.
+
+## Tauri migration trial
+
+An additional Tauri 2 launcher preserves the bundled Next.js server, FastAPI, and media services.
+See [setup, verification status, and release blockers](tauri/README.md).
+Use `npm run tauri:dev` after installing Rust/Tauri prerequisites.
+The Electron release path remains available until native builds, video, signing, and updater validation are complete.

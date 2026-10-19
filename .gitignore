@@ -49,3 +49,6 @@ next-env.d.ts
 # generated documentation packages
 /artifacts/manual/
 /public/manual/screenshots/
+
+# Native Tauri build output
+/src-tauri/target/

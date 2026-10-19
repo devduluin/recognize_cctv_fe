@@ -4,6 +4,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const net = require('node:net');
 const { EventEmitter } = require('node:events');
+const { acquireProfile } = require('./profile-lock.cjs');
 
 function freePort() {
   return new Promise((resolve, reject) => {
@@ -94,6 +95,7 @@ class DesktopRuntime extends EventEmitter {
   }
 
   startChild(name, executable, args, cwd, env, { managedStartup = false } = {}) {
+    if (this.stopping) throw new Error('Application is shutting down.');
     if (!executable || !fs.existsSync(executable)) throw new Error(`Missing bundled ${name} executable.`);
     const log = fs.openSync(path.join(this.paths.logs, `${name}.log`), 'a');
     const child = spawn(executable, args, { cwd, env: { ...scrubbedEnvironment(), ...env }, windowsHide: true, stdio: ['pipe', log, log], detached: process.platform !== 'win32' });
@@ -106,6 +108,7 @@ class DesktopRuntime extends EventEmitter {
   }
 
   async start() {
+    this.releaseProfile = acquireProfile(this.paths.data);
     const frontendPort = await freePort();
     let backendPort = await freePort();
     while (backendPort === frontendPort) backendPort = await freePort();
@@ -175,6 +178,7 @@ class DesktopRuntime extends EventEmitter {
     const media = this.startChild('mediamtx', path.join(this.resources, 'media', process.platform === 'win32' ? 'mediamtx.exe' : 'mediamtx'), [config], this.paths.data, {}, { managedStartup: true });
     const deadline = Date.now() + 30000;
     while (Date.now() < deadline) {
+      if (this.stopping) throw new Error('Application is shutting down.');
       if (media.desktopStartError) throw new Error('MediaMTX executable could not start.');
       if (media.exitCode !== null || media.signalCode) {
         const recentLog = fs.existsSync(logFile) ? fs.readFileSync(logFile).subarray(logOffset).toString() : '';
@@ -214,6 +218,7 @@ class DesktopRuntime extends EventEmitter {
           await Promise.race([new Promise(resolve => child.once('exit', resolve)), new Promise(resolve => setTimeout(resolve, 1500))]);
         }
       }
+      this.releaseProfile?.();
     })();
     return this.stopPromise;
   }

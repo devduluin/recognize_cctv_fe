@@ -1,0 +1,20 @@
+[package]
+name = "visitor-counter-tauri"
+version = "0.0.0"
+edition = "2021"
+publish = false
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+tauri-plugin-single-instance = "2"
+serde_json = "1"
+rand = "0.8"
+
+[target.'cfg(target_os = "macos")'.dependencies]
+keyring = { version = "3.6", features = ["apple-native"] }
+
+[target.'cfg(target_os = "windows")'.dependencies]
+keyring = { version = "3.6", features = ["windows-native"] }
