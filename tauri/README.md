@@ -162,3 +162,21 @@ Latest measured optimized APP: **2.71 GiB**, down from 2.94 GiB after symlink
 repair (about 232 MiB additional reduction). Seven sample videos became smaller;
 the 4K sample kept its original because re-encoding was larger. All eight videos
 retained their original dimensions, frame rate, frame count and duration.
+
+### Inference-only dependency audit
+
+The backend packaging policy now excludes the Python Polars runtime and its
+platform variants, which are only reached through optional Ultralytics dataframe,
+training and benchmark helpers. Application report exporters and detection boxes
+do not call these helpers. Core TensorFlow/PyTorch/ONNX runtimes, accelerator
+libraries and model tiers are retained. See the backend `desktop/PACKAGING.md`.
+
+A full backend + Next.js rebuild and APP bundling measured **2.56 GiB**, down from
+2.71 GiB. Packaged synthetic person/face, Re-ID, FaceNet and gender inference smoke
+tests passed, along with nine backend policy/lifecycle tests and 49 desktop tests
+(one additional localhost test skipped by sandbox). These checks do not establish
+Windows GPU support, field accuracy or distribution signing/notarization.
+
+For CI, commit the backend packaging changes and update the pinned backend commit
+in `desktop.config.json` when preparing a release. Local builds use the sibling
+backend source automatically.

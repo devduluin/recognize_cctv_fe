@@ -29,7 +29,7 @@ import { toast } from "../../components/ui/toast";
 import Modal from "../../components/ui-modal";
 import HourlyVisitorStatistics from "../../components/hourly-visitor-statistics";
 import { getAuthHeaders, getAuthToken } from "../../components/auth/auth-api";
-import WebRTCPlayer, { DetectionBox, StreamMode } from "../../components/camera/webrtc-player";
+import WebRTCPlayer, { DetectionBox } from "../../components/camera/webrtc-player";
 const API_BASE = `${process.env.NEXT_PUBLIC_SERVICE_RECOGNIZE_CCTV || ""}/api/v1/event_visitor`;
 const EVENTS_API = `${process.env.NEXT_PUBLIC_SERVICE_RECOGNIZE_CCTV || ""}/api/v1/events`;
 type VisitorEvent = {
@@ -151,7 +151,7 @@ export default function EventVisitorPage({
   const [connectionError, setConnectionError] = useState("");
   const [actionError, setActionError] = useState("");
   const [streamErrors, setStreamErrors] = useState<Record<string, boolean>>({});
-  const [cameraModes, setCameraModes] = useState<Record<string, StreamMode>>({});
+  const [cameraStreamKeys, setCameraStreamKeys] = useState<Record<string, number>>({});
   const [cameraAiDetection, setCameraAiDetection] = useState<Record<string, boolean>>({});
   const [detectionSnapshot, setDetectionSnapshot] = useState<{ eventId: string; cameras: Record<string, DetectionBox[]> } | null>(null);
   const cameraDetections = status?.running && detectionSnapshot?.eventId === selectedEventId ? detectionSnapshot.cameras : {};
@@ -703,7 +703,7 @@ export default function EventVisitorPage({
                           onClick={(e) => {
                             e.stopPropagation();
                             setStreamErrors((prev) => ({ ...prev, [camId]: false }));
-                            setStreamKey((k) => k + 1);
+                            setCameraStreamKeys((previous) => ({ ...previous, [camId]: (previous[camId] || 0) + 1 }));
                           }}
                         >
                           <RefreshCw size={13} />
@@ -735,21 +735,18 @@ export default function EventVisitorPage({
                     <div className="relative aspect-video w-full overflow-hidden bg-black grid place-items-center">
                       {isRunning && !connectionError && !hasError ? (
                         <WebRTCPlayer
-                          key={`${streamKey}-${camId}`}
+                          key={`${streamKey}-${camId}-${cameraStreamKeys[camId] || 0}`}
                           whepUrl={camera.stream_urls?.webrtc_whep}
                           webrtcPlayerUrl={camera.stream_urls?.webrtc_player}
                           hlsUrl={camera.stream_urls?.hls}
                           fallbackStreamUrl={streamUrl}
-                          preferredMode={cameraModes[camId] || "webrtc"}
+                          preferredMode="webrtc"
                           detections={cameraDetections[camId] || camera.detections || []}
                           showDetections={cameraAiDetection[camId] ?? true}
                           onToggleDetections={(enabled) => {
                             setCameraAiDetection((prev) => ({ ...prev, [camId]: enabled }));
                           }}
                           hideInternalSwitcher
-                          onModeChange={(m) => {
-                            setCameraModes((prev) => ({ ...prev, [camId]: m }));
-                          }}
                           cameraName={camera.name}
                           className="size-full"
                           lineConfig={{
@@ -790,7 +787,7 @@ export default function EventVisitorPage({
                               className="mt-2.5 h-7! w-auto! border-white/20 px-2.5! text-xs! text-white hover:bg-white/10"
                               onClick={() => {
                                 setStreamErrors((prev) => ({ ...prev, [camId]: false }));
-                                setStreamKey((k) => k + 1);
+                                setCameraStreamKeys((previous) => ({ ...previous, [camId]: (previous[camId] || 0) + 1 }));
                               }}
                             >
                               <RefreshCw size={12} className="mr-1" />
