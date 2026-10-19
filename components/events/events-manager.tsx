@@ -36,6 +36,8 @@ import { toast } from "../ui/toast";
 const API_BASE = `${process.env.NEXT_PUBLIC_SERVICE_RECOGNIZE_CCTV || ""}/api/v1/events`;
 
 type CameraSetting = {
+  countingMode?: "line" | "zone";
+  occupancyZone?: [number, number, number, number];
   countingDirection: "auto" | "in" | "out";
   linePosition: number;
   lineOrientation: string;
@@ -47,6 +49,8 @@ type CameraSetting = {
 };
 
 type CameraDbSetting = {
+  counting_mode?: "line" | "zone";
+  occupancy_zone?: [number, number, number, number];
   counting_direction?: "auto" | "in" | "out" | null;
   line_position?: number | null;
   line_orientation?: string | null;
@@ -89,11 +93,12 @@ type CameraOption = {
   camera_source?: string;
 };
 const ADVANCED_DEFAULTS = {
-  detect_width: "640", detect_every_n_frames: "3", person_confidence: "0.45",
+  detect_width: "640", detect_every_n_frames: "1", target_ai_fps: "15", person_confidence: "0.45",
   face_similarity: "0.70", gender_confidence: "0.80", gender_retry_seconds: "2",
 };
 const ADVANCED_FIELDS: { key: keyof typeof ADVANCED_DEFAULTS; label: string; min: number; max: number; step: number; hint: string }[] = [
   { key: "detect_width", label: "Detail gambar untuk mengenali orang", min: 320, max: 1280, step: 1, hint: "Pilih lebih detail jika orang terlihat kecil atau jauh. Pilihan ini menambah beban komputer." },
+  { key: "target_ai_fps", label: "Target pemeriksaan AI per detik", min: 1, max: 20, step: 1, hint: "Target penjadwalan, bukan jaminan FPS. Kecepatan sebenarnya bergantung pada perangkat dan jumlah kamera." },
   { key: "detect_every_n_frames", label: "Seberapa sering orang diperiksa", min: 1, max: 15, step: 1, hint: "Pemeriksaan lebih sering membantu saat orang berjalan cepat, tetapi menambah beban komputer." },
   { key: "person_confidence", label: "Ketelitian mendeteksi orang", min: 0.1, max: 0.95, step: 0.01, hint: "Nilai kecil membantu menangkap orang yang kurang jelas. Nilai besar mengurangi benda yang keliru dianggap orang." },
   { key: "face_similarity", label: "Ketelitian mengenali orang yang sama", min: 0.5, max: 0.95, step: 0.01, hint: "Skor minimum yang lebih tinggi mengurangi risiko dua orang berbeda dianggap sama, tetapi orang yang sama bisa dikenali sebagai pengunjung baru." },
@@ -102,7 +107,8 @@ const ADVANCED_FIELDS: { key: keyof typeof ADVANCED_DEFAULTS; label: string; min
 ];
 const ADVANCED_OPTIONS: Record<keyof typeof ADVANCED_DEFAULTS, { value: string; label: string }[]> = {
   detect_width: [{ value: "320", label: "320 piksel" }, { value: "640", label: "640 piksel (disarankan)" }, { value: "960", label: "960 piksel" }, { value: "1280", label: "1280 piksel" }],
-  detect_every_n_frames: [{ value: "1", label: "Setiap gambar" }, { value: "3", label: "Setiap 3 gambar (disarankan)" }, { value: "6", label: "Setiap 6 gambar" }],
+  target_ai_fps: [{ value: "8", label: "8 pemeriksaan/detik" }, { value: "15", label: "15 pemeriksaan/detik (disarankan)" }, { value: "20", label: "20 pemeriksaan/detik" }],
+  detect_every_n_frames: [{ value: "1", label: "Setiap gambar (disarankan)" }, { value: "3", label: "Setiap 3 gambar" }, { value: "6", label: "Setiap 6 gambar" }],
   person_confidence: [{ value: "0.35", label: "Keyakinan minimal 35%" }, { value: "0.45", label: "Keyakinan minimal 45% (disarankan)" }, { value: "0.60", label: "Keyakinan minimal 60%" }],
   face_similarity: [{ value: "0.60", label: "Skor wajah minimal 60 dari 100" }, { value: "0.70", label: "Skor wajah minimal 70 (disarankan)" }, { value: "0.80", label: "Skor wajah minimal 80 dari 100" }],
   gender_confidence: [{ value: "0.70", label: "Keyakinan minimal 70%" }, { value: "0.80", label: "Keyakinan minimal 80% (disarankan)" }, { value: "0.90", label: "Keyakinan minimal 90%" }],
@@ -306,6 +312,8 @@ export default function EventsManager({ editEventId, onClose, onSaved }: {
       if (event.camera_settings) {
         for (const [id, cfg] of Object.entries(event.camera_settings)) {
           settings[id] = {
+            countingMode: cfg.counting_mode || "line",
+            occupancyZone: cfg.occupancy_zone || [0.1, 0.1, 0.9, 0.9],
             countingDirection: cfg.counting_direction || "auto",
             linePosition: cfg.line_position ? Math.round(cfg.line_position * 100) : 50,
             lineOrientation: cfg.line_orientation || "horizontal",
@@ -419,6 +427,8 @@ export default function EventsManager({ editEventId, onClose, onSaved }: {
             line_angle: cfg.lineAngle,
             reverse_direction: cfg.reverseDirection,
             mirror: cfg.mirror || false,
+            counting_mode: cfg.countingMode || "line",
+            occupancy_zone: cfg.occupancyZone || [0.1, 0.1, 0.9, 0.9],
             two_line_counting: cfg.twoLineCounting ?? true,
             zone_width_ratio: cfg.zoneWidthRatio ?? 0.20,
           };
@@ -882,6 +892,7 @@ export default function EventsManager({ editEventId, onClose, onSaved }: {
                         </Field>)}
                       </div>
                       <div className="mt-4 flex flex-wrap gap-2">
+                        <Button type="button" variant="outline" onClick={() => update("advancedSettings", { ...form.advancedSettings, detect_every_n_frames: "1", target_ai_fps: "20", detect_width: "640" })}>Preset gerbang ramai</Button>
                         <Button type="button" variant="outline" onClick={() => { update("advancedSettings", { ...ADVANCED_DEFAULTS }); setManualAdvanced(false); }}>Restore Default</Button>
                         <Button type="button" onClick={() => setManualAdvanced((previous) => !previous)}>{manualAdvanced ? "Gunakan Pilihan Sederhana" : "Atur Angka Secara Manual"}</Button>
                       </div>
@@ -936,6 +947,8 @@ export default function EventsManager({ editEventId, onClose, onSaved }: {
                         const source = camera.rtsp_url || camera.camera_source || "";
                         const camSetting = form.cameraSettings[cameraId];
                         const cfg = {
+                          countingMode: camSetting?.countingMode ?? "line",
+                          occupancyZone: camSetting?.occupancyZone ?? [0.1, 0.1, 0.9, 0.9] as [number, number, number, number],
                           linePosition: camSetting?.linePosition ?? 50,
                           lineOrientation: camSetting?.lineOrientation ?? "horizontal",
                           lineAngle: camSetting?.lineAngle ?? 0,
@@ -964,11 +977,32 @@ export default function EventsManager({ editEventId, onClose, onSaved }: {
                             <summary className="flex min-h-14 cursor-pointer list-none items-center gap-3 rounded-xl px-4 py-4 [&::-webkit-details-marker]:hidden">
                               <Camera size={18} className="shrink-0 text-neutral-600" aria-hidden="true" />
                               <span className="min-w-0 flex-1 break-words font-semibold text-neutral-800">{camera.name}</span>
-                              <span className="rounded bg-[#f0f4f8] px-2 py-1 text-xs font-medium text-navy">{cfg.countingDirection === "in" ? "Masuk" : cfg.countingDirection === "out" ? "Keluar" : "Otomatis"}</span>
+                              <span className="rounded bg-[#f0f4f8] px-2 py-1 text-xs font-medium text-navy">{cfg.countingMode === "zone" ? "Okupansi zona" : cfg.countingDirection === "in" ? "Masuk" : cfg.countingDirection === "out" ? "Keluar" : "Otomatis"}</span>
                               <ChevronDown size={18} className="shrink-0 text-neutral-600 transition-transform group-open:rotate-180" aria-hidden="true" />
                             </summary>
                             <div className="grid min-w-0 items-start gap-6 border-t border-neutral-200 p-4 min-[800px]:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
                             <div className="min-w-0 space-y-4">
+                              <Field>
+                                Metode pengukuran
+                                <Select value={cfg.countingMode} onChange={e => updateCam("countingMode", e.target.value as "line" | "zone")}>
+                                  <option value="line">Akumulasi masuk/keluar lewat garis</option>
+                                  <option value="zone">Orang terlihat di zona saat ini</option>
+                                </Select>
+                                <span className="text-xs text-neutral-600">Mode zona tidak menambah total masuk/keluar dan tidak memerlukan identitas atau gender.</span>
+                              </Field>
+                              {cfg.countingMode === "zone" && <div className="grid grid-cols-2 gap-3">
+                                {(["Kiri", "Atas", "Kanan", "Bawah"] as const).map((label, coordinate) => <Field key={label}>
+                                  {label} zona (%)
+                                  <Input type="number" min={0} max={100} step={1} value={Math.round(cfg.occupancyZone[coordinate] * 100)} onChange={e => {
+                                    const number = e.target.valueAsNumber;
+                                    if (!Number.isFinite(number)) return;
+                                    const zone = [...cfg.occupancyZone] as [number, number, number, number];
+                                    zone[coordinate] = Math.max(0, Math.min(100, number)) / 100;
+                                    if (zone[2] - zone[0] >= 0.02 && zone[3] - zone[1] >= 0.02) updateCam("occupancyZone", zone);
+                                  }} />
+                                </Field>)}
+                              </div>}
+                              <fieldset disabled={cfg.countingMode === "zone"} className={cfg.countingMode === "zone" ? "space-y-4 opacity-50" : "space-y-4"}>
                               <Field>
                                 Peran kamera
                                 <Select
@@ -1045,6 +1079,9 @@ export default function EventsManager({ editEventId, onClose, onSaved }: {
                                   />
                                   Balik arah perlintasan
                                 </label>
+
+                              </div>
+                              </fieldset>
                                 <label className="flex min-h-11 cursor-pointer items-center gap-3 text-sm text-neutral-700">
                                   <input
                                     type="checkbox"
@@ -1054,13 +1091,14 @@ export default function EventsManager({ editEventId, onClose, onSaved }: {
                                   />
                                   Mirror kamera (balik horizontal)
                                 </label>
-                              </div>
                             </div>
                             <div className="min-w-0">
-                              <p className="mb-2 text-sm font-medium text-neutral-700">Preview garis</p>
+                              <p className="mb-2 text-sm font-medium text-neutral-700">{cfg.countingMode === "zone" ? "Preview zona" : "Preview garis"}</p>
                               <CameraTestPreview
                                 compact
                                 source={source}
+                                countingMode={cfg.countingMode}
+                                occupancyZone={cfg.occupancyZone}
                                 position={cfg.linePosition}
                                 orientation={cfg.lineOrientation}
                                 angle={cfg.lineAngle}

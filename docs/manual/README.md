@@ -136,6 +136,14 @@ Mulai dengan nilai bawaan. Detail gambar, interval pemrosesan frame, dan ambang 
 
 Jika kamera terputus, periksa jaringan dan sumber kamera. Tunggu proses sambung ulang; jika masih tersangkut, pilih **Restart kamera** pada kontrol sesi. Aksi ini menghentikan koneksi lama dan memulai ulang seluruh kamera event di latar belakang, sambil melanjutkan sesi yang sama dan mempertahankan data hitungan. Pemantauan terjeda selama restart. Tombol tersedia bagi akun dengan izin kontrol monitoring. Jika restart gagal, periksa pesan status sebelum mencoba lagi; jangan memakai Reset Event karena tindakan itu menghapus data event.
 
+### Mengukur orang di zona
+
+Edit Event, buka pengaturan kamera, lalu pilih **Metode pengukuran → Orang terlihat di zona saat ini**. Atur batas kiri, atas, kanan, dan bawah dalam persen sambil memeriksa preview. Pada mode ini, orang dihitung berdasarkan titik tengah tubuh yang terlihat di dalam area, tanpa syarat garis, identitas, atau gender. Total masuk/keluar tidak ditambah oleh kamera zona.
+
+Panel **Okupansi zona saat ini** menampilkan jumlah per kamera. Angka ini dapat naik atau turun dan bukan total tiket maupun pengunjung unik. Kamera berbeda tidak dijumlahkan karena pandangannya dapat tumpang tindih. Jika data belum tersedia atau frame terlalu lama, aplikasi menampilkan status tidak tersedia, bukan angka nol.
+
+**AI FPS** menunjukkan jumlah pemeriksaan AI yang selesai, berbeda dari kelancaran video. Di Pengaturan Lanjutan tersedia **Preset gerbang ramai** untuk setiap gambar dan target 20 pemeriksaan/detik. Target tidak menjamin perangkat mampu mencapainya. Mode zona tetap dapat melewatkan orang yang tertutup penuh, terlalu kecil, atau blur; uji terhadap hitungan manual sebelum digunakan operasional.
+
 ### Koreksi dan tangkapan tertunda
 
 Jika akun memiliki izin koreksi, gunakan fitur review pengunjung yang tersedia pada detail Event. Periksa waktu, arah lintasan, dan bukti foto sebelum menggabungkan atau mengoreksi identitas. Tangkapan yang belum teridentifikasi tidak selalu berarti lintasannya tidak dihitung; periksa catatan dan indikator yang ditampilkan.

@@ -82,8 +82,13 @@ type Status = {
   zone_width_ratio?: number;
   mirror?: boolean;
   counting_frame_size?: { width: number; height: number };
+  counting_mode?: "line" | "zone";
+  zone_occupancy?: { zone: [number, number, number, number]; count: number | null; stale: boolean; age_seconds: number | null } | null;
   cameras?: {
+    counting_mode?: "line" | "zone";
+    zone_occupancy?: { zone: [number, number, number, number]; count: number | null; stale: boolean; age_seconds: number | null } | null;
     inference_devices?: InferenceDevice[];
+    inference_metrics?: { ai_fps: number; completed_frames: number; mean_ms?: Record<string, number> };
     camera_id: string;
     counting_direction?: string;
     counting_frame_size?: { width: number; height: number };
@@ -628,6 +633,8 @@ export default function EventVisitorPage({
                         <span className="flex size-5 items-center justify-center rounded bg-white/10 text-[11px] font-semibold text-white/90">
                           {index + 1}
                         </span>
+                        {camera.inference_metrics && <span className="rounded bg-slate-800 px-2 py-1 text-slate-200" title="FPS inferensi AI yang selesai, bukan FPS video">AI {camera.inference_metrics.ai_fps.toFixed(1)} FPS</span>}
+                        {camera.counting_mode === "zone" && <span className="rounded bg-cyan-950 px-2 py-1 text-cyan-200">Zona: {camera.zone_occupancy?.stale || !camera.zone_occupancy ? "Belum tersedia" : `${camera.zone_occupancy.count} orang`}</span>}
                         <span className="max-w-[200px] truncate font-medium text-white" title={camera.name}>
                           {camera.name}
                         </span>
@@ -744,6 +751,8 @@ export default function EventVisitorPage({
                           cameraName={camera.name}
                           className="size-full"
                           lineConfig={{
+                            countingMode: camera.counting_mode,
+                            occupancyZone: camera.zone_occupancy?.zone,
                             countingDirection: camera.counting_direction,
                             frameSize: camera.counting_frame_size || status?.counting_frame_size,
                             linePosition: camera.line_position ?? status?.line_position ?? 0.5,
@@ -836,11 +845,16 @@ export default function EventVisitorPage({
                     ? "Memuat statistik pengunjung…"
                     : "Total event dari seluruh kamera · Diperbarui real-time"}
               </p>
+              {status?.cameras?.some(camera => camera.counting_mode === "zone") && <div className="mt-4 rounded-lg border border-cyan-400/30 p-3 text-sm">
+                <p className="font-semibold text-cyan-200">Okupansi zona saat ini</p>
+                <p className="mt-1 text-xs text-slate-300">Orang yang terlihat di setiap kamera. Bukan total tiket atau pengunjung unik; zona antarkamera tidak dijumlahkan.</p>
+                {status.cameras.filter(camera => camera.counting_mode === "zone").map(camera => <p key={camera.camera_id} className="mt-2 flex justify-between gap-3"><span>{camera.name}</span><span>{camera.zone_occupancy?.stale || !camera.zone_occupancy ? "Data belum tersedia" : `${camera.zone_occupancy.count} orang`}</span></p>)}
+              </div>}
               <dl className="mt-4 divide-y divide-white/10">
                 {[
                   { label: "Total Masuk", count: status?.in_count },
                   { label: "Total Keluar", count: status?.out_count },
-                  { label: "Di dalam Area", count: inside },
+                  { label: "Di dalam (berdasarkan masuk − keluar)", count: inside },
                 ].map((item) => (
                   <div key={item.label} className="py-3 first:pt-0">
                     <dt className="text-sm text-slate-300">{item.label}</dt>
@@ -1035,7 +1049,7 @@ export default function EventVisitorPage({
             <h2>Statistik Pengunjung</h2>
             {row("Total Masuk", value(status?.in_count))}
             {row("Total Keluar", value(status?.out_count))}
-            {row("Di dalam Area", value(inside))}
+            {row("Di dalam (masuk − keluar)", value(inside))}
           </Panel>
           <Panel>
             <h2>Profil Pengunjung</h2>
