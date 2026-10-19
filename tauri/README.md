@@ -121,3 +121,21 @@ https://v2.tauri.app/start/prerequisites/.
 The bundled `src-tauri/bootstrap/index.html` opens immediately while local services start on a background thread. Its icon is bundled locally; it makes no network requests. Status messages come from service startup stages over the private host stdout pipe, followed by session restoration and gateway readiness. No fabricated percentage is displayed. The window opens the authenticated local workspace only after health checks pass. Startup failures remain visible with instructions to close and reopen the application. Closing during startup cancels startup and stops managed services. Reduced-motion settings are respected.
 
 Validate with `npm run desktop:test` and `cargo check --manifest-path src-tauri/Cargo.toml --locked --offline`. Native rendering and close-during-startup behavior still require a manual macOS/Windows run.
+
+### macOS resource size
+
+`tauri.macos.conf.json` copies the resource directory through `bundle.macOS.files`
+to `Contents/Resources/runtime/resources`. Tauri's directory copy preserves
+PyInstaller's relative library symlinks before signing. The generic resource map
+dereferences file symlinks and previously added about 1.17 GiB of duplicate ML
+libraries. Windows keeps the generic resource map in `tauri.windows.conf.json`.
+
+`beforeBundleCommand` runs `scripts/tauri/validate-resources.cjs`, rejecting
+absolute, broken, or out-of-bundle links. It never deletes models or libraries.
+Repackage existing resources with `npm run desktop:package`; for APP-only checks,
+use `cargo tauri bundle --bundles app --ci`. Direct Cargo commands also run the
+resource validation hook.
+
+Measured macOS APP after this change: 2.94 GiB (about 3.0 GiB allocated), versus
+about 4.2 GiB allocated previously. Native macOS signing/notarization remains a
+separate release gate; do not treat a successful size check as signing validation.

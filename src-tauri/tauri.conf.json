@@ -4,7 +4,8 @@
   "version": "../package.json",
   "identifier": "com.duluin.visitorcounter",
   "build": {
-    "frontendDist": "bootstrap"
+    "frontendDist": "bootstrap",
+    "beforeBundleCommand": "node scripts/tauri/validate-resources.cjs"
   },
   "app": {
     "windows": [],
@@ -21,7 +22,6 @@
       "dmg"
     ],
     "resources": {
-      "../resources/": "runtime/resources/",
       "../tauri/": "runtime/tauri/",
       "../desktop/runtime.cjs": "runtime/desktop/runtime.cjs",
       "../desktop/auth-session.cjs": "runtime/desktop/auth-session.cjs",
