@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { Download, Loader2, Upload, Video } from "lucide-react";
 import { visitorFetch } from "./auth/visitor-api";
 import { Button } from "./ui/button";
-import { Field, Input, Select, Switch } from "./ui/field";
+import { Field, Input, Range, Select, SwitchField } from "./ui/field";
 import { Panel } from "./ui/layout";
 import { useAccess } from "./auth/access";
 import { ui } from "./ui/styles";
@@ -185,20 +185,20 @@ export default function EventVideoDetection({ eventId, onSaved }: { eventId: str
     <div className="grid items-start gap-6 xl:grid-cols-2">
       <Panel><h2 className="mb-2 text-lg font-semibold">Upload video</h2><p className="mb-5 text-sm text-muted">MP4, MOV, MKV, AVI, atau WebM. Maksimal {Math.floor(maxBytes / 1024 / 1024)} MB dan 30 menit.</p>
         <div className="space-y-4">
-          <Field>Waktu awal rekaman<Input type="datetime-local" required value={recordingStart} disabled={active} onChange={(event) => setRecordingStart(event.target.value)} /></Field>
+          <Field label="Waktu awal rekaman"><Input type="datetime-local" required value={recordingStart} disabled={active} onChange={(event) => setRecordingStart(event.target.value)} /></Field>
           <p className="text-xs text-muted">Gunakan waktu lokal saat video mulai direkam. Statistik per jam mengikuti waktu ini.</p>
-          <Field>File video<Input type="file" accept=".mp4,.mov,.mkv,.avi,.webm" disabled={active || !limitsReady} onChange={(event) => chooseFile(event.target.files?.[0] || null)} /></Field>
+          <Field label="File video"><Input type="file" accept=".mp4,.mov,.mkv,.avi,.webm" disabled={active || !limitsReady} onChange={(event) => chooseFile(event.target.files?.[0] || null)} /></Field>
           {sourceUrl ? <div className="relative overflow-hidden rounded-lg bg-black" style={{ aspectRatio: `${dimensions.width} / ${dimensions.height}` }}>
             <video src={sourceUrl} controls preload="metadata" className="h-full w-full" onLoadedMetadata={(event) => setDimensions({ width: event.currentTarget.videoWidth, height: event.currentTarget.videoHeight })} />
             <CountingLineOverlay config={{ linePosition: options.line_position, lineOrientation: options.line_orientation, reverseDirection: options.reverse_direction, twoLineCounting: true, zoneWidthRatio: 0.20 }} mediaWidth={dimensions.width} mediaHeight={dimensions.height} showLabels={false} />
           </div> : <div className="grid aspect-video place-content-center gap-2 rounded-lg bg-slate-50 text-center text-muted"><Video size={32} className="mx-auto" /><p className="text-sm">Pilih video untuk melihat pratinjau.</p></div>}
           <div className="grid gap-4 sm:grid-cols-2">
-            <Field>Orientasi garis<Select disabled={active} value={options.line_orientation} onChange={(event) => setOptions({ ...options, line_orientation: event.target.value as VideoOptions["line_orientation"] })}><option value="horizontal">Horizontal</option><option value="vertical">Vertikal</option></Select></Field>
-            <Field>Posisi garis: {Math.round(options.line_position * 100)}%<Input type="range" min="10" max="90" step="1" disabled={active} value={Math.round(options.line_position * 100)} onChange={(event) => setOptions({ ...options, line_position: Number(event.target.value) / 100 })} /></Field>
+            <Field label="Orientasi garis"><Select disabled={active} value={options.line_orientation} onChange={(event) => setOptions({ ...options, line_orientation: event.target.value as VideoOptions["line_orientation"] })}><option value="horizontal">Horizontal</option><option value="vertical">Vertikal</option></Select></Field>
+            <Field label={`Posisi garis: ${Math.round(options.line_position * 100)}%`}><Range min="10" max="90" step="1" disabled={active} value={Math.round(options.line_position * 100)} onChange={(event) => setOptions({ ...options, line_position: Number(event.target.value) / 100 })} /></Field>
           </div>
           <p className="text-sm text-muted">Arah masuk: {options.line_orientation === "horizontal" ? (options.reverse_direction ? "bawah ke atas" : "atas ke bawah") : (options.reverse_direction ? "kanan ke kiri" : "kiri ke kanan")}. Orang dihitung setelah melewati kedua batas garis.</p>
-          <Field className="flex! items-center justify-between gap-3">Balik arah masuk<Switch checked={options.reverse_direction} disabled={active} onChange={(event) => setOptions({ ...options, reverse_direction: event.target.checked })} /></Field>
-          <Field className="flex! items-center justify-between gap-3">Deteksi gender<Switch checked={options.gender_enabled} disabled={active} onChange={(event) => setOptions({ ...options, gender_enabled: event.target.checked })} /></Field>
+          <SwitchField label="Balik arah masuk" checked={options.reverse_direction} disabled={active} onChange={(event) => setOptions({ ...options, reverse_direction: event.target.checked })} />
+          <SwitchField label="Deteksi gender" checked={options.gender_enabled} disabled={active} onChange={(event) => setOptions({ ...options, gender_enabled: event.target.checked })} />
           <div className="flex flex-wrap gap-2"><Button variant="primary" disabled={!file || active || !limitsReady} onClick={() => void upload()}>{uploading ? <Loader2 size={16} className="animate-spin" /> : <Upload size={16} />}{uploading ? "Mengupload…" : "Upload dan deteksi"}</Button>{uploading && <Button onClick={() => { uploadController.current?.abort(); setUploading(false); }}>Batalkan upload</Button>}</div>
           <p className="text-xs leading-relaxed text-muted">Setelah deteksi selesai, seluruh lintasan terkonfirmasi dan foto tersimpan permanen di laporan event. File video sumber dihapus setelah proses berakhir; pratinjau analisis tersedia sementara. Upload ulang rekaman yang sama akan menambah hitungan lagi. Identitas video terpisah dari kamera langsung dan video lain.</p>
         </div>

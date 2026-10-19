@@ -511,8 +511,7 @@ export default function EventVisitorPage({
       )}
       {!fixedEventId && (
         <Toolbar>
-          <Field>
-            Pilih Event
+          <Field label="Pilih Event">
             <Select
               className="w-auto!"
               value={selectedEventId}

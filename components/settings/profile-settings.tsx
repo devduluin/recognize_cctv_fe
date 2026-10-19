@@ -1,8 +1,8 @@
 "use client";
 import { useEffect, useState, type FormEvent } from "react";
 import { BrandLogo } from "../ui/brand-logo";
-import { Button, buttonStyles } from "../ui/button";
-import { Field, Input } from "../ui/field";
+import { Button } from "../ui/button";
+import { Field, FileButton, Input } from "../ui/field";
 import { InfoRow, Panel } from "../ui/layout";
 import { cx, ui } from "../ui/styles";
 import Modal from "../ui-modal";
@@ -179,8 +179,7 @@ export default function ProfileSettings({
                   {error}
                 </p>
               )}
-              <Field>
-                Nama {dashboard ? "Dashboard" : "Pengguna"}
+              <Field label={`Nama ${dashboard ? "Dashboard" : "Pengguna"}`}>
                 <Input
                   autoFocus
                   required
@@ -194,11 +193,7 @@ export default function ProfileSettings({
                   <span>Logo Dashboard</span>
                   <div className="flex flex-wrap items-center gap-4">
                     {logoPreview(logo)}
-                    <label className={buttonStyles({ variant: "outline", className: "cursor-pointer" })}>
-                      Ganti Logo
-                      <input
-                        className="sr-only"
-                        type="file"
+                    <FileButton
                         accept="image/png,image/jpeg,image/webp"
                         onChange={(event) => {
                           const file = event.target.files?.[0];
@@ -222,16 +217,16 @@ export default function ProfileSettings({
                           reader.onerror = () => setError("Gambar gagal dibaca. Pilih kembali file logo.");
                           reader.readAsDataURL(file);
                         }}
-                      />
-                    </label>
+                    >
+                      Ganti Logo
+                    </FileButton>
                   </div>
                   <small className="text-slate-500">
                     PNG, JPEG, atau WebP, maksimal 1 MB.
                   </small>
                 </div>
               ) : (
-                <Field>
-                  Email
+                <Field label="Email">
                   <Input
                     type="email"
                     required

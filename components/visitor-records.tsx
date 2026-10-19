@@ -8,7 +8,7 @@ import { DataTable, TableContainer } from "./ui/data-table";
 import { ui } from "./ui/styles";
 import Modal from "./ui-modal";
 import { toast } from "./ui/toast";
-import { Field, Input, Select } from "./ui/field";
+import { ChoiceCard, Field, Input, Select } from "./ui/field";
 import VisitorCorrections from "./visitor-corrections";
 
 const API_BASE = `${process.env.NEXT_PUBLIC_SERVICE_RECOGNIZE_CCTV || ""}/api/v1/event_visitor`;
@@ -107,10 +107,9 @@ function MergeVisitors({ source, companyId, eventId, onClose, onMerged }: { sour
       <div className="my-4"><CapturePhoto record={source} eventId={eventId} /></div>
       <fieldset disabled={busy} className="space-y-2">
         <legend className="mb-2 font-semibold">Gabungkan ke pengunjung</legend>
-        {!rows ? <p role="status">Memuat pengunjung…</p> : !candidates?.length ? <p>Tidak ada identitas lain di halaman ini.</p> : candidates.map((record) => <label key={record.visitor_id} className="flex min-h-12 cursor-pointer items-center gap-3 rounded border p-3">
-          <input type="radio" name="merge-target" checked={target?.visitor_id === record.visitor_id} onChange={() => setTarget(record)} className="h-4 w-4 shrink-0" />
-          <span>{record.visitor_label}<span className="block text-sm text-neutral-600">{new Date(record.detected_at).toLocaleString("id-ID", { timeZone: "Asia/Jakarta" })}</span></span>
-        </label>)}
+        {!rows ? <p role="status">Memuat pengunjung…</p> : !candidates?.length ? <p>Tidak ada identitas lain di halaman ini.</p> : candidates.map((record) => <ChoiceCard key={record.visitor_id} variant="compact" type="radio" name="merge-target"
+          title={record.visitor_label} description={new Date(record.detected_at).toLocaleString("id-ID", { timeZone: "Asia/Jakarta" })}
+          checked={target?.visitor_id === record.visitor_id} onChange={() => setTarget(record)} />)}
       </fieldset>
       <div className="my-4 flex flex-wrap items-center gap-2">
         <Button disabled={busy || page === 0} onClick={() => { setError(""); setPage((value) => value - 1); }}>Sebelumnya</Button>
@@ -183,11 +182,11 @@ export default function VisitorRecords({ companyId, eventId, version = "", monit
         setFilterError(""); setFilters({ ...draftFilters }); setPage(0);
       }}>
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          <Field>Nama atau ID pengunjung<Input maxLength={100} placeholder="Contoh: Visitor 2" value={draftFilters.search} onChange={(event) => setDraftFilters((value) => ({ ...value, search: event.target.value }))} /></Field>
-          <Field>Arah<Select value={draftFilters.direction} onChange={(event) => setDraftFilters((value) => ({ ...value, direction: event.target.value }))}><option value="">Semua arah</option><option value="in">Masuk</option><option value="out">Keluar</option></Select></Field>
-          {cameras.length > 0 && <Field>Kamera<Select value={draftFilters.camera} onChange={(event) => setDraftFilters((value) => ({ ...value, camera: event.target.value }))}><option value="">Semua kamera</option>{cameras.map((camera) => <option key={camera.camera_id} value={camera.camera_id}>{camera.name}</option>)}</Select></Field>}
-          <Field>Waktu mulai<Input type="datetime-local" value={draftFilters.from} onChange={(event) => setDraftFilters((value) => ({ ...value, from: event.target.value }))} /></Field>
-          <Field>Waktu akhir<Input type="datetime-local" value={draftFilters.to} onChange={(event) => setDraftFilters((value) => ({ ...value, to: event.target.value }))} /></Field>
+          <Field label="Nama atau ID pengunjung"><Input maxLength={100} placeholder="Contoh: Visitor 2" value={draftFilters.search} onChange={(event) => setDraftFilters((value) => ({ ...value, search: event.target.value }))} /></Field>
+          <Field label="Arah"><Select value={draftFilters.direction} onChange={(event) => setDraftFilters((value) => ({ ...value, direction: event.target.value }))}><option value="">Semua arah</option><option value="in">Masuk</option><option value="out">Keluar</option></Select></Field>
+          {cameras.length > 0 && <Field label="Kamera"><Select value={draftFilters.camera} onChange={(event) => setDraftFilters((value) => ({ ...value, camera: event.target.value }))}><option value="">Semua kamera</option>{cameras.map((camera) => <option key={camera.camera_id} value={camera.camera_id}>{camera.name}</option>)}</Select></Field>}
+          <Field label="Waktu mulai"><Input type="datetime-local" value={draftFilters.from} onChange={(event) => setDraftFilters((value) => ({ ...value, from: event.target.value }))} /></Field>
+          <Field label="Waktu akhir"><Input type="datetime-local" value={draftFilters.to} onChange={(event) => setDraftFilters((value) => ({ ...value, to: event.target.value }))} /></Field>
         </div>
         <p className="text-sm text-neutral-600">Filter waktu mengikuti zona waktu perangkat Anda. Waktu capture ditampilkan dalam {timezone}.</p>
         {filterError && <p role="alert" className={ui.error}>{filterError}</p>}

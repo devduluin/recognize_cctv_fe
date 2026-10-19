@@ -3,7 +3,7 @@ import { useConfirmation } from "../ui/confirmation";
 import { visitorFetch } from "../../components/auth/visitor-api";
 import { Button } from "../../components/ui/button";
 import { TimePicker } from "../ui/time-picker";
-import { Field, Input, Select, DateRangePicker } from "../../components/ui/field";
+import { Checkbox, ChoiceCard, DateRangePicker, Field, FieldHint, FieldSet, Input, Range, Select } from "../../components/ui/field";
 import { Page, PageHeading, Toolbar } from "../../components/ui/layout";
 import { DataTable, StatusBadge, TableContainer } from "../../components/ui/data-table";
 import { cx, ui } from "../../components/ui/styles";
@@ -528,8 +528,7 @@ export default function EventsManager({ editEventId, onClose, onSaved }: {
           </p>
         </div>
         <Toolbar>
-          <Field>
-            Cari Event
+          <Field label="Cari Event">
             <span className="relative">
               <Search
                 size={15}
@@ -611,8 +610,7 @@ export default function EventsManager({ editEventId, onClose, onSaved }: {
             <thead>
               <tr>
                 <th className="w-12">
-                  <input
-                    type="checkbox"
+                  <Checkbox
                     aria-label="Pilih semua event"
                     checked={
                       visibleEvents.length > 0 &&
@@ -675,8 +673,7 @@ export default function EventsManager({ editEventId, onClose, onSaved }: {
               {visibleEvents.map((event) => (
                 <tr key={event.id} data-running={event.status === "running"}>
                   <td>
-                    <input
-                      type="checkbox"
+                    <Checkbox
                       aria-label={`Pilih ${event.name}`}
                       checked={selected.includes(event.id)}
                       onChange={(e) =>
@@ -819,16 +816,13 @@ export default function EventsManager({ editEventId, onClose, onSaved }: {
                     <h3 id="event-details-heading" className="text-base font-semibold">Informasi event</h3>
                     <p className="mt-1 mb-4 text-sm text-neutral-600">Nama dan lokasi yang tampil pada daftar event.</p>
                     <div className="grid gap-4 min-[600px]:grid-cols-2">
-                      <Field className="min-[600px]:col-span-2">
-                        Nama event <span className="sr-only">(wajib)</span>
+                      <Field className="min-[600px]:col-span-2" label={<>Nama event <span className="sr-only">(wajib)</span></>}>
                         <Input autoFocus required placeholder="Contoh: Pameran Akhir Tahun" value={form.name} onChange={(e) => update("name", e.target.value)} />
                       </Field>
-                      <Field>
-                        Lokasi
+                      <Field label="Lokasi">
                         <Input placeholder="Contoh: Aula utama" value={form.location} onChange={(e) => update("location", e.target.value)} />
                       </Field>
-                      <Field>
-                        <span>Kapasitas <span className="font-normal text-neutral-600">(opsional)</span></span>
+                      <Field label="Kapasitas" optional>
                         <Input type="number" min="1" placeholder="Jumlah pengunjung" value={form.capacity} onChange={(e) => update("capacity", e.target.value)} />
                       </Field>
                     </div>
@@ -836,56 +830,47 @@ export default function EventsManager({ editEventId, onClose, onSaved }: {
                   <section aria-labelledby="event-schedule-heading" className="border-t border-neutral-200 pt-6">
                     <h3 id="event-schedule-heading" className="mb-4 text-base font-semibold">Jadwal monitoring</h3>
                     <div className="grid gap-4 min-[600px]:grid-cols-2">
-                      <fieldset className="min-w-0 min-[600px]:col-span-2">
-                        <legend className="mb-1.5 text-neutral-700">Tanggal event</legend>
+                      <FieldSet legend="Tanggal event" className="min-[600px]:col-span-2">
                         <DateRangePicker className="[&>button]:border-[#8994a4]" startDate={form.eventDate} endDate={form.eventEndDate} onChange={(start, end) => {
                           update("eventDate", start);
                           update("eventEndDate", end);
                         }} />
-                      </fieldset>
+                      </FieldSet>
                       <TimePicker label="Jam mulai" required value={form.eventStart} onChange={value => update("eventStart", value)} />
                       <TimePicker label="Jam selesai" required value={form.eventEnd} onChange={value => update("eventEnd", value)} />
                     </div>
-                    <label className="mt-4 flex min-h-11 cursor-pointer items-start gap-3 rounded-lg bg-neutral-50 p-3">
-                      <input type="checkbox" className="mt-0.5 size-4 shrink-0 accent-navy" checked={form.autoRun} onChange={(e) => update("autoRun", e.target.checked)} />
-                      <span className="min-w-0">
-                        <span className="block font-medium">Jalankan otomatis</span>
-                        <span className="mt-0.5 block text-xs leading-relaxed text-neutral-600">Monitoring dimulai dan dihentikan sesuai jadwal event.</span>
-                      </span>
-                    </label>
+                    <ChoiceCard variant="subtle" className="mt-4" title="Jalankan otomatis" description="Monitoring dimulai dan dihentikan sesuai jadwal event." checked={form.autoRun} onChange={(e) => update("autoRun", e.target.checked)} />
                   </section>
                   <section aria-labelledby="event-counting-heading" className="border-t border-neutral-200 pt-6">
                     <h3 id="event-counting-heading" className="mb-4 text-base font-semibold">Aturan penghitungan</h3>
-                    <label className={cx("flex min-h-11 cursor-pointer items-start gap-3 rounded-lg border p-4 transition-colors focus-within:ring-2 focus-within:ring-navy focus-within:ring-offset-2", form.allowDuplicate ? "border-navy bg-[#f0f4f8]" : "border-neutral-300 bg-white hover:border-neutral-500")}>
-                      <input type="checkbox" aria-describedby="repeat-visits-description" className="mt-0.5 size-5 shrink-0 accent-navy focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-navy" checked={form.allowDuplicate} onChange={(e) => update("allowDuplicate", e.target.checked)} />
-                      <span className="min-w-0">
-                        <span className="block font-medium">Catat kunjungan berulang</span>
-                        <span id="repeat-visits-description" className="mt-1 block text-sm leading-relaxed text-neutral-600">{form.allowDuplicate ? "Aktif: orang yang sama masuk lagi akan menambah hitungan dan menyimpan foto baru." : "Nonaktif: hanya masuk dan keluar pertama per orang yang dicatat. Masuk lagi tidak menambah hitungan atau menyimpan foto baru."}</span>
-                        <span className="mt-2 block text-xs leading-relaxed text-neutral-600">Matikan jika Anda ingin menghitung setiap orang hanya sekali selama event.</span>
-                      </span>
-                    </label>
+                    <ChoiceCard
+                      title="Catat kunjungan berulang"
+                      description={form.allowDuplicate ? "Aktif: orang yang sama masuk lagi akan menambah hitungan dan menyimpan foto baru." : "Nonaktif: hanya masuk dan keluar pertama per orang yang dicatat. Masuk lagi tidak menambah hitungan atau menyimpan foto baru."}
+                      checked={form.allowDuplicate}
+                      onChange={(e) => update("allowDuplicate", e.target.checked)}
+                    >
+                      <span className="mt-2 block text-xs leading-relaxed text-neutral-600">Matikan jika Anda ingin menghitung setiap orang hanya sekali selama event.</span>
+                    </ChoiceCard>
                   </section>
                   <section aria-label="Profil pengunjung" className="border-t border-neutral-200 pt-6">
-                    <label className={cx("flex min-h-11 cursor-pointer items-start gap-3 rounded-lg border p-4 focus-within:ring-2 focus-within:ring-navy focus-within:ring-offset-2", form.genderEnabled ? "border-navy bg-[#f0f4f8]" : "border-neutral-300 bg-white hover:border-neutral-500")}>
-                      <input type="checkbox" checked={form.genderEnabled} onChange={(e) => update("genderEnabled", e.target.checked)} aria-describedby="event-gender-description" className="mt-0.5 size-5 shrink-0 accent-navy" />
-                      <span className="min-w-0">
-                        <span className="block font-medium">Deteksi gender pengunjung</span>
-                        <span id="event-gender-description" className="mt-1 block text-sm leading-relaxed text-neutral-600">{form.genderEnabled ? "Aktif: perkiraan gender ditambahkan ke capture dan laporan. Pemeriksaan ini dapat menambah beban pemrosesan." : "Nonaktif: penghitungan masuk dan keluar tetap berjalan tanpa pemeriksaan gender."}</span>
-                      </span>
-                    </label>
+                    <ChoiceCard
+                      title="Deteksi gender pengunjung"
+                      description={form.genderEnabled ? "Aktif: perkiraan gender ditambahkan ke capture dan laporan. Pemeriksaan ini dapat menambah beban pemrosesan." : "Nonaktif: penghitungan masuk dan keluar tetap berjalan tanpa pemeriksaan gender."}
+                      checked={form.genderEnabled}
+                      onChange={(e) => update("genderEnabled", e.target.checked)}
+                    />
                   </section>
                   <section aria-label="Pengaturan lanjutan" className="border-t border-neutral-200 pt-6">
                     <details className="rounded-lg border border-neutral-300 p-4">
                       <summary className="cursor-pointer font-semibold">Pengaturan Lanjutan</summary>
                       <p className="mt-3 text-sm leading-relaxed text-neutral-600">Belum yakin harus memilih apa? Gunakan pilihan yang disarankan. Pengaturan berlaku untuk semua kamera event. Jika monitoring sedang berjalan, hentikan lalu mulai kembali setelah menyimpan.</p>
                       <div className="mt-4 grid gap-4 min-[600px]:grid-cols-2">
-                        {ADVANCED_FIELDS.filter((field) => form.genderEnabled || !field.key.startsWith("gender_")).map((field) => <Field key={field.key}>
-                          {field.label}
+                        {ADVANCED_FIELDS.filter((field) => form.genderEnabled || !field.key.startsWith("gender_")).map((field) => <Field key={field.key} label={field.label}>
                           {manualAdvanced ? <Input type="number" required min={field.min} max={field.max} step={field.step} value={form.advancedSettings[field.key]} aria-describedby={`advanced-${field.key}-hint`} onChange={(event) => update("advancedSettings", { ...form.advancedSettings, [field.key]: event.target.value })} /> : <Select value={ADVANCED_OPTIONS[field.key].find((option) => Number(option.value) === Number(form.advancedSettings[field.key]))?.value || form.advancedSettings[field.key]} aria-describedby={`advanced-${field.key}-hint`} onChange={(event) => update("advancedSettings", { ...form.advancedSettings, [field.key]: event.target.value })}>
                             {!ADVANCED_OPTIONS[field.key].some((option) => Number(option.value) === Number(form.advancedSettings[field.key])) && <option value={form.advancedSettings[field.key]}>Nilai khusus ({form.advancedSettings[field.key]})</option>}
                             {ADVANCED_OPTIONS[field.key].map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
                           </Select>}
-                          <span id={`advanced-${field.key}-hint`} className="text-xs leading-relaxed text-neutral-600">{field.hint}{manualAdvanced && ` Nilai bawaan: ${ADVANCED_DEFAULTS[field.key]}.`}</span>
+                          <FieldHint id={`advanced-${field.key}-hint`}>{field.hint}{manualAdvanced && ` Nilai bawaan: ${ADVANCED_DEFAULTS[field.key]}.`}</FieldHint>
                         </Field>)}
                       </div>
                       <div className="mt-4 flex flex-wrap gap-2">
@@ -908,20 +893,21 @@ export default function EventsManager({ editEventId, onClose, onSaved }: {
                         {cameras.map((camera) => {
                           const selected = form.cameraIds.includes(camera.id);
                           return (
-                            <label key={camera.id} className={cx("flex min-h-14 cursor-pointer items-center gap-3 rounded-lg border px-3 py-3 transition-colors", selected ? "border-navy bg-[#f0f4f8]" : "border-neutral-300 bg-white hover:border-neutral-500")}>
-                              <input type="checkbox" className="size-4 shrink-0 accent-navy" checked={selected} onChange={(e) => {
+                            <ChoiceCard
+                              key={camera.id}
+                              variant="compact"
+                              title={camera.name}
+                              description={/^\d+$/.test(camera.rtsp_url || camera.camera_source || "") ? "Kamera lokal" : "Kamera jaringan"}
+                              checked={selected}
+                              onChange={(e) => {
                                 const ids = e.target.checked ? [...form.cameraIds, camera.id] : form.cameraIds.filter((id) => id !== camera.id);
                                 const newSettings = { ...form.cameraSettings };
                                 if (e.target.checked && !newSettings[camera.id]) {
                                   newSettings[camera.id] = { countingDirection: "in", linePosition: 50, lineOrientation: "horizontal", lineAngle: 0, reverseDirection: false, mirror: false };
                                 }
                                 setForm({ ...form, cameraIds: ids, cameraSettings: newSettings });
-                              }} />
-                              <span className="min-w-0">
-                                <span className="block break-words font-medium text-neutral-800">{camera.name}</span>
-                                <span className="mt-0.5 block text-xs text-neutral-600">{/^\d+$/.test(camera.rtsp_url || camera.camera_source || "") ? "Kamera lokal" : "Kamera jaringan"}</span>
-                              </span>
-                            </label>
+                              }}
+                            />
                           );
                         })}
                       </div>
@@ -979,17 +965,14 @@ export default function EventsManager({ editEventId, onClose, onSaved }: {
                             </summary>
                             <div className="grid min-w-0 items-start gap-6 border-t border-neutral-200 p-4 min-[800px]:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
                             <div className="min-w-0 space-y-4">
-                              <Field>
-                                Metode pengukuran
+                              <Field label="Metode pengukuran" hint="Mode zona tidak menambah total masuk/keluar dan tidak memerlukan identitas atau gender.">
                                 <Select value={cfg.countingMode} onChange={e => updateCam("countingMode", e.target.value as "line" | "zone")}>
                                   <option value="line">Akumulasi masuk/keluar lewat garis</option>
                                   <option value="zone">Orang terlihat di zona saat ini</option>
                                 </Select>
-                                <span className="text-xs text-neutral-600">Mode zona tidak menambah total masuk/keluar dan tidak memerlukan identitas atau gender.</span>
                               </Field>
                               {cfg.countingMode === "zone" && <div className="grid grid-cols-2 gap-3">
-                                {(["Kiri", "Atas", "Kanan", "Bawah"] as const).map((label, coordinate) => <Field key={label}>
-                                  {label} zona (%)
+                                {(["Kiri", "Atas", "Kanan", "Bawah"] as const).map((label, coordinate) => <Field key={label} label={`${label} zona (%)`}>
                                   <Input type="number" min={0} max={100} step={1} value={Math.round(cfg.occupancyZone[coordinate] * 100)} onChange={e => {
                                     const number = e.target.valueAsNumber;
                                     if (!Number.isFinite(number)) return;
@@ -1000,8 +983,7 @@ export default function EventsManager({ editEventId, onClose, onSaved }: {
                                 </Field>)}
                               </div>}
                               <fieldset disabled={cfg.countingMode === "zone"} className={cfg.countingMode === "zone" ? "space-y-4 opacity-50" : "space-y-4"}>
-                              <Field>
-                                Peran kamera
+                              <Field label="Peran kamera">
                                 <Select
                                   value={cfg.countingDirection}
                                   onChange={(e) => updateCam("countingDirection", e.target.value as CameraSetting["countingDirection"])}
@@ -1011,8 +993,7 @@ export default function EventsManager({ editEventId, onClose, onSaved }: {
                                   <option value="auto">Otomatis sesuai arah lintasan</option>
                                 </Select>
                               </Field>
-                              <Field>
-                                Orientasi Garis
+                              <Field label="Orientasi Garis">
                                 <Select
                                   value={cfg.lineOrientation}
                                   onChange={(e) => updateCam("lineOrientation", e.target.value)}
@@ -1021,22 +1002,16 @@ export default function EventsManager({ editEventId, onClose, onSaved }: {
                                   <option value="vertical">Vertikal</option>
                                 </Select>
                               </Field>
-                              <Field>
-                                Posisi Garis ({cfg.linePosition}%)
-                                <input
-                                  type="range"
-                                  className="min-h-11 w-full cursor-pointer accent-navy"
+                              <Field label={`Posisi Garis (${cfg.linePosition}%)`}>
+                                <Range
                                   min="10"
                                   max="90"
                                   value={cfg.linePosition}
                                   onChange={(e) => updateCam("linePosition", Number(e.target.value))}
                                 />
                               </Field>
-                              <Field>
-                                Kemiringan Garis ({cfg.lineAngle}°)
-                                <input
-                                  type="range"
-                                  className="min-h-11 w-full cursor-pointer accent-navy"
+                              <Field label={`Kemiringan Garis (${cfg.lineAngle}°)`} hint="0° mengikuti orientasi; nilai positif memutar searah jarum jam.">
+                                <Range
                                   min="-89"
                                   max="89"
                                   step="1"
@@ -1055,39 +1030,25 @@ export default function EventsManager({ editEventId, onClose, onSaved }: {
                                     if (Number.isFinite(angle)) updateCam("lineAngle", Math.max(-89, Math.min(89, angle)));
                                   }}
                                 />
-                                <span className="text-xs text-neutral-600">0° mengikuti orientasi; nilai positif memutar searah jarum jam.</span>
                               </Field>
                               <div className="space-y-2 pt-1">
-                                <label className="flex min-h-11 cursor-pointer items-center gap-3 text-sm text-neutral-700">
-                                  <input
-                                    type="checkbox"
-                                    checked={Boolean(cfg.twoLineCounting)}
-                                    onChange={(e) => updateCam("twoLineCounting", e.target.checked)}
-                                    className="size-4 rounded border-neutral-300 text-navy focus:ring-navy"
-                                  />
-                                  Gunakan 2 Garis & Crossing Zone (A & B)
-                                </label>
-                                <label className="flex min-h-11 cursor-pointer items-center gap-3 text-sm text-neutral-700">
-                                  <input
-                                    type="checkbox"
-                                    checked={Boolean(cfg.reverseDirection)}
-                                    onChange={(e) => updateCam("reverseDirection", e.target.checked)}
-                                    className="size-4 rounded border-neutral-300 text-navy focus:ring-navy"
-                                  />
-                                  Balik arah perlintasan
-                                </label>
-
+                                <Checkbox
+                                  label="Gunakan 2 Garis & Crossing Zone (A & B)"
+                                  checked={Boolean(cfg.twoLineCounting)}
+                                  onChange={(e) => updateCam("twoLineCounting", e.target.checked)}
+                                />
+                                <Checkbox
+                                  label="Balik arah perlintasan"
+                                  checked={Boolean(cfg.reverseDirection)}
+                                  onChange={(e) => updateCam("reverseDirection", e.target.checked)}
+                                />
                               </div>
                               </fieldset>
-                                <label className="flex min-h-11 cursor-pointer items-center gap-3 text-sm text-neutral-700">
-                                  <input
-                                    type="checkbox"
-                                    checked={Boolean(cfg.mirror)}
-                                    onChange={(e) => updateCam("mirror", e.target.checked)}
-                                    className="size-4 rounded border-neutral-300 text-navy focus:ring-navy"
-                                  />
-                                  Mirror kamera (balik horizontal)
-                                </label>
+                              <Checkbox
+                                label="Mirror kamera (balik horizontal)"
+                                checked={Boolean(cfg.mirror)}
+                                onChange={(e) => updateCam("mirror", e.target.checked)}
+                              />
                             </div>
                             <div className="min-w-0">
                               <p className="mb-2 text-sm font-medium text-neutral-700">{cfg.countingMode === "zone" ? "Preview zona" : "Preview garis"}</p>
