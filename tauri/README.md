@@ -139,3 +139,26 @@ resource validation hook.
 Measured macOS APP after this change: 2.94 GiB (about 3.0 GiB allocated), versus
 about 4.2 GiB allocated previously. Native macOS signing/notarization remains a
 separate release gate; do not treat a successful size check as signing validation.
+
+### Build resource optimization
+
+`desktop:build` removes TensorFlow/PyTorch C++ development headers from generated
+backend resources before running the backend self-test. Inference libraries,
+Python modules, FaceNet, gender, Re-ID and selectable YOLO weights remain. Exported
+`*.directml.onnx`/`*.directml.json` files are retained on Windows and omitted on
+macOS, where the DirectML adapter is not used. Source models and virtual
+environments are never pruned.
+
+Copied MP4 samples are encoded as H.264, CRF 20, preset fast, using two encoder
+threads. Resolution, frame rate and audio streams are preserved. Each candidate
+must decode without errors and be smaller before replacing the generated copy.
+Original source samples remain unchanged. Compression is lossy; identical
+recognition results are not guaranteed and require separate accuracy evaluation.
+`desktop-cache/compressed-samples` caches outputs by source content, encoder and
+compression profile; repeated optimization avoids another generation of lossy
+encoding. The cache is excluded from application resources and Git.
+
+Latest measured optimized APP: **2.71 GiB**, down from 2.94 GiB after symlink
+repair (about 232 MiB additional reduction). Seven sample videos became smaller;
+the 4K sample kept its original because re-encoding was larger. All eight videos
+retained their original dimensions, frame rate, frame count and duration.
