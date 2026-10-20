@@ -30,11 +30,13 @@ import Modal from "../../components/ui-modal";
 import HourlyVisitorStatistics from "../../components/hourly-visitor-statistics";
 import { getAuthHeaders, getAuthToken } from "../../components/auth/auth-api";
 import WebRTCPlayer, { DetectionBox } from "../../components/camera/webrtc-player";
+import { CameraStartupPlaceholder, StartupProgress, type StartupStatus } from "../../components/events/startup-progress";
 const API_BASE = `${process.env.NEXT_PUBLIC_SERVICE_RECOGNIZE_CCTV || ""}/api/v1/event_visitor`;
 const EVENTS_API = `${process.env.NEXT_PUBLIC_SERVICE_RECOGNIZE_CCTV || ""}/api/v1/events`;
 type VisitorEvent = {
   id: string;
   name: string;
+  camera_ids?: string[];
   event_date?: string;
   event_end_date?: string;
   created_at?: string;
@@ -54,7 +56,7 @@ type Status = {
   inference_runtime?: { torch_version: string; cuda_built: boolean; cuda_available: boolean; cuda_version: string | null; mps_available: boolean } | null;
   running: boolean;
   starting?: boolean;
-  startup?: { state: string; message: string; error?: string | null };
+  startup?: StartupStatus;
   camera_source: string | number | null;
   session_id: string | null;
   status?: string;
@@ -391,6 +393,8 @@ export default function EventVisitorPage({
             unresolved_crossings: status?.unresolved_crossings,
           },
         ];
+  // Running is not enough: the AI reader may still be waiting for the first frame.
+  const waitingForFrame = running && cameraList.some((camera) => camera.running !== false && camera.connection_state === "connecting");
   const gridColsClass =
     cameraList.length === 1
       ? "grid-cols-1"
@@ -498,11 +502,11 @@ export default function EventVisitorPage({
           </div>
         )}
       </PageHeading>
-      {preparing && (
-        <p role="status" className="mb-4 rounded-lg border border-sky-200 bg-sky-50 p-4 text-sm text-sky-950">
-          {status?.startup?.message || "Menyiapkan monitoring"}. Proses pertama dapat memerlukan waktu untuk memuat model.
-        </p>
-      )}
+      <StartupProgress
+        startup={preparing ? status?.startup : null}
+        waitingForFrame={waitingForFrame}
+        cameraCount={currentEvent?.camera_ids?.length || cameraList.length}
+      />
       {fixedEventId && can("videos.analyze") && videoOpen && <EventVideoDetection key={fixedEventId} eventId={fixedEventId} onSaved={refreshVideoResults} />}
       {status && (status.in_count || 0) === 0 && cameraList.every((camera) => camera.counting_direction === "out") && (
         <p role="status" className="mb-4 rounded-lg border border-amber-300 bg-amber-50 p-4 text-sm text-amber-950">
@@ -770,6 +774,8 @@ export default function EventVisitorPage({
                             );
                           }}
                         />
+                      ) : preparing && !connectionError ? (
+                        <CameraStartupPlaceholder startup={status?.startup} waitingForFrame={false} />
                       ) : (
                         <div className="flex flex-col items-center justify-center p-4 text-center text-slate-400">
                           <Video size={30} className="mb-2 text-slate-500" />

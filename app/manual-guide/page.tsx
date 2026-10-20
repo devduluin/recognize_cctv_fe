@@ -2,7 +2,7 @@ import { readFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import path from "node:path";
 import type { ReactNode } from "react";
-import ManualGuideContents from "../../components/manual-guide-contents";
+import ManualGuideContents, { type SearchEntry } from "../../components/manual-guide-contents";
 import { Page, PageHeading, Panel } from "../../components/ui/layout";
 
 // React escapes source text. Only the small Markdown subset used by the manual is rendered.
@@ -17,11 +17,18 @@ function inline(text: string): ReactNode {
   });
 }
 
+// Plain text for the search index; mirrors what inline() renders.
+function plain(text: string) {
+  return text.replace(/\*\*([^*]+)\*\*/g, "$1").replace(/`([^`]+)`/g, "$1").replace(/\[([^\]]+)\]\([^)]+\)/g, "$1");
+}
+
 export default async function ManualGuidePage() {
   const source = await readFile(path.join(process.cwd(), "docs/manual/README.md"), "utf8");
   const lines = source.split("\n");
   const contents: { id: string; label: string }[] = [];
+  const searchIndex: SearchEntry[] = [];
   const blocks: ReactNode[] = [];
+  const index_text = (text: string) => { const entry = searchIndex.at(-1); if (entry) entry.text += ` ${plain(text)}`; };
   for (let index = 0; index < lines.length; index++) {
     const line = lines[index].trim();
     if (!line || line.startsWith("# ") || line.startsWith("**Status gambar:**") || line.startsWith("Untuk pengelola teknis,")) continue;
@@ -29,14 +36,22 @@ export default async function ManualGuidePage() {
       const label = line.slice(3);
       const id = `bagian-${contents.length + 1}`;
       contents.push({ id, label });
+      searchIndex.push({ id, title: label, section: label, text: "" });
       blocks.push(<h2 key={index} id={id} tabIndex={-1} className="mt-10 scroll-mt-6 border-t border-line pt-6 text-xl font-semibold text-navy">{label}</h2>);
     } else if (line.startsWith("### ")) {
-      blocks.push(<h3 key={index} className="mt-6 text-base font-semibold text-navy">{line.slice(4)}</h3>);
+      const section = contents.at(-1);
+      const label = line.slice(4);
+      const id = `${section?.id ?? "bagian-0"}-${searchIndex.filter(entry => entry.id.startsWith(`${section?.id}-`)).length + 1}`;
+      searchIndex.push({ id, title: label, section: section?.label ?? label, text: "" });
+      blocks.push(<h3 key={index} id={id} tabIndex={-1} className="mt-6 scroll-mt-6 text-base font-semibold text-navy">{label}</h3>);
     } else if (line.startsWith("|")) {
       const rows: string[][] = [];
       const key = index;
       while (index < lines.length && lines[index].startsWith("|")) {
-        if (!/^\|[ :|-]+\|$/.test(lines[index])) rows.push(lines[index].split("|").slice(1, -1).map(cell => cell.trim()));
+        if (!/^\|[ :|-]+\|$/.test(lines[index])) {
+          rows.push(lines[index].split("|").slice(1, -1).map(cell => cell.trim()));
+          index_text(rows.at(-1)!.join(" "));
+        }
         index++;
       }
       index--;
@@ -50,6 +65,7 @@ export default async function ManualGuidePage() {
       const items: string[] = [];
       const key = index;
       while (index < lines.length && /^\d+\. /.test(lines[index])) items.push(lines[index++].replace(/^\d+\. /, ""));
+      items.forEach(index_text);
       index--;
       blocks.push(<ol key={key} className="my-4 list-decimal space-y-2 pl-6">{items.map((item, itemIndex) => <li key={itemIndex}>{inline(item)}</li>)}</ol>);
     } else if (line.startsWith("![")) {
@@ -63,13 +79,14 @@ export default async function ManualGuidePage() {
         </figure>);
       }
     } else {
+      index_text(line);
       blocks.push(<p key={index} className="my-3">{inline(line)}</p>);
     }
   }
   return <Page>
     <PageHeading><div><h1>Manual Guide</h1><p className="mt-2 text-muted">Panduan lengkap penggunaan Visitor Counter, dari persiapan hingga sinkronisasi.</p></div></PageHeading>
     <div className="grid items-start gap-6 xl:grid-cols-[250px_minmax(0,1fr)]">
-      <Panel className="xl:sticky xl:top-6"><ManualGuideContents entries={contents} /></Panel>
+      <Panel className="xl:sticky xl:top-6"><ManualGuideContents entries={contents} searchIndex={searchIndex} /></Panel>
       <Panel className="min-w-0"><article id="manual-guide-body" className="max-w-4xl text-sm leading-7" aria-label="Panduan penggunaan aplikasi">{blocks}</article></Panel>
     </div>
   </Page>;
