@@ -139,7 +139,10 @@ export default function ManualGuideContents({ entries, searchIndex = [] }: { ent
   }
 
   const searching = words.length > 0;
-  return <nav ref={navigation} aria-label="Daftar isi panduan" className="max-h-[min(60vh,640px)] overflow-y-auto overscroll-contain pr-2 xl:max-h-[calc(100dvh-7rem)]">
+  return <>
+  {/* Kept out of globals.css: Tailwind's CSS optimizer does not yet recognise ::highlight(). */}
+  <style href="manual-search-highlight" precedence="default">{"::highlight(manual-search){background-color:#fde68a;color:inherit}"}</style>
+  <nav ref={navigation} aria-label="Daftar isi panduan" className="max-h-[min(60vh,640px)] overflow-y-auto overscroll-contain pr-2 xl:max-h-[calc(100dvh-7rem)]">
     <div role="search" className="sticky top-0 z-10 -mx-1 mb-3 bg-white px-1 pb-2">
       <label htmlFor="manual-search" className="sr-only">Cari di panduan</label>
       <div className="relative">
@@ -188,5 +191,6 @@ export default function ManualGuideContents({ entries, searchIndex = [] }: { ent
       </a>
     </li>)}</ol>
     </>}
-  </nav>;
+  </nav>
+  </>;
 }

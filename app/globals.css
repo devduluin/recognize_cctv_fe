@@ -47,12 +47,6 @@
     }
   }
 
-  /* Manual Guide search matches (CSS Custom Highlight API). */
-  ::highlight(manual-search) {
-    background-color: #fde68a;
-    color: inherit;
-  }
-
   @media (prefers-reduced-motion: reduce) {
     *, *::before, *::after {
       animation-duration: 0.01ms !important;
