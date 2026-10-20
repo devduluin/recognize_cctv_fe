@@ -12,7 +12,8 @@ Panduan untuk administrator, operator, dan pembaca laporan. Nama tombol mengikut
 2. Buka Visitor Counter dan tunggu proses persiapan selesai. Layanan lokal berjalan bersama aplikasi; Anda tidak perlu menjalankan Python atau Node.js sendiri.
 3. Masuk menggunakan akun desktop. Jika belum punya akun, gunakan pendaftaran yang tersedia atau minta akun kepada administrator workspace.
 4. Pastikan workspace benar sebelum membuat Event atau menghubungkan sinkronisasi.
-5. Untuk selesai bekerja, hentikan monitoring yang sedang berjalan lalu keluar melalui aplikasi.
+5. Menutup jendela tidak menghentikan aplikasi: monitoring kamera tetap berjalan di latar belakang. Buka kembali melalui ikon Visitor Counter di menu bar (macOS) atau system tray (Windows), atau klik ikon di Dock pada macOS.
+6. Untuk selesai bekerja, hentikan monitoring yang sedang berjalan lalu pilih **Keluar** dari ikon menu bar/system tray, atau tekan ⌘Q di macOS.
 
 Sesi login desktop disimpan terenkripsi dan dipulihkan saat aplikasi dibuka kembali selama token masih valid. Setelah memasang versi dengan fitur ini, lakukan login sekali. Memilih **Keluar**, token kedaluwarsa, perubahan password yang mencabut sesi, atau akun yang dinonaktifkan/dihapus akan memerlukan login kembali.
 

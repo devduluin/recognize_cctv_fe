@@ -1,7 +1,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 use std::{io::{BufRead, BufReader, Write}, path::PathBuf, process::{Child, Command, Stdio}, sync::{atomic::{AtomicBool, Ordering}, Arc, Mutex}, time::{Duration, Instant}};
 use rand::RngCore;
-use tauri::{Manager, WebviewUrl, WebviewWindowBuilder};
+use tauri::{menu::{Menu, MenuItem}, tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent}, Manager, WebviewUrl, WebviewWindowBuilder};
 
 struct Services { child: Mutex<Child>, stopping: AtomicBool }
 fn credential_key() -> Result<String, Box<dyn std::error::Error>> {
@@ -94,13 +94,45 @@ fn startup_status(app: &tauri::AppHandle, stage: &str) {
         let _ = window.eval(&format!("window.setStartupStage?.({})", serde_json::json!(stage)));
     }
 }
+/// Bring the hidden or minimized main window back to the front.
+fn show_main<R: tauri::Runtime>(app: &tauri::AppHandle<R>) {
+    if let Some(window) = app.get_webview_window("main") {
+        let _ = window.show();
+        let _ = window.unminimize();
+        let _ = window.set_focus();
+    }
+}
+/// Monitoring keeps running only while the local services are up.
+fn services_running<R: tauri::Runtime>(app: &tauri::AppHandle<R>) -> bool {
+    app.try_state::<Arc<Services>>().is_some_and(|services| !services.stopping.load(Ordering::SeqCst))
+}
 fn main() {
     let app = tauri::Builder::default()
         .manage(Startup { cancelled: AtomicBool::new(false), stage: Mutex::new("initial".into()) })
         .plugin(tauri_plugin_single_instance::init(|app, _, _| {
-            if let Some(window) = app.get_webview_window("main") { let _ = window.unminimize(); let _ = window.set_focus(); }
+            show_main(app);
         }))
         .setup(|app| {
+            // Closing the window keeps cameras counting; the tray menu reopens or quits.
+            let open = MenuItem::with_id(app, "open", "Buka Visitor Counter", true, None::<&str>)?;
+            let quit = MenuItem::with_id(app, "quit", "Keluar", true, None::<&str>)?;
+            let menu = Menu::with_items(app, &[&open, &quit])?;
+            let mut tray = TrayIconBuilder::with_id("main")
+                .tooltip("Visitor Counter")
+                .menu(&menu)
+                .show_menu_on_left_click(cfg!(target_os = "macos"))
+                .on_menu_event(|app, event| match event.id.as_ref() {
+                    "open" => show_main(app),
+                    "quit" => app.exit(0),
+                    _ => {}
+                })
+                .on_tray_icon_event(|tray, event| {
+                    if let TrayIconEvent::Click { button: MouseButton::Left, button_state: MouseButtonState::Up, .. } = event {
+                        show_main(tray.app_handle());
+                    }
+                });
+            if let Some(icon) = app.default_window_icon() { tray = tray.icon(icon.clone()); }
+            tray.build(app)?;
             let allowed_origin = Arc::new(Mutex::new(None::<String>));
             let navigation = allowed_origin.clone();
             WebviewWindowBuilder::new(app, "main", WebviewUrl::App("index.html".into()))
@@ -147,6 +179,15 @@ fn main() {
         })
         .build(tauri::generate_context!()).expect("Visitor Counter Tauri startup failed");
     app.run(|handle, event| {
+        if let tauri::RunEvent::WindowEvent { label, event: tauri::WindowEvent::CloseRequested { api, .. }, .. } = &event {
+            // Hide instead of quitting while monitoring can run; quit from the tray or with Cmd+Q.
+            if label == "main" && services_running(handle) {
+                api.prevent_close();
+                if let Some(window) = handle.get_webview_window("main") { let _ = window.hide(); }
+            }
+        }
+        #[cfg(target_os = "macos")]
+        if let tauri::RunEvent::Reopen { .. } = &event { show_main(handle); }
         if let tauri::RunEvent::WindowEvent { event: tauri::WindowEvent::Destroyed, .. } = &event { handle.exit(0); }
         if let tauri::RunEvent::ExitRequested { api, .. } = event {
             handle.state::<Startup>().cancelled.store(true, Ordering::SeqCst);
