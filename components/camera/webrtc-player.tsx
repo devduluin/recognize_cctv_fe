@@ -78,6 +78,12 @@ export default function WebRTCPlayer({
   const hlsAbortRef = useRef<AbortController | null>(null);
   const hlsTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const whepResourceUrlRef = useRef<string | null>(null);
+  // WebRTC retry state: MediaMTX answers WHEP with 404 until the camera path is
+  // ready (e.g. right after an event starts), and sessions can drop briefly.
+  const webrtcRetryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const webrtcAttemptRef = useRef(0);
+  const webrtcDeadlineRef = useRef(0);
+  const startWebRTCRef = useRef<(isRetry?: boolean) => void>(() => {});
 
   const [activeMode, setActiveMode] = useState<StreamMode>(preferredMode);
   const [lastPreferredMode, setLastPreferredMode] = useState(preferredMode);
@@ -119,6 +125,8 @@ export default function WebRTCPlayer({
   const cleanupStreams = useCallback(() => {
     if (webrtcTimerRef.current !== null) clearTimeout(webrtcTimerRef.current);
     webrtcTimerRef.current = null;
+    if (webrtcRetryTimerRef.current !== null) clearTimeout(webrtcRetryTimerRef.current);
+    webrtcRetryTimerRef.current = null;
     whepAbortRef.current?.abort();
     whepAbortRef.current = null;
     if (pcRef.current) {
@@ -181,7 +189,7 @@ export default function WebRTCPlayer({
   );
 
   // WebRTC WHEP connection initialization using native HTML5 Video
-  const startWebRTC = useCallback(async () => {
+  const startWebRTC = useCallback(async (isRetry = false) => {
     const fallback = (message: string) => {
       cleanupStreams();
       if (fallbackStreamUrl) {
@@ -196,6 +204,21 @@ export default function WebRTCPlayer({
       fallback("URL WebRTC (WHEP) tidak tersedia");
       return;
     }
+    if (!isRetry) {
+      webrtcAttemptRef.current = 0;
+      webrtcDeadlineRef.current = Date.now() + 25000;
+    }
+    // Transient failures reconnect with backoff before falling back to MJPEG/HLS.
+    const retryOrFallback = (message: string) => {
+      if (Date.now() >= webrtcDeadlineRef.current) {
+        fallback(message);
+        return;
+      }
+      cleanupStreams();
+      updateStatus("connecting");
+      const delay = Math.min(3000, 500 * 2 ** webrtcAttemptRef.current++);
+      webrtcRetryTimerRef.current = setTimeout(() => startWebRTCRef.current(true), delay);
+    };
 
     cleanupStreams();
     updateStatus("connecting");
@@ -203,8 +226,9 @@ export default function WebRTCPlayer({
     whepAbortRef.current = controller;
     const isCurrent = () => !controller.signal.aborted && whepAbortRef.current === controller;
     webrtcTimerRef.current = setTimeout(() => {
-      if (isCurrent()) fallback("Koneksi WebRTC melewati batas waktu.");
+      if (isCurrent()) retryOrFallback("Koneksi WebRTC melewati batas waktu.");
     }, 8000);
+    let disconnectTimer: ReturnType<typeof setTimeout> | null = null;
 
     try {
       const pc = new RTCPeerConnection({
@@ -228,12 +252,22 @@ export default function WebRTCPlayer({
       pc.onconnectionstatechange = () => {
         if (!isCurrent()) return;
         const state = pc.connectionState;
+        if (disconnectTimer !== null) clearTimeout(disconnectTimer);
+        disconnectTimer = null;
         if (state === "connected") {
           if (webrtcTimerRef.current !== null) clearTimeout(webrtcTimerRef.current);
           webrtcTimerRef.current = null;
+          // A later drop gets a fresh retry window.
+          webrtcAttemptRef.current = 0;
+          webrtcDeadlineRef.current = Date.now() + 25000;
           updateStatus("live");
+        } else if (state === "disconnected") {
+          // Often recovers by itself; otherwise reconnect instead of freezing.
+          disconnectTimer = setTimeout(() => {
+            if (isCurrent() && pc.connectionState === "disconnected") retryOrFallback("Koneksi WebRTC terputus");
+          }, 4000);
         } else if (state === "failed") {
-          fallback("Koneksi WebRTC gagal");
+          retryOrFallback("Koneksi WebRTC gagal");
         }
       };
 
@@ -270,6 +304,14 @@ export default function WebRTCPlayer({
       if (!isCurrent()) return;
 
       if (!res.ok) {
+        // While an event (re)starts the camera path is briefly unregistered
+        // (400 "not configured") or has no stream yet (404); 5xx is transient too.
+        const detail = await res.text().catch(() => "");
+        if (!isCurrent()) return;
+        if (res.status === 404 || res.status >= 500 || (res.status === 400 && /not configured/i.test(detail))) {
+          retryOrFallback(`Stream kamera belum siap (HTTP ${res.status})`);
+          return;
+        }
         throw new Error(`WHEP endpoint HTTP ${res.status}`);
       }
 
@@ -284,9 +326,12 @@ export default function WebRTCPlayer({
       await pc.setRemoteDescription(new RTCSessionDescription({ type: "answer", sdp: answerSdp }));
     } catch (err) {
       if (!isCurrent()) return;
-      fallback(err instanceof Error ? err.message : "Gagal menghubungkan WebRTC");
+      // Network errors (e.g. local media service restarting) are retried.
+      if (err instanceof TypeError) retryOrFallback(err.message);
+      else fallback(err instanceof Error ? err.message : "Gagal menghubungkan WebRTC");
     }
   }, [whepUrl, iceServers, hlsUrl, fallbackStreamUrl, cleanupStreams, updateStatus, switchMode]);
+  useEffect(() => { startWebRTCRef.current = (isRetry) => { void startWebRTC(isRetry); }; }, [startWebRTC]);
 
   // Bound startup and recovery: a manifest alone does not mean video is playing.
   const startHLS = useCallback(() => {
