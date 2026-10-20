@@ -103,6 +103,44 @@ Referensi format: [Dokumentasi resmi RTSP Hikvision](https://www.hikvision.com/c
 
 ![Daftar kamera workspace](screenshots/03-cameras.png)
 
+### Penempatan kamera di gerbang
+
+Penempatan kamera menentukan akurasi lebih dari pengaturan apa pun. Setiap orang perlu terlihat utuh, wajahnya cukup besar, dan gambarnya tajam saat melewati garis hitung. Jika kamera terlalu rendah atau terlalu dekat, badan terpotong dan wajah buram, sehingga orang yang sama mudah tercatat sebagai pengunjung baru.
+
+| Ukuran | Acuan | Alasan |
+| --- | --- | --- |
+| Tinggi kamera dari lantai | 2,5 – 3,5 m | Di atas kepala, sehingga orang di belakang tidak tertutup orang di depannya. |
+| Sudut menunduk | 15° – 30° | Wajah tetap terlihat dari depan dan badan tidak terpotong. |
+| Jarak kamera ke garis hitung | 4 – 6 m | Orang tampak utuh beberapa langkah sebelum garis. Lensa 4 mm cocok untuk jarak ini; lensa 2,8 mm sekitar 3 – 4 m. |
+| Tinggi orang di gambar saat di garis | 40 – 60 % | Kepala sampai kaki masuk bingkai. Lebih dari 70 % berarti terlalu dekat. |
+| Lebar wajah di gambar 1280 px | minimal 80 px | Cukup detail untuk pengenalan wajah setelah gambar diperkecil untuk deteksi. |
+| Kecepatan rana (shutter) | 1/250 s atau lebih cepat | Menghilangkan blur pada orang yang berjalan cepat. Tambah cahaya bila gambar menjadi gelap. |
+| Posisi garis hitung di gambar | 30 – 70 % | Jauh dari tepi bingkai, tegak lurus arah jalan, dengan mode dua garis. |
+
+![Tampak samping: posisi sekarang dibanding posisi yang disarankan](diagrams/gerbang-samping.svg)
+
+![Denah gerbang: kamera masuk di dalam area menghadap orang yang datang](diagrams/gerbang-denah.svg)
+
+![Tampilan di layar kamera: orang utuh di zona hitung, jauh dari tepi bingkai](diagrams/gerbang-layar.svg)
+
+Langkah pemasangan:
+
+1. Pasang kamera di dinding atau tiang di dalam area, setinggi 2,5 – 3,5 m, menghadap gerbang.
+2. Arahkan kamera menunduk 15° – 30° sampai lantai di gerbang berada di tengah bawah gambar.
+3. Di menu kamera, set shutter 1/250 s. Aktifkan WDR bila gerbang membelakangi cahaya terang.
+4. Di aplikasi, buka Edit Event, aktifkan **Gunakan 2 Garis & Crossing Zone**, atur garis horizontal di 50 – 70 %, dan pilih peran kamera **Masuk**.
+5. Minta 2 – 3 orang berjalan masuk dengan langkah normal dan cepat. Periksa foto capture: badan utuh, wajah tajam, dan tidak ada yang tercatat ganda.
+
+| Hindari | Akibatnya |
+| --- | --- |
+| Kamera setinggi kepala atau kurang dari 3 m dari garis hitung | Badan terpotong, wajah buram, dan potongan tubuh di tepi gambar tercatat sebagai pengunjung. |
+| Garis hitung di dekat tepi gambar atau sejajar arah jalan | Orang belum terlihat utuh saat melintas, atau lintasan tidak terbaca. |
+| Menghadap pintu kaca atau langit terang tanpa WDR | Wajah gelap dan sulit dikenali. |
+| Antrean yang berdiri tepat di garis hitung | Gerakan kecil orang yang berdiri dapat terbaca sebagai lintasan. Pindahkan garis ke area orang berjalan. |
+| Satu kamera untuk masuk dan keluar sekaligus | Wajah hanya terlihat dari satu arah. Gunakan kamera kedua yang menghadap arah sebaliknya, atau pisahkan jalur keluar. |
+
+Angka di atas adalah titik awal, bukan jaminan. Lensa, tinggi plafon, dan lebar gerbang berbeda di setiap lokasi; sesuaikan dengan preview di aplikasi dan uji jalan sebelum event dimulai.
+
 ## 5. Membuat Event
 
 1. Buka **Event** dan pilih **Buat Event**.
@@ -126,6 +164,8 @@ Pengaturan gender saat ini merupakan deteksi visual pada Event. Aplikasi belum m
 
 Mulai dengan nilai bawaan. Detail gambar, interval pemrosesan frame, dan ambang keyakinan memengaruhi beban komputer serta hasil deteksi. Ubah satu parameter setiap kali, lalu bandingkan hasil dengan hitungan manual pada kondisi kamera yang sama. Menambah detail gambar tidak menjamin hasil selalu lebih akurat.
 
+Hanya nilai yang Anda ubah yang disimpan pada Event; nilai lain mengikuti rekomendasi aplikasi, termasuk bila rekomendasi diperbarui pada versi berikutnya. Jika pengenalan wajah memakai ArcFace, **Ketelitian mengenali orang yang sama** dinonaktifkan karena ArcFace memakai ambang dari paket modelnya sendiri; formulir menampilkan ambang yang berlaku.
+
 ## 6. Monitoring kamera pada Event
 
 1. Buka Event yang benar dari daftar.
@@ -146,9 +186,11 @@ Panel **Okupansi zona saat ini** menampilkan jumlah per kamera. Angka ini dapat 
 
 ### Koreksi dan tangkapan tertunda
 
-Jika akun memiliki izin koreksi, gunakan fitur review pengunjung yang tersedia pada detail Event. Periksa waktu, arah lintasan, dan bukti foto sebelum menggabungkan atau mengoreksi identitas. Tangkapan yang belum teridentifikasi tidak selalu berarti lintasannya tidak dihitung; periksa catatan dan indikator yang ditampilkan.
+Pencocokan identitas berjalan otomatis melalui wajah dan seluruh badan; penggabungan pengunjung secara manual tidak tersedia. **Riwayat koreksi** pada Capture Pengunjung tetap menampilkan penggabungan lama dan dapat membatalkannya. Lintasan yang belum memiliki bukti identitas, misalnya hanya kepala yang terlihat di tepi gambar pada kamera yang biasanya mendeteksi badan orang, tidak langsung dicatat sebagai pengunjung baru dan ditampilkan sebagai **Lintasan belum terhitung**. Kamera dari atas yang hanya melihat kepala tetap menghitung dari kepala. Tangkapan yang belum teridentifikasi tidak selalu berarti lintasannya tidak dihitung; periksa catatan dan indikator yang ditampilkan.
 
 Deteksi gender merupakan perkiraan visual. Wajah yang kecil, gelap, tertutup, atau tampak dari samping dapat menghasilkan kategori belum diketahui atau hasil yang keliru. Aplikasi mengumpulkan bukti dari beberapa pengamatan dan dapat meninjau ulang hasil; ini tidak menjamin ketepatan pada setiap orang.
+
+Gender yang belum diketahui saat pengunjung tercatat tetap dapat terisi kemudian, ketika orang yang sama terlihat lagi dengan wajah yang jelas di kamera event tersebut; catatan dan statistiknya ikut diperbarui. Untuk orang yang jarang menghadap kamera, aktifkan **Perkirakan dari badan bila wajah tidak terlihat** di bawah **Deteksi gender pengunjung** pada Edit Event. Perkiraan dari badan hanya dipakai bila keyakinannya minimal 85%, tetapi lebih mudah keliru daripada perkiraan dari wajah. Setelah mengaktifkannya, periksa beberapa capture dan matikan kembali bila banyak yang salah. Perubahan berlaku setelah monitoring dihentikan lalu dimulai lagi.
 
 ## 7. Menganalisis rekaman video
 

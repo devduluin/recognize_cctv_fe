@@ -68,6 +68,16 @@ export default async function ManualGuidePage() {
       items.forEach(index_text);
       index--;
       blocks.push(<ol key={key} className="my-4 list-decimal space-y-2 pl-6">{items.map((item, itemIndex) => <li key={itemIndex}>{inline(item)}</li>)}</ol>);
+    } else if (/^!\[[^\]]*\]\(diagrams\//.test(line)) {
+      // Explanatory drawings, not app screenshots: no "Data contoh" caption.
+      const diagram = /^!\[([^\]]*)\]\(diagrams\/([\w-]+\.svg)\)$/.exec(line);
+      if (diagram && existsSync(path.join(process.cwd(), "public/manual/diagrams", diagram[2]))) {
+        blocks.push(<figure key={index} className="my-6">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={`/manual/diagrams/${diagram[2]}`} alt={diagram[1]} loading="lazy" className="h-auto w-full rounded-lg border border-line bg-white" />
+          <figcaption className="mt-2 text-xs text-muted">{diagram[1]}</figcaption>
+        </figure>);
+      }
     } else if (line.startsWith("![")) {
       const image = /^!\[([^\]]*)\]\(screenshots\/([\w-]+\.png)\)$/.exec(line);
       if (image && existsSync(path.join(process.cwd(), "public/manual/screenshots", image[2]))) {

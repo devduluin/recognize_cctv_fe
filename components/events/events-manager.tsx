@@ -83,7 +83,7 @@ type VisitorEvent = {
   capacity?: number | null;
   allow_duplicate?: boolean;
   gender_enabled?: boolean;
-  advanced_settings?: Partial<Record<keyof typeof ADVANCED_DEFAULTS, number>> | null;
+  advanced_settings?: (Partial<Record<keyof typeof ADVANCED_DEFAULTS, number>> & { gender_body_fallback?: boolean }) | null;
   status?: string;
   visitor_count?: number;
   created_at?: string;
@@ -129,6 +129,7 @@ const initialForm = {
   capacity: "",
   allowDuplicate: false,
   genderEnabled: false,
+  genderBodyFallback: false,
   advancedSettings: { ...ADVANCED_DEFAULTS },
 };
 function companyId() {
@@ -165,6 +166,8 @@ export default function EventsManager({ editEventId, onClose, onSaved }: {
   const [form, setForm] = useState(initialForm);
   const [manualAdvanced, setManualAdvanced] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
+  // Which face model a start will use: ArcFace has its own threshold from its model pack.
+  const [faceModel, setFaceModel] = useState<{ model: "ArcFace" | "FaceNet"; threshold: number | null } | null>(null);
   const [isOpen, setIsOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [formError, setFormError] = useState("");
@@ -172,6 +175,15 @@ export default function EventsManager({ editEventId, onClose, onSaved }: {
   const [startingId, setStartingId] = useState<string | null>(null);
   const startupRequest = useRef<AbortController | null>(null);
   useEffect(() => () => startupRequest.current?.abort(), []);
+  useEffect(() => {
+    if (!isOpen) return;
+    const controller = new AbortController();
+    visitorFetch(`${API_BASE}/face-recognition`, { signal: controller.signal })
+      .then((response) => (response.ok ? response.json() : null))
+      .then((payload) => { if (payload?.result?.model) setFaceModel(payload.result); })
+      .catch(() => {});
+    return () => controller.abort();
+  }, [isOpen]);
   const [actionAlert, setActionAlert] = useState<{
     type: "success" | "error";
     message: string;
@@ -359,6 +371,7 @@ export default function EventsManager({ editEventId, onClose, onSaved }: {
             capacity: event.capacity == null ? "" : String(event.capacity),
             allowDuplicate: event.allow_duplicate === true,
             genderEnabled: event.gender_enabled === true,
+            genderBodyFallback: event.advanced_settings?.gender_body_fallback === true,
             advancedSettings: Object.fromEntries(Object.entries(ADVANCED_DEFAULTS).map(([key, value]) => [key, String(event.advanced_settings?.[key as keyof typeof ADVANCED_DEFAULTS] ?? value)])) as typeof ADVANCED_DEFAULTS,
           }
         : { ...initialForm, eventDate: todayWib(), eventEndDate: todayWib() },
@@ -451,7 +464,10 @@ export default function EventsManager({ editEventId, onClose, onSaved }: {
         capacity: form.capacity ? Number(form.capacity) : null,
         allow_duplicate: form.allowDuplicate,
         gender_enabled: form.genderEnabled,
-        advanced_settings: Object.fromEntries(Object.entries(form.advancedSettings).map(([key, value]) => [key, Number(value)])),
+        advanced_settings: {
+          ...Object.fromEntries(Object.entries(form.advancedSettings).map(([key, value]) => [key, Number(value)])),
+          gender_body_fallback: form.genderBodyFallback,
+        },
         company_id: companyId(),
       };
       const response = await visitorFetch(
@@ -859,19 +875,34 @@ export default function EventsManager({ editEventId, onClose, onSaved }: {
                       checked={form.genderEnabled}
                       onChange={(e) => update("genderEnabled", e.target.checked)}
                     />
+                    {form.genderEnabled && (
+                      <ChoiceCard
+                        variant="subtle"
+                        className="mt-3"
+                        title="Perkirakan dari badan bila wajah tidak terlihat"
+                        description="Mengurangi gender yang belum diketahui untuk orang yang tidak menghadap kamera. Perkiraan dari badan lebih mudah keliru (rambut panjang, jaket, anak-anak), jadi hanya dipakai bila keyakinannya minimal 85%. Periksa beberapa capture setelah mengaktifkannya."
+                        checked={form.genderBodyFallback}
+                        onChange={(e) => update("genderBodyFallback", e.target.checked)}
+                      />
+                    )}
                   </section>
                   <section aria-label="Pengaturan lanjutan" className="border-t border-neutral-200 pt-6">
                     <details className="rounded-lg border border-neutral-300 p-4">
                       <summary className="cursor-pointer font-semibold">Pengaturan Lanjutan</summary>
                       <p className="mt-3 text-sm leading-relaxed text-neutral-600">Belum yakin harus memilih apa? Gunakan pilihan yang disarankan. Pengaturan berlaku untuk semua kamera event. Jika monitoring sedang berjalan, hentikan lalu mulai kembali setelah menyimpan.</p>
                       <div className="mt-4 grid gap-4 min-[600px]:grid-cols-2">
-                        {ADVANCED_FIELDS.filter((field) => form.genderEnabled || !field.key.startsWith("gender_")).map((field) => <Field key={field.key} label={field.label}>
-                          {manualAdvanced ? <Input type="number" required min={field.min} max={field.max} step={field.step} value={form.advancedSettings[field.key]} aria-describedby={`advanced-${field.key}-hint`} onChange={(event) => update("advancedSettings", { ...form.advancedSettings, [field.key]: event.target.value })} /> : <Select value={ADVANCED_OPTIONS[field.key].find((option) => Number(option.value) === Number(form.advancedSettings[field.key]))?.value || form.advancedSettings[field.key]} aria-describedby={`advanced-${field.key}-hint`} onChange={(event) => update("advancedSettings", { ...form.advancedSettings, [field.key]: event.target.value })}>
+                        {ADVANCED_FIELDS.filter((field) => form.genderEnabled || !field.key.startsWith("gender_")).map((field) => {
+                          const arcface = field.key === "face_similarity" && faceModel?.model === "ArcFace";
+                          return <Field key={field.key} label={field.label}>
+                          {manualAdvanced ? <Input type="number" required min={field.min} max={field.max} step={field.step} disabled={arcface} value={form.advancedSettings[field.key]} aria-describedby={`advanced-${field.key}-hint`} onChange={(event) => update("advancedSettings", { ...form.advancedSettings, [field.key]: event.target.value })} /> : <Select disabled={arcface} value={ADVANCED_OPTIONS[field.key].find((option) => Number(option.value) === Number(form.advancedSettings[field.key]))?.value || form.advancedSettings[field.key]} aria-describedby={`advanced-${field.key}-hint`} onChange={(event) => update("advancedSettings", { ...form.advancedSettings, [field.key]: event.target.value })}>
                             {!ADVANCED_OPTIONS[field.key].some((option) => Number(option.value) === Number(form.advancedSettings[field.key])) && <option value={form.advancedSettings[field.key]}>Nilai khusus ({form.advancedSettings[field.key]})</option>}
                             {ADVANCED_OPTIONS[field.key].map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
                           </Select>}
-                          <FieldHint id={`advanced-${field.key}-hint`}>{field.hint}{manualAdvanced && ` Nilai bawaan: ${ADVANCED_DEFAULTS[field.key]}.`}</FieldHint>
-                        </Field>)}
+                          <FieldHint id={`advanced-${field.key}-hint`}>{arcface
+                            ? `Tidak dipakai saat ini: pengenalan wajah memakai ArcFace dengan ambang ${faceModel?.threshold != null ? faceModel.threshold.toLocaleString("id-ID", { minimumFractionDigits: 2 }) : "dari paket model"} yang ditetapkan paket modelnya. Pengaturan ini berlaku bila aplikasi kembali memakai FaceNet.`
+                            : <>{field.hint}{manualAdvanced && ` Nilai bawaan: ${ADVANCED_DEFAULTS[field.key]}.`}</>}</FieldHint>
+                        </Field>;
+                        })}
                       </div>
                       <div className="mt-4 flex flex-wrap gap-2">
                         <Button type="button" variant="outline" onClick={() => update("advancedSettings", { ...form.advancedSettings, detect_every_n_frames: "1", target_ai_fps: "20", detect_width: "640" })}>Preset gerbang ramai</Button>
