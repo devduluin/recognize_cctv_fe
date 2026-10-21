@@ -70,7 +70,7 @@ authorization; no additional environment flag is needed.
 After connecting, background sync runs automatically (30 seconds by default).
 Offline changes stay local and retry when the server becomes reachable. Pause or
 change the interval in settings; **Sinkronkan sekarang** remains available.
-Both desktop and server backends must use sync protocol v3.
+Both desktop and server backends must use sync protocol v4.
 This includes workspace operational SQL records and stored photos; video files,
 Chroma indexes, login credentials, and device scheduling remain separate.
 See [the backend sync guide](../recognize_cctv/docs/database-sync.md) for setup,

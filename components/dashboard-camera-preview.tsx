@@ -23,7 +23,6 @@ type CCTVCamera = {
   status?: string;
   last_used?: string;
   events?: string[];
-  zone_type?: string;
 };
 
 const CCTV_API = `${process.env.NEXT_PUBLIC_SERVICE_RECOGNIZE_CCTV || ""}/api/v1/cctv`;
@@ -269,13 +268,6 @@ function DashboardCameraCard({
               Nyalakan Stream
             </button>
           </div>
-        )}
-
-        {/* Overlay zone badge if available */}
-        {camera.zone_type && (
-          <span className="absolute bottom-2 left-2 rounded bg-black/60 px-2 py-0.5 text-[10px] font-medium text-slate-200 backdrop-blur-xs">
-            {camera.zone_type}
-          </span>
         )}
       </div>
 
