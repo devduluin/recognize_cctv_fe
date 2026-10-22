@@ -147,15 +147,19 @@ Angka di atas adalah titik awal, bukan jaminan. Lensa, tinggi plafon, dan lebar 
 1. Buka **Event** dan pilih **Buat Event**.
 2. Isi nama, lokasi, tanggal, rentang waktu, dan kapasitas sesuai kebutuhan.
 3. Di bagian **Kamera event**, pilih kamera yang akan digunakan.
-4. Atur arah hitung per kamera: masuk, keluar, atau otomatis sesuai kebutuhan pintu dan arah gerak orang.
-5. Sesuaikan posisi dan orientasi garis hitung. Gunakan mirror atau pembalikan arah hanya jika sesuai tampilan kamera.
-6. Aktifkan **Deteksi gender pengunjung** jika memang diperlukan.
-7. Periksa jadwal otomatis bila digunakan, lalu simpan Event.
-8. Buka detail Event dan lakukan uji lintasan sebelum digunakan untuk penghitungan operasional.
+4. Pilih **Metode pengukuran** per kamera: **Akumulasi keluar/masuk** untuk kamera di pintu, atau **Keramaian** untuk kamera yang mengamati area venue. Lihat bagian **Mengukur keramaian** di bab 6.
+5. Untuk kamera akumulasi, atur **Peran kamera**: masuk, keluar, atau otomatis sesuai kebutuhan pintu dan arah gerak orang.
+6. Atur **Gender kamera**: otomatis (AI), laki-laki, atau perempuan. Lihat bagian **Gender per kamera** di bab 6.
+7. Sesuaikan posisi dan orientasi garis hitung. Gunakan mirror atau pembalikan arah hanya jika sesuai tampilan kamera.
+8. Aktifkan **Deteksi gender pengunjung** jika gender perlu diperkirakan AI pada kamera bergender otomatis.
+9. Periksa jadwal otomatis bila digunakan, lalu simpan Event.
+10. Buka detail Event dan lakukan uji lintasan sebelum digunakan untuk penghitungan operasional.
 
 Uji satu orang melewati garis masuk dan keluar. Bandingkan arah gerak dengan perubahan angka. Hindari garis di area antrean yang membuat orang berkali-kali menyeberang atau area yang tertutup benda.
 
-Pengaturan gender saat ini merupakan deteksi visual pada Event. Aplikasi belum menyediakan aturan “pintu ini khusus perempuan/laki-laki” sebagai pengganti hasil model.
+Satu Event dapat menggabungkan beberapa jenis kamera, misalnya kamera pintu masuk dengan **Akumulasi keluar/masuk** dan kamera venue dengan **Keramaian**, atau dua pintu terpisah dengan **Gender kamera** laki-laki dan perempuan.
+
+Untuk Event beberapa hari dengan jadwal otomatis, monitoring dimulai pada jam mulai dan berhenti pada jam selesai setiap hari selama rentang tanggal Event. Sesi hari sebelumnya yang sudah selesai tidak menghalangi hari berikutnya. Jika monitoring dihentikan manual di tengah jadwal hari itu, aplikasi tidak memulainya lagi sampai jadwal hari berikutnya.
 
 ![Daftar Event](screenshots/04-events.png)
 
@@ -177,13 +181,37 @@ Hanya nilai yang Anda ubah yang disimpan pada Event; nilai lain mengikuti rekome
 
 Jika kamera terputus, periksa jaringan dan sumber kamera. Tunggu proses sambung ulang; jika masih tersangkut, pilih **Restart kamera** pada kontrol sesi. Aksi ini menghentikan koneksi lama dan memulai ulang seluruh kamera event di latar belakang, sambil melanjutkan sesi yang sama dan mempertahankan data hitungan. Pemantauan terjeda selama restart. Tombol tersedia bagi akun dengan izin kontrol monitoring. Jika restart gagal, periksa pesan status sebelum mencoba lagi; jangan memakai Reset Event karena tindakan itu menghapus data event.
 
-### Mengukur orang di zona
+### Gender per kamera
 
-Edit Event, buka pengaturan kamera, lalu pilih **Metode pengukuran → Orang terlihat di zona saat ini**. Atur batas kiri, atas, kanan, dan bawah dalam persen sambil memeriksa preview. Pada mode ini, orang dihitung berdasarkan titik tengah tubuh yang terlihat di dalam area, tanpa syarat garis, identitas, atau gender. Total masuk/keluar tidak ditambah oleh kamera zona.
+Di pengaturan kamera tersedia **Gender kamera**: **Otomatis (AI)**, **Laki-laki**, atau **Perempuan**. Pilih Laki-laki atau Perempuan untuk pintu atau area khusus, misalnya pintu masuk pria dan wanita yang terpisah. Semua orang yang dihitung kamera itu dicatat dengan gender tersebut tanpa model AI, dan perkiraan AI dari kamera lain tidak mengubahnya. **Otomatis (AI)** memakai deteksi gender jika fitur gender event aktif. Pengaturan ini tidak berlaku untuk kamera **Keramaian**.
 
-Panel **Okupansi zona saat ini** menampilkan jumlah per kamera. Angka ini dapat naik atau turun dan bukan total tiket maupun pengunjung unik. Kamera berbeda tidak dijumlahkan karena pandangannya dapat tumpang tindih. Jika data belum tersedia atau frame terlalu lama, aplikasi menampilkan status tidak tersedia, bukan angka nol.
+### Mengukur keramaian
 
-**AI FPS** menunjukkan jumlah pemeriksaan AI yang selesai, berbeda dari kelancaran video. Di Pengaturan Lanjutan tersedia **Preset gerbang ramai** untuk setiap gambar dan target 20 pemeriksaan/detik. Target tidak menjamin perangkat mampu mencapainya. Mode zona tetap dapat melewatkan orang yang tertutup penuh, terlalu kecil, atau blur; uji terhadap hitungan manual sebelum digunakan operasional.
+Edit Event, buka pengaturan kamera, lalu pilih **Metode pengukuran → Keramaian**. Atur batas kiri, atas, kanan, dan bawah dalam persen sambil memeriksa preview. Pada mode ini, orang dihitung berdasarkan titik tengah tubuh yang terlihat di dalam area, tanpa syarat garis, identitas, atau gender. Total masuk/keluar tidak ditambah oleh kamera **Keramaian**.
+
+Panel **Keramaian** menampilkan jumlah orang yang terlihat per kamera, terpisah dari panel **Akumulasi Keluar/Masuk**. Satu event dapat memakai keduanya, misalnya kamera pintu masuk dengan **Akumulasi keluar/masuk** dan kamera venue dengan **Keramaian**. Untuk menghitung seluruh gambar, atur zona 0–100%. Angka ini dapat naik atau turun dan bukan total tiket maupun pengunjung unik. Kamera berbeda tidak dijumlahkan karena pandangannya dapat tumpang tindih. Jika data belum tersedia atau frame terlalu lama, aplikasi menampilkan status tidak tersedia, bukan angka nol.
+
+**AI FPS** menunjukkan jumlah pemeriksaan AI yang selesai, berbeda dari kelancaran video. Di Pengaturan Lanjutan tersedia **Preset gerbang ramai** untuk setiap gambar dan target 20 pemeriksaan/detik. Target tidak menjamin perangkat mampu mencapainya. Mode **Keramaian** tetap dapat melewatkan orang yang tertutup penuh, terlalu kecil, atau blur; uji terhadap hitungan manual sebelum digunakan operasional.
+
+Angka **Keramaian** saat ini hanya ditampilkan secara langsung; riwayatnya belum disimpan dan belum masuk laporan.
+
+### Pengunjung baru vs kembali
+
+Di bawah statistik per jam pada detail Event, panel **Pengunjung Baru vs Kembali** menampilkan per tanggal berapa pengunjung yang baru pertama kali datang dan berapa yang kembali dari hari sebelumnya dalam Event yang sama. Ini berguna untuk Event beberapa hari, misalnya pameran tiga hari.
+
+Pengunjung yang kembali dikenali dari wajah atau badan yang sama dengan hari sebelumnya, sehingga hasilnya mengikuti kualitas pencocokan identitas. Kunjungan ulang tidak menambah jumlah **Visitor unik**. Pencocokan hanya berlaku di dalam satu Event; pengunjung tidak dicocokkan antar Event yang berbeda. Hari dihitung menurut zona waktu workspace. Jika retensi data sudah menghapus data wajah sebuah Event, pengunjung lama tidak lagi dapat dikenali bila Event itu dijalankan kembali.
+
+### Heatmap pengunjung
+
+Panel **Heatmap Pengunjung** pada detail Event menunjukkan di bagian mana dalam pandangan setiap kamera pengunjung paling lama berada, dan ke arah mana mereka biasanya bergerak.
+
+1. Pilih **Kamera** yang ingin dilihat.
+2. Pilih **Hari** tertentu atau **Seluruh event**.
+3. Baca warna: biru berarti singkat atau jarang dilalui, merah berarti paling lama orang berada di area itu. Panah putih menunjukkan arah gerak dominan.
+
+Gunakan heatmap untuk menentukan area booth atau sponsor yang paling ramai, area yang jarang didatangi, titik penumpukan di dekat pintu, dan penempatan papan petunjuk. **Total kehadiran terekam** adalah jumlah waktu kehadiran seluruh orang yang terlihat, bukan jumlah orang.
+
+Heatmap hanya mencakup area yang terlihat kamera dan mengikuti sudut pandang kamera, bukan denah lantai. Setiap kamera mempunyai heatmap sendiri. Gambar latar diambil dari kamera saat monitoring dimulai; jika **Simpan foto pengunjung** dimatikan, heatmap tetap tersedia tanpa gambar latar. Data heatmap disimpan per 15 menit, sehingga data beberapa menit terakhir monitoring yang masih berjalan dapat belum tampil.
 
 ### Koreksi dan tangkapan tertunda
 
@@ -203,6 +231,8 @@ Gender yang belum diketahui saat pengunjung tercatat tetap dapat terisi kemudian
 
 Batas bawaan yang ditampilkan aplikasi adalah 500 MB dan 30 menit; ikuti batas yang tampil jika konfigurasi server berubah. Video sumber tidak menjadi arsip rekaman permanen melalui fitur analisis ini.
 
+Hasil analisis juga menambah heatmap Event sebagai kamera tersendiri bernama **Video: nama file**. Jika **Simpan foto pengunjung** dimatikan, preview frame selama proses analisis dan foto capture tidak ditampilkan.
+
 Mengunggah file yang sama sebagai analisis baru dapat menambah hasil lagi. Hindari unggah ulang jika hasil pertama sudah masuk. Identitas hasil analisis video tidak otomatis digabung dengan identitas kamera langsung atau video lainnya.
 
 ## 8. Laporan dan ekspor
@@ -211,6 +241,14 @@ Mengunggah file yang sama sebagai analisis baru dapat menambah hasil lagi. Hinda
 2. Periksa periode, zona waktu, status monitoring, dan kelengkapan sinkronisasi.
 3. Gunakan aksi laporan atau unduh yang tersedia untuk akun Anda.
 4. Buka file hasil unduhan dan periksa nama Event, rentang waktu, serta total sebelum dibagikan.
+
+Isi laporan menurut format:
+
+| Format | Isi |
+| --- | --- |
+| PDF | Ringkasan pengunjung, distribusi gender, distribusi per jam, **Pengunjung Baru vs Kembali per Hari**, **Heatmap Pengunjung** per kamera, dan sesi monitoring. |
+| Excel | Sheet **Aktivitas**, **Harian** (baru vs kembali per tanggal), dan **Heatmap** (gambar per kamera). |
+| CSV | Tabel aktivitas saja. |
 
 Akun tanpa izin laporan tidak dapat mengunduh laporan. Jika monitoring masih aktif, angka dapat berubah setelah file diekspor.
 
@@ -260,6 +298,13 @@ Penghapusan akun berlaku pada lingkungan tempat tindakan dilakukan. Akun server 
 
 Buka **Pengaturan → Sistem Kamera**. Atur **Status Mesin AI** dan **Zona waktu global**, lalu pilih **Simpan**. Menonaktifkan mesin AI menonaktifkan semua kamera. Zona waktu dipakai pada jadwal Event, statistik, dan laporan.
 
+Dua pengaturan privasi berlaku untuk seluruh workspace:
+
+- **Simpan foto pengunjung.** Matikan agar aplikasi hanya menyimpan angka. Foto capture pengunjung, foto tangkapan tertunda, preview analisis video, dan gambar latar heatmap tidak disimpan. Pencocokan wajah selama Event tetap berjalan sehingga visitor unik dan pengunjung kembali tetap dihitung. Perubahan berlaku setelah monitoring dihentikan lalu dimulai lagi, dan tidak menghapus foto yang sudah tersimpan.
+- **Retensi foto dan data wajah.** Pilih 7 hari sampai 1 tahun, atau **Simpan selamanya**. Foto, data wajah dan badan, serta gambar latar heatmap yang lebih lama dari periode tersebut dihapus otomatis, diperiksa sekitar setiap jam. Data wajah sebuah Event dihapus setelah Event itu tidak aktif selama periode retensi. Jumlah pengunjung, catatan kunjungan, statistik, heatmap, dan laporan tetap tersimpan. Setelah data wajah dihapus, pembatalan penggabungan lama hanya mengembalikan catatan, dan pengunjung lama tidak dikenali lagi.
+
+Data ini termasuk data pribadi. Tentukan periode retensi sesuai kebijakan privasi organisasi dan ketentuan perlindungan data pribadi yang berlaku. Salinan cadangan database desktop di folder **backups** tidak ikut dibersihkan oleh retensi.
+
 ![Pengaturan sistem dan zona waktu](screenshots/08-settings.png)
 
 ### Profil Saya dan Pengaturan Dashboard
@@ -305,7 +350,7 @@ Tidak perlu membuka web agar desktop mengirim perubahan; server harus dapat dija
 
 ### Cakupan dan batas
 
-Disinkronkan: profil, workspace, tampilan dashboard, kamera, pengaturan, Event, sesi, kunjungan, foto terkait, tangkapan tertunda, dan koreksi. Rekaman video serta indeks pengenalan wajah disimpan terpisah dan belum disinkronkan melalui fitur database ini. Karena itu, hasil data yang sama belum menjamin semua perangkat memiliki arsip video atau indeks pengenalan yang sama.
+Disinkronkan: profil, workspace, tampilan dashboard, kamera, pengaturan (termasuk pengaturan foto dan retensi), Event, sesi, kunjungan, foto terkait, tangkapan tertunda, koreksi, heatmap, dan gambar latar heatmap. Penghapusan foto oleh retensi juga disinkronkan. Desktop dan server harus memakai versi aplikasi yang sama; versi yang berbeda ditolak sebelum data dikirim. Rekaman video serta indeks pengenalan wajah disimpan terpisah dan belum disinkronkan melalui fitur database ini. Karena itu, hasil data yang sama belum menjamin semua perangkat memiliki arsip video atau indeks pengenalan yang sama.
 
 ### Konflik dan perubahan tertunda
 
@@ -327,7 +372,7 @@ Pada web, halaman Sinkronisasi menampilkan perangkat yang terhubung ke akun. Gun
 3. Periksa jaringan kamera, pilih Event, dan lakukan uji lintasan singkat.
 4. Mulai monitoring dan pantau status kamera secara berkala.
 5. Review catatan atau koreksi yang diperlukan.
-6. Setelah kegiatan selesai, hentikan monitoring dan periksa laporan.
+6. Setelah kegiatan selesai, hentikan monitoring dan periksa laporan, termasuk heatmap dan pengunjung kembali untuk Event beberapa hari.
 7. Sinkronkan, selesaikan konflik/tertunda, lalu tutup aplikasi.
 
 ## 13. Mengatasi masalah
@@ -341,6 +386,10 @@ Pada web, halaman Sinkronisasi menampilkan perangkat yang terhubung ke akun. Gun
 | Menu hilang atau aksi ditolak | Minta administrator memeriksa izin aktual dan status akun. Masuk kembali bila sesi sudah tidak valid. |
 | Angka terlihat berbeda dari hitungan manual | Periksa filter, zona waktu, arti indikator, arah garis, duplikasi analisis video, dan kualitas kamera. Lakukan pengujian lintasan terkontrol sebelum mengubah parameter. |
 | Gender belum diketahui/keliru | Periksa sudut, pencahayaan, ukuran wajah, dan penghalang. Gunakan review yang tersedia; jangan menganggap nilai model sebagai data identitas yang pasti. |
+| Gender kamera khusus tercatat keliru | Periksa **Gender kamera** pada pengaturan kamera Event. Orang yang salah masuk pintu khusus tetap dicatat dengan gender kamera tersebut; kamera bergender tetap yang mencatat paling akhir yang berlaku. |
+| Heatmap kosong | Pastikan monitoring sudah berjalan beberapa menit dan orang terlihat di kamera tersebut. Pilih **Seluruh event** atau tanggal yang benar. Event yang dibuat sebelum fitur heatmap tidak mempunyai data heatmap untuk sesi lama. |
+| Heatmap tanpa gambar latar | **Simpan foto pengunjung** sedang nonaktif, retensi sudah menghapus gambar latar, atau monitoring belum pernah dimulai dengan versi ini. Warna dan panah tetap dapat dibaca. |
+| Event beberapa hari tidak mulai otomatis | Periksa **jadwal otomatis**, tanggal mulai/selesai, jam operasional, dan **Status Mesin AI**. Jika monitoring dihentikan manual hari ini, aplikasi baru memulai lagi pada jadwal hari berikutnya. |
 | Analisis video gagal | Periksa format yang didukung, ukuran/durasi, waktu awal rekaman, dan kapasitas komputer. Periksa status hasil sebelum mengunggah ulang. |
 | Desktop gagal dibuka | Catat versi aplikasi, OS/arsitektur, dan pesan kesalahan. Hubungi pengelola aplikasi; jangan menghapus direktori data sebagai langkah pertama. |
 

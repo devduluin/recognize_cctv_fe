@@ -19,6 +19,8 @@ export default function GeneralSettingsPanel() {
   const [companyId, setCompanyId] = useState("");
   const [enabled, setEnabled] = useState(true);
   const [timezone, setTimezone] = useState("Asia/Jakarta");
+  const [photoStorage, setPhotoStorage] = useState(true);
+  const [retentionDays, setRetentionDays] = useState("");
   const [busy, setBusy] = useState(false);
   const [ready, setReady] = useState(false);
   const [error, setError] = useState("");
@@ -61,12 +63,17 @@ export default function GeneralSettingsPanel() {
         throw new Error(
           "Workspace belum tersedia. Lengkapi pengaturan akun Anda.",
         );
-      const company = await api<{ enabled?: boolean; timezone?: string }>(
-        `/settings/${encodeURIComponent(cid)}`,
-      );
+      const company = await api<{
+        enabled?: boolean;
+        timezone?: string;
+        photo_storage_enabled?: boolean;
+        retention_days?: number | null;
+      }>(`/settings/${encodeURIComponent(cid)}`);
       if (!live.current) return;
       setEnabled(company.enabled ?? true);
       setTimezone(company.timezone || "Asia/Jakarta");
+      setPhotoStorage(company.photo_storage_enabled ?? true);
+      setRetentionDays(company.retention_days ? String(company.retention_days) : "");
       setReady(true);
     } catch (error) {
       if (live.current)
@@ -93,6 +100,8 @@ export default function GeneralSettingsPanel() {
       await api(`/settings/${encodeURIComponent(companyId)}`, {
         enabled,
         timezone,
+        photo_storage_enabled: photoStorage,
+        retention_days: retentionDays ? Number(retentionDays) : null,
       });
       const msg = "Pengaturan sistem disimpan.";
       setMessage(msg);
@@ -130,7 +139,7 @@ export default function GeneralSettingsPanel() {
             <div>
               <h2>Sistem Komputer Visi</h2>
               <p className={ui.panelDescription}>
-                Pengaturan mesin AI dan zona waktu aplikasi
+                Pengaturan mesin AI, zona waktu, dan privasi data pengunjung
               </p>
             </div>
             <Button onClick={() => refresh()} disabled={busy}>
@@ -168,6 +177,47 @@ export default function GeneralSettingsPanel() {
                   ["Asia/Singapore", "Asia/Singapore"],
                   ["Asia/Tokyo", "Asia/Tokyo"],
                   ["UTC", "UTC"],
+                ].map(([value, label]) => (
+                  <option key={value} value={value}>
+                    {label}
+                  </option>
+                ))}
+              </Select>
+            </label>
+            <label className={settingRow}>
+              <div>
+                <span>Simpan foto pengunjung</span>
+                <p>
+                  Matikan agar hanya angka yang disimpan: tanpa foto capture,
+                  foto review, preview video, dan latar heatmap. Pencocokan
+                  wajah selama event tetap berjalan.
+                </p>
+              </div>
+              <Switch
+                checked={photoStorage}
+                onChange={(e) => setPhotoStorage(e.target.checked)}
+              />
+            </label>
+            <label className={settingRow}>
+              <div>
+                <span>Retensi foto dan data wajah</span>
+                <p>
+                  Foto dan data biometrik yang lebih lama dihapus otomatis.
+                  Jumlah pengunjung, statistik, heatmap, dan laporan tetap
+                  tersimpan.
+                </p>
+              </div>
+              <Select
+                value={retentionDays}
+                onChange={(e) => setRetentionDays(e.target.value)}
+              >
+                {[
+                  ["", "Simpan selamanya"],
+                  ["7", "7 hari"],
+                  ["30", "30 hari"],
+                  ["90", "90 hari"],
+                  ["180", "180 hari"],
+                  ["365", "1 tahun"],
                 ].map(([value, label]) => (
                   <option key={value} value={value}>
                     {label}

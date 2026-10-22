@@ -28,6 +28,7 @@ import EventsManager from "../../components/events/events-manager";
 import { toast } from "../../components/ui/toast";
 import Modal from "../../components/ui-modal";
 import HourlyVisitorStatistics from "../../components/hourly-visitor-statistics";
+import EventVisitorInsights from "../../components/event-visitor-insights";
 import { getAuthHeaders, getAuthToken } from "../../components/auth/auth-api";
 import WebRTCPlayer, { DetectionBox } from "../../components/camera/webrtc-player";
 import { CameraStartupPlaceholder, StartupProgress, type StartupStatus } from "../../components/events/startup-progress";
@@ -94,6 +95,7 @@ type Status = {
     inference_metrics?: { ai_fps: number; completed_frames: number; mean_ms?: Record<string, number> };
     camera_id: string;
     counting_direction?: string;
+    gender_assignment?: string;
     counting_frame_size?: { width: number; height: number };
     body_reid_enabled?: boolean;
     body_reid_error?: string | null;
@@ -639,7 +641,8 @@ export default function EventVisitorPage({
                           {index + 1}
                         </span>
                         {camera.inference_metrics && <span className="rounded bg-slate-800 px-2 py-1 text-slate-200" title="FPS inferensi AI yang selesai, bukan FPS video">AI {camera.inference_metrics.ai_fps.toFixed(1)} FPS</span>}
-                        {camera.counting_mode === "zone" && <span className="rounded bg-cyan-950 px-2 py-1 text-cyan-200">Zona: {camera.zone_occupancy?.stale || !camera.zone_occupancy ? "Belum tersedia" : `${camera.zone_occupancy.count} orang`}</span>}
+                        {camera.counting_mode !== "zone" && (camera.gender_assignment === "male" || camera.gender_assignment === "female") && <span className="rounded bg-violet-950 px-2 py-1 text-violet-200">{camera.gender_assignment === "male" ? "Khusus laki-laki" : "Khusus perempuan"}</span>}
+                        {camera.counting_mode === "zone" && <span className="rounded bg-cyan-950 px-2 py-1 text-cyan-200">Keramaian: {camera.zone_occupancy?.stale || !camera.zone_occupancy ? "Belum tersedia" : `${camera.zone_occupancy.count} orang`}</span>}
                         <span className="max-w-[200px] truncate font-medium text-white" title={camera.name}>
                           {camera.name}
                         </span>
@@ -850,11 +853,12 @@ export default function EventVisitorPage({
                     : "Total event dari seluruh kamera · Diperbarui real-time"}
               </p>
               {status?.cameras?.some(camera => camera.counting_mode === "zone") && <div className="mt-4 rounded-lg border border-cyan-400/30 p-3 text-sm">
-                <p className="font-semibold text-cyan-200">Okupansi zona saat ini</p>
-                <p className="mt-1 text-xs text-slate-300">Orang yang terlihat di setiap kamera. Bukan total tiket atau pengunjung unik; zona antarkamera tidak dijumlahkan.</p>
+                <p className="font-semibold text-cyan-200">Keramaian saat ini</p>
+                <p className="mt-1 text-xs text-slate-300">Orang yang terlihat di setiap kamera keramaian, terpisah dari akumulasi keluar/masuk. Kamera berbeda tidak dijumlahkan.</p>
                 {status.cameras.filter(camera => camera.counting_mode === "zone").map(camera => <p key={camera.camera_id} className="mt-2 flex justify-between gap-3"><span>{camera.name}</span><span>{camera.zone_occupancy?.stale || !camera.zone_occupancy ? "Data belum tersedia" : `${camera.zone_occupancy.count} orang`}</span></p>)}
               </div>}
-              <dl className="mt-4 divide-y divide-white/10">
+              <p className="mt-4 text-sm font-semibold text-slate-200">Akumulasi keluar/masuk</p>
+              <dl className="mt-2 divide-y divide-white/10">
                 {[
                   { label: "Total Masuk", count: status?.in_count },
                   { label: "Total Keluar", count: status?.out_count },
@@ -1050,11 +1054,23 @@ export default function EventVisitorPage({
 
         <div className="grid gap-6">
           <Panel>
-            <h2>Statistik Pengunjung</h2>
+            <h2>Akumulasi Keluar/Masuk</h2>
             {row("Total Masuk", value(status?.in_count))}
             {row("Total Keluar", value(status?.out_count))}
             {row("Di dalam (masuk − keluar)", value(inside))}
           </Panel>
+          {status?.cameras?.some(camera => camera.counting_mode === "zone") && (
+            <Panel>
+              <h2>Keramaian</h2>
+              <p className={ui.panelDescription}>Orang yang terlihat saat ini di setiap kamera keramaian. Tidak menambah total masuk/keluar; kamera berbeda tidak dijumlahkan karena pandangannya bisa tumpang tindih.</p>
+              {status.cameras.filter(camera => camera.counting_mode === "zone").map(camera => (
+                <InfoRow key={camera.camera_id}>
+                  <span>{camera.name}</span>
+                  <strong>{camera.zone_occupancy?.stale || !camera.zone_occupancy ? "Data belum tersedia" : `${camera.zone_occupancy.count} orang`}</strong>
+                </InfoRow>
+              ))}
+            </Panel>
+          )}
           <Panel>
             <h2>Profil Pengunjung</h2>
             {demographics.map((item) => (
@@ -1083,6 +1099,11 @@ export default function EventVisitorPage({
           eventId={selectedEventId}
         />
       </div>
+      {selectedEventId && (
+        <div className="pt-2">
+          <EventVisitorInsights key={`${selectedEventId}:${resetVersion}`} companyId={getCompanyId()} eventId={selectedEventId} />
+        </div>
+      )}
       {confirmation}
     </Page>
   );

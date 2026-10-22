@@ -41,6 +41,7 @@ type CameraSetting = {
   countingMode?: "line" | "zone";
   occupancyZone?: [number, number, number, number];
   countingDirection: "auto" | "in" | "out";
+  genderAssignment?: "auto" | "male" | "female";
   linePosition: number;
   lineOrientation: string;
   lineAngle: number;
@@ -54,6 +55,7 @@ type CameraDbSetting = {
   counting_mode?: "line" | "zone";
   occupancy_zone?: [number, number, number, number];
   counting_direction?: "auto" | "in" | "out" | null;
+  gender_assignment?: "auto" | "male" | "female" | null;
   line_position?: number | null;
   line_orientation?: string | null;
   line_angle?: number | null;
@@ -330,6 +332,7 @@ export default function EventsManager({ editEventId, onClose, onSaved }: {
             countingMode: cfg.counting_mode || "line",
             occupancyZone: cfg.occupancy_zone || [0.1, 0.1, 0.9, 0.9],
             countingDirection: cfg.counting_direction || "auto",
+            genderAssignment: cfg.gender_assignment || "auto",
             linePosition: cfg.line_position ? Math.round(cfg.line_position * 100) : 50,
             lineOrientation: cfg.line_orientation || "horizontal",
             lineAngle: cfg.line_angle ?? 0,
@@ -438,6 +441,7 @@ export default function EventsManager({ editEventId, onClose, onSaved }: {
         if (cfg) {
           dbSettings[id] = {
             counting_direction: cfg.countingDirection,
+            gender_assignment: cfg.genderAssignment || "auto",
             line_position: cfg.linePosition / 100,
             line_orientation: cfg.lineOrientation,
             line_angle: cfg.lineAngle,
@@ -967,6 +971,7 @@ export default function EventsManager({ editEventId, onClose, onSaved }: {
                           lineOrientation: camSetting?.lineOrientation ?? "horizontal",
                           lineAngle: camSetting?.lineAngle ?? 0,
                           countingDirection: camSetting?.countingDirection ?? "in",
+                          genderAssignment: camSetting?.genderAssignment ?? "auto",
                           reverseDirection: camSetting?.reverseDirection ?? false,
                           mirror: camSetting?.mirror ?? false,
                           twoLineCounting: camSetting?.twoLineCounting ?? true,
@@ -991,15 +996,15 @@ export default function EventsManager({ editEventId, onClose, onSaved }: {
                             <summary className="flex min-h-14 cursor-pointer list-none items-center gap-3 rounded-xl px-4 py-4 [&::-webkit-details-marker]:hidden">
                               <Camera size={18} className="shrink-0 text-neutral-600" aria-hidden="true" />
                               <span className="min-w-0 flex-1 break-words font-semibold text-neutral-800">{camera.name}</span>
-                              <span className="rounded bg-[#f0f4f8] px-2 py-1 text-xs font-medium text-navy">{cfg.countingMode === "zone" ? "Okupansi zona" : cfg.countingDirection === "in" ? "Masuk" : cfg.countingDirection === "out" ? "Keluar" : "Otomatis"}</span>
+                              <span className="rounded bg-[#f0f4f8] px-2 py-1 text-xs font-medium text-navy">{cfg.countingMode === "zone" ? "Keramaian" : cfg.countingDirection === "in" ? "Masuk" : cfg.countingDirection === "out" ? "Keluar" : "Otomatis"}</span>
                               <ChevronDown size={18} className="shrink-0 text-neutral-600 transition-transform group-open:rotate-180" aria-hidden="true" />
                             </summary>
                             <div className="grid min-w-0 items-start gap-6 border-t border-neutral-200 p-4 min-[800px]:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
                             <div className="min-w-0 space-y-4">
-                              <Field label="Metode pengukuran" hint="Mode zona tidak menambah total masuk/keluar dan tidak memerlukan identitas atau gender.">
+                              <Field label="Metode pengukuran" hint="Keramaian menghitung orang yang terlihat di area kamera saat ini, terpisah dari total masuk/keluar dan tanpa identitas atau gender. Atur zona 0–100% untuk seluruh gambar.">
                                 <Select value={cfg.countingMode} onChange={e => updateCam("countingMode", e.target.value as "line" | "zone")}>
-                                  <option value="line">Akumulasi masuk/keluar lewat garis</option>
-                                  <option value="zone">Orang terlihat di zona saat ini</option>
+                                  <option value="line">Akumulasi keluar/masuk</option>
+                                  <option value="zone">Keramaian</option>
                                 </Select>
                               </Field>
                               {cfg.countingMode === "zone" && <div className="grid grid-cols-2 gap-3">
@@ -1022,6 +1027,16 @@ export default function EventsManager({ editEventId, onClose, onSaved }: {
                                   <option value="in">Masuk (IN)</option>
                                   <option value="out">Keluar (OUT)</option>
                                   <option value="auto">Otomatis sesuai arah lintasan</option>
+                                </Select>
+                              </Field>
+                              <Field label="Gender kamera" hint={cfg.genderAssignment && cfg.genderAssignment !== "auto" ? "Semua orang yang dihitung kamera ini dicatat dengan gender tersebut, tanpa model AI. Cocok untuk pintu atau area khusus pria/wanita." : form.genderEnabled ? "Gender diperkirakan AI dari wajah atau tubuh." : "Deteksi gender event nonaktif; pengunjung kamera ini dicatat tanpa gender."}>
+                                <Select
+                                  value={cfg.genderAssignment || "auto"}
+                                  onChange={(e) => updateCam("genderAssignment", e.target.value as NonNullable<CameraSetting["genderAssignment"]>)}
+                                >
+                                  <option value="auto">Otomatis (AI)</option>
+                                  <option value="male">Laki-laki</option>
+                                  <option value="female">Perempuan</option>
                                 </Select>
                               </Field>
                               <Field label="Orientasi Garis">
