@@ -54,6 +54,44 @@ Dependensi Cargo harus sudah tersedia atau dapat diunduh.
 Hasil berada di `src-tauri/target/release/bundle/macos/Visitor Counter.app`,
 `bundle/dmg/`, atau `bundle/nsis/`.
 
+Untuk build harian tanpa jendela Finder dan tanpa risiko "Resource busy" saat membuat DMG,
+jalankan dengan `CI=true` (tata letak jendela DMG memakai tampilan default).
+
+## Pembaruan otomatis
+
+Updater bersifat opt-in. Tanpa variabel di bawah, aplikasi dibangun tanpa updater dan
+tidak membutuhkan kunci penandatanganan.
+
+| Variabel | Keterangan |
+| --- | --- |
+| `DESKTOP_UPDATER_PUBKEY` | Isi kunci publik updater. Mengaktifkan updater dan paket `.sig`. |
+| `TAURI_SIGNING_PRIVATE_KEY` | Kunci privat (isi atau path). Wajib saat build/package bila updater aktif. Jangan commit. |
+| `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` | Password kunci privat, jika ada. |
+| `DESKTOP_UPDATER_ENDPOINT` | Opsional, HTTPS. Default: `latest.json` dari rilis terbaru `releaseOwner/releaseRepository` di `desktop.config.json`. |
+
+Membuat pasangan kunci sekali, lalu simpan kunci privat di password manager dan GitHub secret:
+
+```sh
+cargo tauri signer generate -w ~/.tauri/visitor-counter.key
+```
+
+Kehilangan kunci privat berarti instalasi yang ada tidak dapat menerima pembaruan lagi.
+Aplikasi memeriksa pembaruan sekitar 20 detik setelah layanan siap dan dari menu tray
+**Periksa pembaruan**. Pengguna melihat versi dan catatan rilis, dapat menunda unduhan
+atau pemasangan, dan progres unduhan tampil di menu tray. Sebelum memasang, layanan lokal
+dihentikan; data di direktori profil aplikasi tidak disentuh. Paket pembaruan diunduh ke
+memori (sekitar ukuran installer), jadi sediakan RAM yang cukup.
+
+Rilis: naikkan `version` di `package.json`, tulis bagian `## <versi>` di `CHANGELOG.md`, lalu
+push tag `v<versi>`. Workflow **Desktop release** membangun ketiga platform, memverifikasi
+tanda tangan, menyusun `latest.json`, dan membuat **draft** GitHub Release. Pembaruan baru
+diterima aplikasi setelah draft dipublikasikan. Butuh repository variable
+`DESKTOP_UPDATER_PUBKEY` dan secret `TAURI_SIGNING_PRIVATE_KEY`; secret Apple
+(`APPLE_CERTIFICATE`, `APPLE_SIGNING_IDENTITY`, `APPLE_ID`, `APPLE_PASSWORD`, `APPLE_TEAM_ID`)
+untuk signing dan notarization macOS. Jika repositori rilis privat, URL `releases/latest/download`
+tidak dapat diakses tanpa autentikasi; gunakan `DESKTOP_UPDATER_ENDPOINT` ke server rilis
+yang dapat dijangkau aplikasi tanpa menyematkan token GitHub.
+
 Jika release executable dan resource sudah dibangun, jalankan `npm run desktop:package`
 untuk packaging saja. Perintah ini tidak membangun ulang kode; gunakan full build
 setelah perubahan backend/frontend. Installer, signing/notarization distribusi dan

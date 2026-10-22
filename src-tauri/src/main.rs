@@ -1,7 +1,8 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 use std::{io::{BufRead, BufReader, Write}, path::PathBuf, process::{Child, Command, Stdio}, sync::{atomic::{AtomicBool, Ordering}, Arc, Mutex}, time::{Duration, Instant}};
 use rand::RngCore;
-use tauri::{menu::{Menu, MenuItem}, tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent}, Manager, WebviewUrl, WebviewWindowBuilder};
+use tauri::{menu::{IsMenuItem, Menu, MenuItem}, tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent}, Manager, WebviewUrl, WebviewWindowBuilder};
+mod updates;
 
 struct Services { child: Mutex<Child>, stopping: AtomicBool }
 fn credential_key() -> Result<String, Box<dyn std::error::Error>> {
@@ -87,6 +88,10 @@ fn shutdown(services: &Services) {
         let _ = child.kill(); let _ = child.wait();
     }
 }
+/// Stop the local services, e.g. before an installer replaces their files.
+pub(crate) fn stop_services(app: &tauri::AppHandle) {
+    if let Some(services) = app.try_state::<Arc<Services>>() { shutdown(&services); }
+}
 struct Startup { cancelled: AtomicBool, stage: Mutex<String> }
 fn startup_status(app: &tauri::AppHandle, stage: &str) {
     *app.state::<Startup>().stage.lock().unwrap() = stage.to_string();
@@ -107,22 +112,34 @@ fn services_running<R: tauri::Runtime>(app: &tauri::AppHandle<R>) -> bool {
     app.try_state::<Arc<Services>>().is_some_and(|services| !services.stopping.load(Ordering::SeqCst))
 }
 fn main() {
-    let app = tauri::Builder::default()
+    let context = tauri::generate_context!();
+    // Release builds add the updater config only when a signing key and feed are provided.
+    let updater_configured = context.config().plugins.0.contains_key("updater");
+    let mut builder = tauri::Builder::default()
         .manage(Startup { cancelled: AtomicBool::new(false), stage: Mutex::new("initial".into()) })
         .plugin(tauri_plugin_single_instance::init(|app, _, _| {
             show_main(app);
         }))
-        .setup(|app| {
+        .plugin(tauri_plugin_dialog::init());
+    if updater_configured { builder = builder.plugin(tauri_plugin_updater::Builder::new().build()); }
+    let app = builder
+        .setup(move |app| {
             // Closing the window keeps cameras counting; the tray menu reopens or quits.
             let open = MenuItem::with_id(app, "open", "Buka Visitor Counter", true, None::<&str>)?;
             let quit = MenuItem::with_id(app, "quit", "Keluar", true, None::<&str>)?;
-            let menu = Menu::with_items(app, &[&open, &quit])?;
+            let update = if updater_configured { Some(updates::menu_item(app.handle())?) } else { None };
+            let mut items: Vec<&dyn IsMenuItem<tauri::Wry>> = vec![&open];
+            if let Some(update) = &update { items.push(update); }
+            items.push(&quit);
+            let menu = Menu::with_items(app, &items)?;
+            if let Some(update) = update { app.manage(updates::Updates::new(update)); }
             let mut tray = TrayIconBuilder::with_id("main")
                 .tooltip("Visitor Counter")
                 .menu(&menu)
                 .show_menu_on_left_click(cfg!(target_os = "macos"))
                 .on_menu_event(|app, event| match event.id.as_ref() {
                     "open" => show_main(app),
+                    "updates" => updates::on_menu(app),
                     "quit" => app.exit(0),
                     _ => {}
                 })
@@ -168,6 +185,7 @@ fn main() {
                                 if window.navigate(target).is_err() { startup_status(&ui, "failed"); }
                             }
                         });
+                        if handle.try_state::<updates::Updates>().is_some() { updates::check_after_startup(&handle); }
                         let mut line = String::new();
                         while output.read_line(&mut line).is_ok_and(|n| n > 0) { line.clear(); }
                         if !services.stopping.load(Ordering::SeqCst) { handle.exit(1); }
@@ -177,7 +195,7 @@ fn main() {
             });
             Ok(())
         })
-        .build(tauri::generate_context!()).expect("Visitor Counter Tauri startup failed");
+        .build(context).expect("Visitor Counter Tauri startup failed");
     app.run(|handle, event| {
         if let tauri::RunEvent::WindowEvent { label, event: tauri::WindowEvent::CloseRequested { api, .. }, .. } = &event {
             // Hide instead of quitting while monitoring can run; quit from the tray or with Cmd+Q.
