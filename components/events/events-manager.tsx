@@ -1029,16 +1029,18 @@ export default function EventsManager({ editEventId, onClose, onSaved }: {
                                   <option value="auto">Otomatis sesuai arah lintasan</option>
                                 </Select>
                               </Field>
-                              <Field label="Gender kamera" hint={cfg.genderAssignment && cfg.genderAssignment !== "auto" ? "Semua orang yang dihitung kamera ini dicatat dengan gender tersebut, tanpa model AI. Cocok untuk pintu atau area khusus pria/wanita." : form.genderEnabled ? "Gender diperkirakan AI dari wajah atau tubuh." : "Deteksi gender event nonaktif; pengunjung kamera ini dicatat tanpa gender."}>
-                                <Select
-                                  value={cfg.genderAssignment || "auto"}
-                                  onChange={(e) => updateCam("genderAssignment", e.target.value as NonNullable<CameraSetting["genderAssignment"]>)}
-                                >
-                                  <option value="auto">Otomatis (AI)</option>
-                                  <option value="male">Laki-laki</option>
-                                  <option value="female">Perempuan</option>
-                                </Select>
-                              </Field>
+                              {form.genderEnabled && (
+                                <Field label="Gender kamera" hint={cfg.genderAssignment && cfg.genderAssignment !== "auto" ? "Semua orang yang dihitung kamera ini dicatat dengan gender tersebut, tanpa model AI. Cocok untuk pintu atau area khusus pria/wanita." : "Gender diperkirakan AI dari wajah atau tubuh."}>
+                                  <Select
+                                    value={cfg.genderAssignment || "auto"}
+                                    onChange={(e) => updateCam("genderAssignment", e.target.value as NonNullable<CameraSetting["genderAssignment"]>)}
+                                  >
+                                    <option value="auto">Otomatis (AI)</option>
+                                    <option value="male">Laki-laki</option>
+                                    <option value="female">Perempuan</option>
+                                  </Select>
+                                </Field>
+                              )}
                               <Field label="Orientasi Garis">
                                 <Select
                                   value={cfg.lineOrientation}

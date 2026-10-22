@@ -149,11 +149,10 @@ Angka di atas adalah titik awal, bukan jaminan. Lensa, tinggi plafon, dan lebar 
 3. Di bagian **Kamera event**, pilih kamera yang akan digunakan.
 4. Pilih **Metode pengukuran** per kamera: **Akumulasi keluar/masuk** untuk kamera di pintu, atau **Keramaian** untuk kamera yang mengamati area venue. Lihat bagian **Mengukur keramaian** di bab 6.
 5. Untuk kamera akumulasi, atur **Peran kamera**: masuk, keluar, atau otomatis sesuai kebutuhan pintu dan arah gerak orang.
-6. Atur **Gender kamera**: otomatis (AI), laki-laki, atau perempuan. Lihat bagian **Gender per kamera** di bab 6.
-7. Sesuaikan posisi dan orientasi garis hitung. Gunakan mirror atau pembalikan arah hanya jika sesuai tampilan kamera.
-8. Aktifkan **Deteksi gender pengunjung** jika gender perlu diperkirakan AI pada kamera bergender otomatis.
-9. Periksa jadwal otomatis bila digunakan, lalu simpan Event.
-10. Buka detail Event dan lakukan uji lintasan sebelum digunakan untuk penghitungan operasional.
+6. Sesuaikan posisi dan orientasi garis hitung. Gunakan mirror atau pembalikan arah hanya jika sesuai tampilan kamera.
+7. Aktifkan **Deteksi gender pengunjung** jika gender diperlukan, lalu atur **Gender kamera** per kamera: otomatis (AI), laki-laki, atau perempuan. Lihat bagian **Gender per kamera** di bab 6.
+8. Periksa jadwal otomatis bila digunakan, lalu simpan Event.
+9. Buka detail Event dan lakukan uji lintasan sebelum digunakan untuk penghitungan operasional.
 
 Uji satu orang melewati garis masuk dan keluar. Bandingkan arah gerak dengan perubahan angka. Hindari garis di area antrean yang membuat orang berkali-kali menyeberang atau area yang tertutup benda.
 
@@ -183,7 +182,7 @@ Jika kamera terputus, periksa jaringan dan sumber kamera. Tunggu proses sambung 
 
 ### Gender per kamera
 
-Di pengaturan kamera tersedia **Gender kamera**: **Otomatis (AI)**, **Laki-laki**, atau **Perempuan**. Pilih Laki-laki atau Perempuan untuk pintu atau area khusus, misalnya pintu masuk pria dan wanita yang terpisah. Semua orang yang dihitung kamera itu dicatat dengan gender tersebut tanpa model AI, dan perkiraan AI dari kamera lain tidak mengubahnya. **Otomatis (AI)** memakai deteksi gender jika fitur gender event aktif. Pengaturan ini tidak berlaku untuk kamera **Keramaian**.
+Aktifkan **Deteksi gender pengunjung** pada aturan penghitungan Event terlebih dahulu; setelah itu pengaturan kamera menampilkan **Gender kamera**: **Otomatis (AI)**, **Laki-laki**, atau **Perempuan**. Jika deteksi gender dimatikan, pilihan ini disembunyikan dan tidak dipakai, tetapi tetap tersimpan untuk saat deteksi gender diaktifkan kembali. Pilih Laki-laki atau Perempuan untuk pintu atau area khusus, misalnya pintu masuk pria dan wanita yang terpisah. Semua orang yang dihitung kamera itu dicatat dengan gender tersebut tanpa model AI, dan perkiraan AI dari kamera lain tidak mengubahnya. **Otomatis (AI)** memperkirakan gender dari wajah atau tubuh. Pengaturan ini tidak berlaku untuk kamera **Keramaian**.
 
 ### Mengukur keramaian
 
