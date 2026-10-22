@@ -854,8 +854,7 @@ export default function HourlyVisitorStatistics({
         />
       </Button>
       {!eventId && (
-        <Field>
-          Event
+        <Field label="Event">
           <Select
             aria-label={`Filter event ${suffix}`}
             value={selectedEventId}
@@ -870,8 +869,7 @@ export default function HourlyVisitorStatistics({
           </Select>
         </Field>
       )}
-      <Field>
-        Tanggal
+      <Field label="Tanggal">
         <Input
           type="date"
           value={date}

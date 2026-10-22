@@ -7,7 +7,12 @@ Komponen di folder ini memakai utility Tailwind v4. Warna bersama (`navy`, `acce
 | `Page`, `PageHeading`, `Toolbar` | Lebar halaman, judul, serta filter dan aksi responsif |
 | `Panel`, `InfoRow`, `Tabs` | Bagian pengaturan, rincian label/nilai, dan navigasi tab |
 | `Button`, `ButtonLink` | Aksi native button dan navigasi Next Link dengan tampilan sama |
-| `Field`, `Input`, `Select`, `Switch` | Form dengan label, kontrol, dan state native |
+| `Field`, `Input`, `Select`, `Switch` | Form dengan label, kontrol, dan state native. `Field` menerima `label`, `hint`, `error`, dan `optional`; saat memakai `error`, beri juga `aria-invalid` pada kontrol agar border-nya merah |
+| `FieldHint`, `FieldError`, `FieldSet` | Teks bantuan, pesan validasi, dan grup kontrol dengan `legend` |
+| `Checkbox` | Checkbox native; dengan `label` menjadi baris yang bisa diklik, tanpa `label` wajib `aria-label` (mis. pilih baris tabel) |
+| `ChoiceCard` | Kartu pilihan checkbox/radio berisi `title` dan `description`; varian `card`, `compact`, `subtle` |
+| `Range`, `SwitchField`, `FileButton` | Slider, baris label + switch, dan tombol pemilih file |
+| `TimePicker` | Pilihan jam 00–23 dan menit 00–59; nilai lengkap berformat `HH:mm`, mendukung validasi wajib dan disabled |
 | `StatCard` | Metrik berikon, label, dan nilai |
 | `TableContainer`, `DataTable`, `StatusBadge` | Tabel yang dapat digulir horizontal dan status baris |
 | `ScrollArea` | Scroll lokal dengan dukungan keyboard; wajib beri `aria-label` atau `aria-labelledby` |
@@ -17,15 +22,19 @@ Modal tetap menggunakan `components/ui-modal.tsx` untuk fokus, Escape, backdrop,
 
 ```tsx
 import { Button } from "@/components/ui/button";
-import { Field, Input } from "@/components/ui/field";
+import { Checkbox, ChoiceCard, Field, Input } from "@/components/ui/field";
 import { Panel } from "@/components/ui/layout";
 
 <Panel>
   <form onSubmit={save}>
-    <Field>
-      Nama
+    <Field label="Nama" hint="Tampil di daftar pengguna.">
       <Input required value={name} onChange={(event) => setName(event.target.value)} />
     </Field>
+    <Field label="Kapasitas" optional>
+      <Input type="number" min="1" value={capacity} onChange={(event) => setCapacity(event.target.value)} />
+    </Field>
+    <ChoiceCard title="Jalankan otomatis" description="Mulai sesuai jadwal." checked={autoRun} onChange={(event) => setAutoRun(event.target.checked)} />
+    <Checkbox label="Akun aktif" checked={active} onChange={(event) => setActive(event.target.checked)} />
     <Button variant="primary" type="submit" disabled={saving} className="mt-4">
       {saving ? "Menyimpan…" : "Simpan"}
     </Button>

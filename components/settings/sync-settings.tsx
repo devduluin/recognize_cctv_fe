@@ -148,34 +148,34 @@ export default function SyncSettings() {
         </li>)}</ul>
       </div> : !status?.connected ? (
         <form onSubmit={connect} className="mt-5 grid max-w-xl gap-4">
-          <Field>Jenis koneksi
+          <Field label="Jenis koneksi">
             <Select value={transport} onChange={event => setTransport(event.target.value as "api" | "postgresql")} disabled={busy}>
               <option value="postgresql">PostgreSQL langsung</option>
               <option value="api">API backend</option>
             </Select>
           </Field>
-          <Field>Nama perangkat
+          <Field label="Nama perangkat">
             <Input required maxLength={100} value={deviceName} onChange={event => setDeviceName(event.target.value)} disabled={busy} placeholder="Contoh: Komputer pintu masuk" />
           </Field>
-          {transport === "api" ? <Field>URL API server
+          {transport === "api" ? <Field label="URL API server">
             <Input type="url" required value={server} placeholder="https://api.example.com"
               onChange={event => setServer(event.target.value)} disabled={busy} />
           </Field> : <>
             <p className="text-sm text-muted">Terhubung langsung ke PostgreSQL tanpa menjalankan backend web. SQLite lokal tetap digunakan saat offline. Gunakan alamat komputer yang menjalankan Docker dan port PostgreSQL yang dipublikasikan.</p>
-            <Field>Host PostgreSQL<Input required maxLength={253} value={database.host} onChange={event => updateDatabase("host", event.target.value)} disabled={busy} placeholder="127.0.0.1 atau db.example.com" /></Field>
-            <Field>Port PostgreSQL<Input required type="number" min={1} max={65535} value={database.port} onChange={event => updateDatabase("port", Number(event.target.value))} disabled={busy} /></Field>
-            <Field>Nama database<Input required maxLength={63} value={database.database} onChange={event => updateDatabase("database", event.target.value)} disabled={busy} /></Field>
-            <Field>Username database<Input required maxLength={63} autoComplete="off" value={database.username} onChange={event => updateDatabase("username", event.target.value)} disabled={busy} /></Field>
-            <Field>Password database<Input required type="password" autoComplete="off" value={database.password} onChange={event => updateDatabase("password", event.target.value)} disabled={busy} /></Field>
-            <Field>Schema database<Input required maxLength={63} value={database.schema_name} onChange={event => updateDatabase("schema_name", event.target.value)} disabled={busy} /></Field>
-            <Field>Lokasi file sertifikat CA (opsional)<Input value={database.ssl_root_cert} onChange={event => updateDatabase("ssl_root_cert", event.target.value)} disabled={busy} placeholder="C:\sertifikat\root.crt atau /path/root.crt" /></Field>
+            <Field label="Host PostgreSQL"><Input required maxLength={253} value={database.host} onChange={event => updateDatabase("host", event.target.value)} disabled={busy} placeholder="127.0.0.1 atau db.example.com" /></Field>
+            <Field label="Port PostgreSQL"><Input required type="number" min={1} max={65535} value={database.port} onChange={event => updateDatabase("port", Number(event.target.value))} disabled={busy} /></Field>
+            <Field label="Nama database"><Input required maxLength={63} value={database.database} onChange={event => updateDatabase("database", event.target.value)} disabled={busy} /></Field>
+            <Field label="Username database"><Input required maxLength={63} autoComplete="off" value={database.username} onChange={event => updateDatabase("username", event.target.value)} disabled={busy} /></Field>
+            <Field label="Password database"><Input required type="password" autoComplete="off" value={database.password} onChange={event => updateDatabase("password", event.target.value)} disabled={busy} /></Field>
+            <Field label="Schema database"><Input required maxLength={63} value={database.schema_name} onChange={event => updateDatabase("schema_name", event.target.value)} disabled={busy} /></Field>
+            <Field label="Lokasi file sertifikat CA (opsional)"><Input value={database.ssl_root_cert} onChange={event => updateDatabase("ssl_root_cert", event.target.value)} disabled={busy} placeholder="C:\sertifikat\root.crt atau /path/root.crt" /></Field>
             <p className="text-sm text-muted">Kredensial database disimpan terenkripsi di desktop. Koneksi di luar localhost wajib memakai TLS dengan sertifikat server yang valid. Nama dan password akun aplikasi di bawah dipakai untuk memverifikasi akses workspace, bukan sebagai akun database.</p>
           </>}
-          <Field>Email akun aplikasi server
+          <Field label="Email akun aplikasi server">
             <Input type="email" autoComplete="username" required value={email}
               onChange={event => setEmail(event.target.value)} disabled={busy} />
           </Field>
-          <Field>Password akun aplikasi server
+          <Field label="Password akun aplikasi server">
             <Input type="password" autoComplete="current-password" required value={password}
               onChange={event => setPassword(event.target.value)} disabled={busy} />
           </Field>
@@ -196,14 +196,14 @@ export default function SyncSettings() {
           </dl>
           <fieldset disabled={disabled} className="flex flex-wrap items-center gap-4">
             <legend className="sr-only">Pengaturan sinkronisasi otomatis</legend>
-            <Field>Mode sinkronisasi
+            <Field label="Mode sinkronisasi">
               <Select value={status.auto_sync ? "automatic" : "manual"}
                 onChange={event => void action(() => syncRequest("/settings", "PATCH", { auto_sync: event.target.value === "automatic", interval_seconds: status.interval_seconds }))}>
                 <option value="manual">Manual saja</option>
                 <option value="automatic">Manual + otomatis</option>
               </Select>
             </Field>
-            <Field>Periode sinkronisasi otomatis
+            <Field label="Periode sinkronisasi otomatis">
               <Select disabled={!status.auto_sync} value={status.interval_seconds} onChange={event => void action(() => syncRequest("/settings", "PATCH", { auto_sync: status.auto_sync, interval_seconds: Number(event.target.value) }))}>
                 <option value={15}>15 detik</option><option value={30}>30 detik</option>
                 <option value={60}>1 menit</option><option value={300}>5 menit</option>
@@ -284,9 +284,9 @@ export default function SyncSettings() {
           </div>}
           {status.auth_required && status.transport === "postgresql" && <p role="alert" className={ui.error}>Akses PostgreSQL perlu diperbarui. Pilih Putuskan koneksi, kemudian isi kembali koneksi database dan akun aplikasi.</p>}
           {status.auth_required && status.transport !== "postgresql" && <form onSubmit={connect} className="grid max-w-xl gap-3 border-t border-line pt-4"><h3>Hubungkan ulang sesi perangkat</h3>
-            <Field>URL API server<Input type="url" required value={server || status.server} onChange={event => setServer(event.target.value)} disabled={busy} /></Field>
-            <Field>Email akun server<Input type="email" required autoComplete="username" value={email} onChange={event => setEmail(event.target.value)} disabled={busy} /></Field>
-            <Field>Password akun server<Input type="password" required autoComplete="current-password" value={password} onChange={event => setPassword(event.target.value)} disabled={busy} /></Field>
+            <Field label="URL API server"><Input type="url" required value={server || status.server} onChange={event => setServer(event.target.value)} disabled={busy} /></Field>
+            <Field label="Email akun server"><Input type="email" required autoComplete="username" value={email} onChange={event => setEmail(event.target.value)} disabled={busy} /></Field>
+            <Field label="Password akun server"><Input type="password" required autoComplete="current-password" value={password} onChange={event => setPassword(event.target.value)} disabled={busy} /></Field>
             <Button type="submit" disabled={disabled}>Hubungkan ulang</Button>
           </form>}
         </div>

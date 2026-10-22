@@ -14,6 +14,8 @@ const API_BASE =
 
 export default function CameraTestPreview({
   source,
+  countingMode = "line",
+  occupancyZone,
   position,
   orientation,
   angle = 0,
@@ -27,6 +29,8 @@ export default function CameraTestPreview({
   compact = false,
 }: {
   source: string;
+  countingMode?: "line" | "zone";
+  occupancyZone?: [number, number, number, number];
   position: number;
   orientation: string;
   angle?: number;
@@ -289,6 +293,7 @@ export default function CameraTestPreview({
               hideLineUI
                 ? undefined
                 : {
+                    countingMode, occupancyZone,
                     linePosition: position / 100,
                     lineAngle: angle,
                     countingDirection,
@@ -326,6 +331,7 @@ export default function CameraTestPreview({
               mediaHeight={frameSize.height}
               displayWidth={videoRect.width}
               config={{
+                countingMode, occupancyZone,
                 linePosition: position / 100,
                 lineOrientation: orientation,
                 lineAngle: angle,
@@ -389,6 +395,7 @@ export default function CameraTestPreview({
 
       {!hideLineUI && (
         <div className="space-y-2 border-t border-slate-200 bg-white px-4 py-3 text-sm text-slate-700">
+          {countingMode === "zone" ? <p className="text-sm text-slate-700">Area berwarna adalah zona pengukuran. Orang dihitung saat titik tengah tubuh terlihat di dalamnya; tidak perlu melewati garis.</p> : <>
           <div aria-live="polite" aria-atomic="true" className="space-y-1">
             <p className="font-medium text-slate-900">Arah yang dihitung</p>
             {directionGuidance.map((instruction) => (
@@ -404,6 +411,8 @@ export default function CameraTestPreview({
             {countingDirection !== "auto" && " Gerakan ke arah sebaliknya tidak dihitung."}
             {twoLineCounting && " Pengunjung harus melewati kedua batas agar tercatat."}
           </p>
+          </>}
+
         </div>
       )}
       {/* Control Bar (Bottom) */}
@@ -425,7 +434,7 @@ export default function CameraTestPreview({
             {streaming ? "Hentikan" : "Nyalakan Kamera"}
           </Button>
 
-          {preview && !hideLineUI && (
+          {preview && !hideLineUI && countingMode !== "zone" && (
             <span className="hidden text-[10px] text-slate-400 sm:inline-block">
               Garis mengikuti pengaturan form.
             </span>

@@ -1,8 +1,9 @@
 "use client";
+import { useConfirmation } from "../../components/ui/confirmation";
 import { visitorFetch } from "../../components/auth/visitor-api";
 import { Button } from "../../components/ui/button";
 import { toast } from "../../components/ui/toast";
-import { Field, Input } from "../../components/ui/field";
+import { Checkbox, Field, Input } from "../../components/ui/field";
 import { Page, PageHeading, Toolbar } from "../../components/ui/layout";
 import { DataTable, StatusBadge, TableContainer, RowMenu } from "../../components/ui/data-table";
 import { cx, ui } from "../../components/ui/styles";
@@ -27,6 +28,7 @@ type CCTVCamera = {
 };
 const API_BASE = `${process.env.NEXT_PUBLIC_SERVICE_RECOGNIZE_CCTV || ""}/api/v1/cctv`;
 export default function KameraPage() {
+  const { confirm, confirmation } = useConfirmation();
   const [cameras, setCameras] = useState<CCTVCamera[]>([]);
   const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState("");
@@ -136,7 +138,7 @@ export default function KameraPage() {
     }
   }
   async function remove(id: string) {
-    if (!confirm("Hapus kamera ini?")) return;
+    if (!await confirm({ title: "Hapus kamera", message: "Hapus kamera ini?", confirmLabel: "Hapus kamera" })) return;
     try {
       const response = await visitorFetch(
         `${API_BASE}/cameras/${encodeURIComponent(companyId)}/${encodeURIComponent(id)}`,
@@ -163,8 +165,7 @@ export default function KameraPage() {
           </p>
         </div>
         <Toolbar>
-          <Field>
-            Cari Kamera
+          <Field label="Cari Kamera">
             <span className="relative">
               <Search
                 size={15}
@@ -221,9 +222,8 @@ export default function KameraPage() {
             <thead>
               <tr>
                 <th className="w-12">
-                  <input
+                  <Checkbox
                     aria-label="Pilih semua kamera"
-                    type="checkbox"
                     checked={
                       visible.length > 0 &&
                       visible.every((camera) => selected.includes(camera.id))
@@ -286,8 +286,7 @@ export default function KameraPage() {
                   data-running={camera.status?.toLowerCase() === "running"}
                 >
                   <td>
-                    <input
-                      type="checkbox"
+                    <Checkbox
                       aria-label={`Pilih ${camera.name}`}
                       checked={selected.includes(camera.id)}
                       onChange={(e) =>
@@ -362,8 +361,7 @@ export default function KameraPage() {
                   {formError}
                 </p>
               )}
-              <Field>
-                Nama Kamera
+              <Field label="Nama Kamera">
                 <Input
                   autoFocus
                   required
@@ -371,8 +369,7 @@ export default function KameraPage() {
                   onChange={(e) => setName(e.target.value)}
                 />
               </Field>
-              <Field>
-                Sumber Kamera
+              <Field label="Sumber Kamera">
                 <Input
                   required
                   placeholder="0, rtsp://host/stream, atau URL/path video"
@@ -543,6 +540,7 @@ export default function KameraPage() {
           </footer>
         </Modal>
       )}
+      {confirmation}
     </Page>
   );
 }

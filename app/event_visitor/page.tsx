@@ -1,4 +1,5 @@
 "use client";
+import { useConfirmation } from "../../components/ui/confirmation";
 import { apiErrorMessage } from "../../components/auth/api-error";
 import { visitorFetch, downloadVisitorReport } from "../../components/auth/visitor-api";
 import { Button, ButtonLink, buttonStyles } from "../../components/ui/button";
@@ -27,13 +28,16 @@ import EventsManager from "../../components/events/events-manager";
 import { toast } from "../../components/ui/toast";
 import Modal from "../../components/ui-modal";
 import HourlyVisitorStatistics from "../../components/hourly-visitor-statistics";
+import EventVisitorInsights from "../../components/event-visitor-insights";
 import { getAuthHeaders, getAuthToken } from "../../components/auth/auth-api";
-import WebRTCPlayer, { DetectionBox, StreamMode } from "../../components/camera/webrtc-player";
+import WebRTCPlayer, { DetectionBox } from "../../components/camera/webrtc-player";
+import { CameraStartupPlaceholder, StartupProgress, type StartupStatus } from "../../components/events/startup-progress";
 const API_BASE = `${process.env.NEXT_PUBLIC_SERVICE_RECOGNIZE_CCTV || ""}/api/v1/event_visitor`;
 const EVENTS_API = `${process.env.NEXT_PUBLIC_SERVICE_RECOGNIZE_CCTV || ""}/api/v1/events`;
 type VisitorEvent = {
   id: string;
   name: string;
+  camera_ids?: string[];
   event_date?: string;
   event_end_date?: string;
   created_at?: string;
@@ -53,7 +57,7 @@ type Status = {
   inference_runtime?: { torch_version: string; cuda_built: boolean; cuda_available: boolean; cuda_version: string | null; mps_available: boolean } | null;
   running: boolean;
   starting?: boolean;
-  startup?: { state: string; message: string; error?: string | null };
+  startup?: StartupStatus;
   camera_source: string | number | null;
   session_id: string | null;
   status?: string;
@@ -82,10 +86,16 @@ type Status = {
   zone_width_ratio?: number;
   mirror?: boolean;
   counting_frame_size?: { width: number; height: number };
+  counting_mode?: "line" | "zone";
+  zone_occupancy?: { zone: [number, number, number, number]; count: number | null; stale: boolean; age_seconds: number | null } | null;
   cameras?: {
+    counting_mode?: "line" | "zone";
+    zone_occupancy?: { zone: [number, number, number, number]; count: number | null; stale: boolean; age_seconds: number | null } | null;
     inference_devices?: InferenceDevice[];
+    inference_metrics?: { ai_fps: number; completed_frames: number; mean_ms?: Record<string, number> };
     camera_id: string;
     counting_direction?: string;
+    gender_assignment?: string;
     counting_frame_size?: { width: number; height: number };
     body_reid_enabled?: boolean;
     body_reid_error?: string | null;
@@ -131,6 +141,7 @@ export default function EventVisitorPage({
   eventId?: string;
 }) {
   const { can } = useAccess();
+  const { confirm, confirmation } = useConfirmation();
   const [videoOpen, setVideoOpen] = useState(false);
   const [events, setEvents] = useState<VisitorEvent[]>([]);
   const [selectedEventId, setSelectedEventId] = useState(fixedEventId);
@@ -144,7 +155,7 @@ export default function EventVisitorPage({
   const [connectionError, setConnectionError] = useState("");
   const [actionError, setActionError] = useState("");
   const [streamErrors, setStreamErrors] = useState<Record<string, boolean>>({});
-  const [cameraModes, setCameraModes] = useState<Record<string, StreamMode>>({});
+  const [cameraStreamKeys, setCameraStreamKeys] = useState<Record<string, number>>({});
   const [cameraAiDetection, setCameraAiDetection] = useState<Record<string, boolean>>({});
   const [detectionSnapshot, setDetectionSnapshot] = useState<{ eventId: string; cameras: Record<string, DetectionBox[]> } | null>(null);
   const cameraDetections = status?.running && detectionSnapshot?.eventId === selectedEventId ? detectionSnapshot.cameras : {};
@@ -328,7 +339,7 @@ export default function EventVisitorPage({
   async function action(command: "start" | "pause" | "stop" | "restart") {
     if (
       command === "stop" &&
-      !confirm(status?.starting ? "Batalkan persiapan event ini? Pemuatan model yang sedang berlangsung akan diselesaikan sebelum dihentikan." : "Stop monitoring event ini? Sesi aktif akan ditandai selesai.")
+      !await confirm({ title: status?.starting ? "Batalkan persiapan" : "Hentikan monitoring", confirmLabel: "Hentikan", message: status?.starting ? "Batalkan persiapan event ini? Pemuatan model yang sedang berlangsung akan diselesaikan sebelum dihentikan." : "Stop monitoring event ini? Sesi aktif akan ditandai selesai." })
     )
       return;
     setBusy(true);
@@ -384,6 +395,8 @@ export default function EventVisitorPage({
             unresolved_crossings: status?.unresolved_crossings,
           },
         ];
+  // Running is not enough: the AI reader may still be waiting for the first frame.
+  const waitingForFrame = running && cameraList.some((camera) => camera.running !== false && camera.connection_state === "connecting");
   const gridColsClass =
     cameraList.length === 1
       ? "grid-cols-1"
@@ -491,11 +504,11 @@ export default function EventVisitorPage({
           </div>
         )}
       </PageHeading>
-      {preparing && (
-        <p role="status" className="mb-4 rounded-lg border border-sky-200 bg-sky-50 p-4 text-sm text-sky-950">
-          {status?.startup?.message || "Menyiapkan monitoring"}. Proses pertama dapat memerlukan waktu untuk memuat model.
-        </p>
-      )}
+      <StartupProgress
+        startup={preparing ? status?.startup : null}
+        waitingForFrame={waitingForFrame}
+        cameraCount={currentEvent?.camera_ids?.length || cameraList.length}
+      />
       {fixedEventId && can("videos.analyze") && videoOpen && <EventVideoDetection key={fixedEventId} eventId={fixedEventId} onSaved={refreshVideoResults} />}
       {status && (status.in_count || 0) === 0 && cameraList.every((camera) => camera.counting_direction === "out") && (
         <p role="status" className="mb-4 rounded-lg border border-amber-300 bg-amber-50 p-4 text-sm text-amber-950">
@@ -504,8 +517,7 @@ export default function EventVisitorPage({
       )}
       {!fixedEventId && (
         <Toolbar>
-          <Field>
-            Pilih Event
+          <Field label="Pilih Event">
             <Select
               className="w-auto!"
               value={selectedEventId}
@@ -628,6 +640,9 @@ export default function EventVisitorPage({
                         <span className="flex size-5 items-center justify-center rounded bg-white/10 text-[11px] font-semibold text-white/90">
                           {index + 1}
                         </span>
+                        {camera.inference_metrics && <span className="rounded bg-slate-800 px-2 py-1 text-slate-200" title="FPS inferensi AI yang selesai, bukan FPS video">AI {camera.inference_metrics.ai_fps.toFixed(1)} FPS</span>}
+                        {camera.counting_mode !== "zone" && (camera.gender_assignment === "male" || camera.gender_assignment === "female") && <span className="rounded bg-violet-950 px-2 py-1 text-violet-200">{camera.gender_assignment === "male" ? "Khusus laki-laki" : "Khusus perempuan"}</span>}
+                        {camera.counting_mode === "zone" && <span className="rounded bg-cyan-950 px-2 py-1 text-cyan-200">Keramaian: {camera.zone_occupancy?.stale || !camera.zone_occupancy ? "Belum tersedia" : `${camera.zone_occupancy.count} orang`}</span>}
                         <span className="max-w-[200px] truncate font-medium text-white" title={camera.name}>
                           {camera.name}
                         </span>
@@ -694,7 +709,7 @@ export default function EventVisitorPage({
                           onClick={(e) => {
                             e.stopPropagation();
                             setStreamErrors((prev) => ({ ...prev, [camId]: false }));
-                            setStreamKey((k) => k + 1);
+                            setCameraStreamKeys((previous) => ({ ...previous, [camId]: (previous[camId] || 0) + 1 }));
                           }}
                         >
                           <RefreshCw size={13} />
@@ -726,24 +741,23 @@ export default function EventVisitorPage({
                     <div className="relative aspect-video w-full overflow-hidden bg-black grid place-items-center">
                       {isRunning && !connectionError && !hasError ? (
                         <WebRTCPlayer
-                          key={`${streamKey}-${camId}`}
+                          key={`${streamKey}-${camId}-${cameraStreamKeys[camId] || 0}`}
                           whepUrl={camera.stream_urls?.webrtc_whep}
                           webrtcPlayerUrl={camera.stream_urls?.webrtc_player}
                           hlsUrl={camera.stream_urls?.hls}
                           fallbackStreamUrl={streamUrl}
-                          preferredMode={cameraModes[camId] || "webrtc"}
+                          preferredMode="webrtc"
                           detections={cameraDetections[camId] || camera.detections || []}
                           showDetections={cameraAiDetection[camId] ?? true}
                           onToggleDetections={(enabled) => {
                             setCameraAiDetection((prev) => ({ ...prev, [camId]: enabled }));
                           }}
                           hideInternalSwitcher
-                          onModeChange={(m) => {
-                            setCameraModes((prev) => ({ ...prev, [camId]: m }));
-                          }}
                           cameraName={camera.name}
                           className="size-full"
                           lineConfig={{
+                            countingMode: camera.counting_mode,
+                            occupancyZone: camera.zone_occupancy?.zone,
                             countingDirection: camera.counting_direction,
                             frameSize: camera.counting_frame_size || status?.counting_frame_size,
                             linePosition: camera.line_position ?? status?.line_position ?? 0.5,
@@ -763,6 +777,8 @@ export default function EventVisitorPage({
                             );
                           }}
                         />
+                      ) : preparing && !connectionError ? (
+                        <CameraStartupPlaceholder startup={status?.startup} waitingForFrame={false} />
                       ) : (
                         <div className="flex flex-col items-center justify-center p-4 text-center text-slate-400">
                           <Video size={30} className="mb-2 text-slate-500" />
@@ -779,7 +795,7 @@ export default function EventVisitorPage({
                               className="mt-2.5 h-7! w-auto! border-white/20 px-2.5! text-xs! text-white hover:bg-white/10"
                               onClick={() => {
                                 setStreamErrors((prev) => ({ ...prev, [camId]: false }));
-                                setStreamKey((k) => k + 1);
+                                setCameraStreamKeys((previous) => ({ ...previous, [camId]: (previous[camId] || 0) + 1 }));
                               }}
                             >
                               <RefreshCw size={12} className="mr-1" />
@@ -836,11 +852,17 @@ export default function EventVisitorPage({
                     ? "Memuat statistik pengunjung…"
                     : "Total event dari seluruh kamera · Diperbarui real-time"}
               </p>
-              <dl className="mt-4 divide-y divide-white/10">
+              {status?.cameras?.some(camera => camera.counting_mode === "zone") && <div className="mt-4 rounded-lg border border-cyan-400/30 p-3 text-sm">
+                <p className="font-semibold text-cyan-200">Keramaian saat ini</p>
+                <p className="mt-1 text-xs text-slate-300">Orang yang terlihat di setiap kamera keramaian, terpisah dari akumulasi keluar/masuk. Kamera berbeda tidak dijumlahkan.</p>
+                {status.cameras.filter(camera => camera.counting_mode === "zone").map(camera => <p key={camera.camera_id} className="mt-2 flex justify-between gap-3"><span>{camera.name}</span><span>{camera.zone_occupancy?.stale || !camera.zone_occupancy ? "Data belum tersedia" : `${camera.zone_occupancy.count} orang`}</span></p>)}
+              </div>}
+              <p className="mt-4 text-sm font-semibold text-slate-200">Akumulasi keluar/masuk</p>
+              <dl className="mt-2 divide-y divide-white/10">
                 {[
                   { label: "Total Masuk", count: status?.in_count },
                   { label: "Total Keluar", count: status?.out_count },
-                  { label: "Di dalam Area", count: inside },
+                  { label: "Di dalam (berdasarkan masuk − keluar)", count: inside },
                 ].map((item) => (
                   <div key={item.label} className="py-3 first:pt-0">
                     <dt className="text-sm text-slate-300">{item.label}</dt>
@@ -1032,11 +1054,23 @@ export default function EventVisitorPage({
 
         <div className="grid gap-6">
           <Panel>
-            <h2>Statistik Pengunjung</h2>
+            <h2>Akumulasi Keluar/Masuk</h2>
             {row("Total Masuk", value(status?.in_count))}
             {row("Total Keluar", value(status?.out_count))}
-            {row("Di dalam Area", value(inside))}
+            {row("Di dalam (masuk − keluar)", value(inside))}
           </Panel>
+          {status?.cameras?.some(camera => camera.counting_mode === "zone") && (
+            <Panel>
+              <h2>Keramaian</h2>
+              <p className={ui.panelDescription}>Orang yang terlihat saat ini di setiap kamera keramaian. Tidak menambah total masuk/keluar; kamera berbeda tidak dijumlahkan karena pandangannya bisa tumpang tindih.</p>
+              {status.cameras.filter(camera => camera.counting_mode === "zone").map(camera => (
+                <InfoRow key={camera.camera_id}>
+                  <span>{camera.name}</span>
+                  <strong>{camera.zone_occupancy?.stale || !camera.zone_occupancy ? "Data belum tersedia" : `${camera.zone_occupancy.count} orang`}</strong>
+                </InfoRow>
+              ))}
+            </Panel>
+          )}
           <Panel>
             <h2>Profil Pengunjung</h2>
             {demographics.map((item) => (
@@ -1065,6 +1099,12 @@ export default function EventVisitorPage({
           eventId={selectedEventId}
         />
       </div>
+      {selectedEventId && (
+        <div className="pt-2">
+          <EventVisitorInsights key={`${selectedEventId}:${resetVersion}`} companyId={getCompanyId()} eventId={selectedEventId} />
+        </div>
+      )}
+      {confirmation}
     </Page>
   );
 }

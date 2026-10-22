@@ -135,7 +135,7 @@ try {
     if ($LASTEXITCODE -ne 0) { throw 'Uvicorn belum tersedia pada Python backend. Jalankan uv sync --project ..\recognize_cctv\desktop --locked.' }
     Open-Service 'Visitor Counter - Backend' $backend "& $(Quote-Literal $python) -m uvicorn main:app --host 127.0.0.1 --port 8000; Write-Host 'Backend berhenti. Periksa pesan di atas.'"
     Open-Service 'Visitor Counter - Frontend' $frontend "`$env:NEXT_PUBLIC_SERVICE_RECOGNIZE_CCTV = 'http://127.0.0.1:8000'; & $(Quote-Literal $node) $(Quote-Literal $next) dev --hostname 127.0.0.1 --port 3000; Write-Host 'Frontend berhenti. Periksa pesan di atas.'"
-    Write-Host 'Untuk berhenti: tekan Ctrl+C pada KEDUA terminal. Runner ini untuk development web, bukan installer Electron.'
+    Write-Host 'Untuk berhenti: tekan Ctrl+C pada KEDUA terminal. Runner ini untuk development web, bukan installer desktop.'
     Write-Host 'Menunggu backend dan frontend siap sebelum membuka browser (maksimal sekitar 3 menit)...'
     $deadline = [DateTime]::UtcNow.AddMinutes(3)
     $ready = $false

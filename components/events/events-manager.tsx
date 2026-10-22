@@ -1,7 +1,9 @@
 "use client";
+import { useConfirmation } from "../ui/confirmation";
 import { visitorFetch } from "../../components/auth/visitor-api";
 import { Button } from "../../components/ui/button";
-import { Field, Input, Select, DateRangePicker } from "../../components/ui/field";
+import { TimePicker } from "../ui/time-picker";
+import { Checkbox, ChoiceCard, DateRangePicker, Field, FieldHint, FieldSet, Input, Range, Select } from "../../components/ui/field";
 import { Page, PageHeading, Toolbar } from "../../components/ui/layout";
 import { DataTable, StatusBadge, TableContainer } from "../../components/ui/data-table";
 import { cx, ui } from "../../components/ui/styles";
@@ -36,7 +38,10 @@ import { toast } from "../ui/toast";
 const API_BASE = `${process.env.NEXT_PUBLIC_SERVICE_RECOGNIZE_CCTV || ""}/api/v1/events`;
 
 type CameraSetting = {
+  countingMode?: "line" | "zone";
+  occupancyZone?: [number, number, number, number];
   countingDirection: "auto" | "in" | "out";
+  genderAssignment?: "auto" | "male" | "female";
   linePosition: number;
   lineOrientation: string;
   lineAngle: number;
@@ -47,7 +52,10 @@ type CameraSetting = {
 };
 
 type CameraDbSetting = {
+  counting_mode?: "line" | "zone";
+  occupancy_zone?: [number, number, number, number];
   counting_direction?: "auto" | "in" | "out" | null;
+  gender_assignment?: "auto" | "male" | "female" | null;
   line_position?: number | null;
   line_orientation?: string | null;
   line_angle?: number | null;
@@ -77,7 +85,7 @@ type VisitorEvent = {
   capacity?: number | null;
   allow_duplicate?: boolean;
   gender_enabled?: boolean;
-  advanced_settings?: Partial<Record<keyof typeof ADVANCED_DEFAULTS, number>> | null;
+  advanced_settings?: (Partial<Record<keyof typeof ADVANCED_DEFAULTS, number>> & { gender_body_fallback?: boolean }) | null;
   status?: string;
   visitor_count?: number;
   created_at?: string;
@@ -89,11 +97,12 @@ type CameraOption = {
   camera_source?: string;
 };
 const ADVANCED_DEFAULTS = {
-  detect_width: "640", detect_every_n_frames: "3", person_confidence: "0.45",
+  detect_width: "640", detect_every_n_frames: "1", target_ai_fps: "15", person_confidence: "0.45",
   face_similarity: "0.70", gender_confidence: "0.80", gender_retry_seconds: "2",
 };
 const ADVANCED_FIELDS: { key: keyof typeof ADVANCED_DEFAULTS; label: string; min: number; max: number; step: number; hint: string }[] = [
   { key: "detect_width", label: "Detail gambar untuk mengenali orang", min: 320, max: 1280, step: 1, hint: "Pilih lebih detail jika orang terlihat kecil atau jauh. Pilihan ini menambah beban komputer." },
+  { key: "target_ai_fps", label: "Target pemeriksaan AI per detik", min: 1, max: 20, step: 1, hint: "Target penjadwalan, bukan jaminan FPS. Kecepatan sebenarnya bergantung pada perangkat dan jumlah kamera." },
   { key: "detect_every_n_frames", label: "Seberapa sering orang diperiksa", min: 1, max: 15, step: 1, hint: "Pemeriksaan lebih sering membantu saat orang berjalan cepat, tetapi menambah beban komputer." },
   { key: "person_confidence", label: "Ketelitian mendeteksi orang", min: 0.1, max: 0.95, step: 0.01, hint: "Nilai kecil membantu menangkap orang yang kurang jelas. Nilai besar mengurangi benda yang keliru dianggap orang." },
   { key: "face_similarity", label: "Ketelitian mengenali orang yang sama", min: 0.5, max: 0.95, step: 0.01, hint: "Skor minimum yang lebih tinggi mengurangi risiko dua orang berbeda dianggap sama, tetapi orang yang sama bisa dikenali sebagai pengunjung baru." },
@@ -102,7 +111,8 @@ const ADVANCED_FIELDS: { key: keyof typeof ADVANCED_DEFAULTS; label: string; min
 ];
 const ADVANCED_OPTIONS: Record<keyof typeof ADVANCED_DEFAULTS, { value: string; label: string }[]> = {
   detect_width: [{ value: "320", label: "320 piksel" }, { value: "640", label: "640 piksel (disarankan)" }, { value: "960", label: "960 piksel" }, { value: "1280", label: "1280 piksel" }],
-  detect_every_n_frames: [{ value: "1", label: "Setiap gambar" }, { value: "3", label: "Setiap 3 gambar (disarankan)" }, { value: "6", label: "Setiap 6 gambar" }],
+  target_ai_fps: [{ value: "8", label: "8 pemeriksaan/detik" }, { value: "15", label: "15 pemeriksaan/detik (disarankan)" }, { value: "20", label: "20 pemeriksaan/detik" }],
+  detect_every_n_frames: [{ value: "1", label: "Setiap gambar (disarankan)" }, { value: "3", label: "Setiap 3 gambar" }, { value: "6", label: "Setiap 6 gambar" }],
   person_confidence: [{ value: "0.35", label: "Keyakinan minimal 35%" }, { value: "0.45", label: "Keyakinan minimal 45% (disarankan)" }, { value: "0.60", label: "Keyakinan minimal 60%" }],
   face_similarity: [{ value: "0.60", label: "Skor wajah minimal 60 dari 100" }, { value: "0.70", label: "Skor wajah minimal 70 (disarankan)" }, { value: "0.80", label: "Skor wajah minimal 80 dari 100" }],
   gender_confidence: [{ value: "0.70", label: "Keyakinan minimal 70%" }, { value: "0.80", label: "Keyakinan minimal 80% (disarankan)" }, { value: "0.90", label: "Keyakinan minimal 90%" }],
@@ -121,6 +131,7 @@ const initialForm = {
   capacity: "",
   allowDuplicate: false,
   genderEnabled: false,
+  genderBodyFallback: false,
   advancedSettings: { ...ADVANCED_DEFAULTS },
 };
 function companyId() {
@@ -140,6 +151,7 @@ export default function EventsManager({ editEventId, onClose, onSaved }: {
   onClose?: () => void;
   onSaved?: () => void;
 }) {
+  const { confirm, confirmation } = useConfirmation();
   const [events, setEvents] = useState<VisitorEvent[]>([]);
   const [cameras, setCameras] = useState<CameraOption[]>([]);
   const [loading, setLoading] = useState(true);
@@ -156,6 +168,8 @@ export default function EventsManager({ editEventId, onClose, onSaved }: {
   const [form, setForm] = useState(initialForm);
   const [manualAdvanced, setManualAdvanced] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
+  // Which face model a start will use: ArcFace has its own threshold from its model pack.
+  const [faceModel, setFaceModel] = useState<{ model: "ArcFace" | "FaceNet"; threshold: number | null } | null>(null);
   const [isOpen, setIsOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [formError, setFormError] = useState("");
@@ -163,6 +177,15 @@ export default function EventsManager({ editEventId, onClose, onSaved }: {
   const [startingId, setStartingId] = useState<string | null>(null);
   const startupRequest = useRef<AbortController | null>(null);
   useEffect(() => () => startupRequest.current?.abort(), []);
+  useEffect(() => {
+    if (!isOpen) return;
+    const controller = new AbortController();
+    visitorFetch(`${API_BASE}/face-recognition`, { signal: controller.signal })
+      .then((response) => (response.ok ? response.json() : null))
+      .then((payload) => { if (payload?.result?.model) setFaceModel(payload.result); })
+      .catch(() => {});
+    return () => controller.abort();
+  }, [isOpen]);
   const [actionAlert, setActionAlert] = useState<{
     type: "success" | "error";
     message: string;
@@ -306,7 +329,10 @@ export default function EventsManager({ editEventId, onClose, onSaved }: {
       if (event.camera_settings) {
         for (const [id, cfg] of Object.entries(event.camera_settings)) {
           settings[id] = {
+            countingMode: cfg.counting_mode || "line",
+            occupancyZone: cfg.occupancy_zone || [0.1, 0.1, 0.9, 0.9],
             countingDirection: cfg.counting_direction || "auto",
+            genderAssignment: cfg.gender_assignment || "auto",
             linePosition: cfg.line_position ? Math.round(cfg.line_position * 100) : 50,
             lineOrientation: cfg.line_orientation || "horizontal",
             lineAngle: cfg.line_angle ?? 0,
@@ -348,6 +374,7 @@ export default function EventsManager({ editEventId, onClose, onSaved }: {
             capacity: event.capacity == null ? "" : String(event.capacity),
             allowDuplicate: event.allow_duplicate === true,
             genderEnabled: event.gender_enabled === true,
+            genderBodyFallback: event.advanced_settings?.gender_body_fallback === true,
             advancedSettings: Object.fromEntries(Object.entries(ADVANCED_DEFAULTS).map(([key, value]) => [key, String(event.advanced_settings?.[key as keyof typeof ADVANCED_DEFAULTS] ?? value)])) as typeof ADVANCED_DEFAULTS,
           }
         : { ...initialForm, eventDate: todayWib(), eventEndDate: todayWib() },
@@ -414,11 +441,14 @@ export default function EventsManager({ editEventId, onClose, onSaved }: {
         if (cfg) {
           dbSettings[id] = {
             counting_direction: cfg.countingDirection,
+            gender_assignment: cfg.genderAssignment || "auto",
             line_position: cfg.linePosition / 100,
             line_orientation: cfg.lineOrientation,
             line_angle: cfg.lineAngle,
             reverse_direction: cfg.reverseDirection,
             mirror: cfg.mirror || false,
+            counting_mode: cfg.countingMode || "line",
+            occupancy_zone: cfg.occupancyZone || [0.1, 0.1, 0.9, 0.9],
             two_line_counting: cfg.twoLineCounting ?? true,
             zone_width_ratio: cfg.zoneWidthRatio ?? 0.20,
           };
@@ -438,7 +468,10 @@ export default function EventsManager({ editEventId, onClose, onSaved }: {
         capacity: form.capacity ? Number(form.capacity) : null,
         allow_duplicate: form.allowDuplicate,
         gender_enabled: form.genderEnabled,
-        advanced_settings: Object.fromEntries(Object.entries(form.advancedSettings).map(([key, value]) => [key, Number(value)])),
+        advanced_settings: {
+          ...Object.fromEntries(Object.entries(form.advancedSettings).map(([key, value]) => [key, Number(value)])),
+          gender_body_fallback: form.genderBodyFallback,
+        },
         company_id: companyId(),
       };
       const response = await visitorFetch(
@@ -479,7 +512,7 @@ export default function EventsManager({ editEventId, onClose, onSaved }: {
     }
   }
   async function remove(id: string) {
-    if (!confirm("Hapus event ini?")) return;
+    if (!await confirm({ title: "Hapus event", message: "Hapus event ini?", confirmLabel: "Hapus event" })) return;
     try {
       const response = await visitorFetch(
         `${API_BASE}/${encodeURIComponent(id)}?company_id=${encodeURIComponent(companyId())}`,
@@ -515,8 +548,7 @@ export default function EventsManager({ editEventId, onClose, onSaved }: {
           </p>
         </div>
         <Toolbar>
-          <Field>
-            Cari Event
+          <Field label="Cari Event">
             <span className="relative">
               <Search
                 size={15}
@@ -598,8 +630,7 @@ export default function EventsManager({ editEventId, onClose, onSaved }: {
             <thead>
               <tr>
                 <th className="w-12">
-                  <input
-                    type="checkbox"
+                  <Checkbox
                     aria-label="Pilih semua event"
                     checked={
                       visibleEvents.length > 0 &&
@@ -662,8 +693,7 @@ export default function EventsManager({ editEventId, onClose, onSaved }: {
               {visibleEvents.map((event) => (
                 <tr key={event.id} data-running={event.status === "running"}>
                   <td>
-                    <input
-                      type="checkbox"
+                    <Checkbox
                       aria-label={`Pilih ${event.name}`}
                       checked={selected.includes(event.id)}
                       onChange={(e) =>
@@ -806,16 +836,13 @@ export default function EventsManager({ editEventId, onClose, onSaved }: {
                     <h3 id="event-details-heading" className="text-base font-semibold">Informasi event</h3>
                     <p className="mt-1 mb-4 text-sm text-neutral-600">Nama dan lokasi yang tampil pada daftar event.</p>
                     <div className="grid gap-4 min-[600px]:grid-cols-2">
-                      <Field className="min-[600px]:col-span-2">
-                        Nama event <span className="sr-only">(wajib)</span>
+                      <Field className="min-[600px]:col-span-2" label={<>Nama event <span className="sr-only">(wajib)</span></>}>
                         <Input autoFocus required placeholder="Contoh: Pameran Akhir Tahun" value={form.name} onChange={(e) => update("name", e.target.value)} />
                       </Field>
-                      <Field>
-                        Lokasi
+                      <Field label="Lokasi">
                         <Input placeholder="Contoh: Aula utama" value={form.location} onChange={(e) => update("location", e.target.value)} />
                       </Field>
-                      <Field>
-                        <span>Kapasitas <span className="font-normal text-neutral-600">(opsional)</span></span>
+                      <Field label="Kapasitas" optional>
                         <Input type="number" min="1" placeholder="Jumlah pengunjung" value={form.capacity} onChange={(e) => update("capacity", e.target.value)} />
                       </Field>
                     </div>
@@ -823,65 +850,66 @@ export default function EventsManager({ editEventId, onClose, onSaved }: {
                   <section aria-labelledby="event-schedule-heading" className="border-t border-neutral-200 pt-6">
                     <h3 id="event-schedule-heading" className="mb-4 text-base font-semibold">Jadwal monitoring</h3>
                     <div className="grid gap-4 min-[600px]:grid-cols-2">
-                      <fieldset className="min-w-0 min-[600px]:col-span-2">
-                        <legend className="mb-1.5 text-neutral-700">Tanggal event</legend>
+                      <FieldSet legend="Tanggal event" className="min-[600px]:col-span-2">
                         <DateRangePicker className="[&>button]:border-[#8994a4]" startDate={form.eventDate} endDate={form.eventEndDate} onChange={(start, end) => {
                           update("eventDate", start);
                           update("eventEndDate", end);
                         }} />
-                      </fieldset>
-                      <Field>
-                        Jam mulai
-                        <Input type="time" required value={form.eventStart} onChange={(e) => update("eventStart", e.target.value)} />
-                      </Field>
-                      <Field>
-                        Jam selesai
-                        <Input type="time" required value={form.eventEnd} onChange={(e) => update("eventEnd", e.target.value)} />
-                      </Field>
+                      </FieldSet>
+                      <TimePicker label="Jam mulai" required value={form.eventStart} onChange={value => update("eventStart", value)} />
+                      <TimePicker label="Jam selesai" required value={form.eventEnd} onChange={value => update("eventEnd", value)} />
                     </div>
-                    <label className="mt-4 flex min-h-11 cursor-pointer items-start gap-3 rounded-lg bg-neutral-50 p-3">
-                      <input type="checkbox" className="mt-0.5 size-4 shrink-0 accent-navy" checked={form.autoRun} onChange={(e) => update("autoRun", e.target.checked)} />
-                      <span className="min-w-0">
-                        <span className="block font-medium">Jalankan otomatis</span>
-                        <span className="mt-0.5 block text-xs leading-relaxed text-neutral-600">Monitoring dimulai dan dihentikan sesuai jadwal event.</span>
-                      </span>
-                    </label>
+                    <ChoiceCard variant="subtle" className="mt-4" title="Jalankan otomatis" description="Monitoring dimulai dan dihentikan sesuai jadwal event." checked={form.autoRun} onChange={(e) => update("autoRun", e.target.checked)} />
                   </section>
                   <section aria-labelledby="event-counting-heading" className="border-t border-neutral-200 pt-6">
                     <h3 id="event-counting-heading" className="mb-4 text-base font-semibold">Aturan penghitungan</h3>
-                    <label className={cx("flex min-h-11 cursor-pointer items-start gap-3 rounded-lg border p-4 transition-colors focus-within:ring-2 focus-within:ring-navy focus-within:ring-offset-2", form.allowDuplicate ? "border-navy bg-[#f0f4f8]" : "border-neutral-300 bg-white hover:border-neutral-500")}>
-                      <input type="checkbox" aria-describedby="repeat-visits-description" className="mt-0.5 size-5 shrink-0 accent-navy focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-navy" checked={form.allowDuplicate} onChange={(e) => update("allowDuplicate", e.target.checked)} />
-                      <span className="min-w-0">
-                        <span className="block font-medium">Catat kunjungan berulang</span>
-                        <span id="repeat-visits-description" className="mt-1 block text-sm leading-relaxed text-neutral-600">{form.allowDuplicate ? "Aktif: orang yang sama masuk lagi akan menambah hitungan dan menyimpan foto baru." : "Nonaktif: hanya masuk dan keluar pertama per orang yang dicatat. Masuk lagi tidak menambah hitungan atau menyimpan foto baru."}</span>
-                        <span className="mt-2 block text-xs leading-relaxed text-neutral-600">Matikan jika Anda ingin menghitung setiap orang hanya sekali selama event.</span>
-                      </span>
-                    </label>
+                    <ChoiceCard
+                      title="Catat kunjungan berulang"
+                      description={form.allowDuplicate ? "Aktif: orang yang sama masuk lagi akan menambah hitungan dan menyimpan foto baru." : "Nonaktif: hanya masuk dan keluar pertama per orang yang dicatat. Masuk lagi tidak menambah hitungan atau menyimpan foto baru."}
+                      checked={form.allowDuplicate}
+                      onChange={(e) => update("allowDuplicate", e.target.checked)}
+                    >
+                      <span className="mt-2 block text-xs leading-relaxed text-neutral-600">Matikan jika Anda ingin menghitung setiap orang hanya sekali selama event.</span>
+                    </ChoiceCard>
                   </section>
                   <section aria-label="Profil pengunjung" className="border-t border-neutral-200 pt-6">
-                    <label className={cx("flex min-h-11 cursor-pointer items-start gap-3 rounded-lg border p-4 focus-within:ring-2 focus-within:ring-navy focus-within:ring-offset-2", form.genderEnabled ? "border-navy bg-[#f0f4f8]" : "border-neutral-300 bg-white hover:border-neutral-500")}>
-                      <input type="checkbox" checked={form.genderEnabled} onChange={(e) => update("genderEnabled", e.target.checked)} aria-describedby="event-gender-description" className="mt-0.5 size-5 shrink-0 accent-navy" />
-                      <span className="min-w-0">
-                        <span className="block font-medium">Deteksi gender pengunjung</span>
-                        <span id="event-gender-description" className="mt-1 block text-sm leading-relaxed text-neutral-600">{form.genderEnabled ? "Aktif: perkiraan gender ditambahkan ke capture dan laporan. Pemeriksaan ini dapat menambah beban pemrosesan." : "Nonaktif: penghitungan masuk dan keluar tetap berjalan tanpa pemeriksaan gender."}</span>
-                      </span>
-                    </label>
+                    <ChoiceCard
+                      title="Deteksi gender pengunjung"
+                      description={form.genderEnabled ? "Aktif: perkiraan gender ditambahkan ke capture dan laporan. Pemeriksaan ini dapat menambah beban pemrosesan." : "Nonaktif: penghitungan masuk dan keluar tetap berjalan tanpa pemeriksaan gender."}
+                      checked={form.genderEnabled}
+                      onChange={(e) => update("genderEnabled", e.target.checked)}
+                    />
+                    {form.genderEnabled && (
+                      <ChoiceCard
+                        variant="subtle"
+                        className="mt-3"
+                        title="Perkirakan dari badan bila wajah tidak terlihat"
+                        description="Mengurangi gender yang belum diketahui untuk orang yang tidak menghadap kamera. Perkiraan dari badan lebih mudah keliru (rambut panjang, jaket, anak-anak), jadi hanya dipakai bila keyakinannya minimal 85%. Periksa beberapa capture setelah mengaktifkannya."
+                        checked={form.genderBodyFallback}
+                        onChange={(e) => update("genderBodyFallback", e.target.checked)}
+                      />
+                    )}
                   </section>
                   <section aria-label="Pengaturan lanjutan" className="border-t border-neutral-200 pt-6">
                     <details className="rounded-lg border border-neutral-300 p-4">
                       <summary className="cursor-pointer font-semibold">Pengaturan Lanjutan</summary>
                       <p className="mt-3 text-sm leading-relaxed text-neutral-600">Belum yakin harus memilih apa? Gunakan pilihan yang disarankan. Pengaturan berlaku untuk semua kamera event. Jika monitoring sedang berjalan, hentikan lalu mulai kembali setelah menyimpan.</p>
                       <div className="mt-4 grid gap-4 min-[600px]:grid-cols-2">
-                        {ADVANCED_FIELDS.filter((field) => form.genderEnabled || !field.key.startsWith("gender_")).map((field) => <Field key={field.key}>
-                          {field.label}
-                          {manualAdvanced ? <Input type="number" required min={field.min} max={field.max} step={field.step} value={form.advancedSettings[field.key]} aria-describedby={`advanced-${field.key}-hint`} onChange={(event) => update("advancedSettings", { ...form.advancedSettings, [field.key]: event.target.value })} /> : <Select value={ADVANCED_OPTIONS[field.key].find((option) => Number(option.value) === Number(form.advancedSettings[field.key]))?.value || form.advancedSettings[field.key]} aria-describedby={`advanced-${field.key}-hint`} onChange={(event) => update("advancedSettings", { ...form.advancedSettings, [field.key]: event.target.value })}>
+                        {ADVANCED_FIELDS.filter((field) => form.genderEnabled || !field.key.startsWith("gender_")).map((field) => {
+                          const arcface = field.key === "face_similarity" && faceModel?.model === "ArcFace";
+                          return <Field key={field.key} label={field.label}>
+                          {manualAdvanced ? <Input type="number" required min={field.min} max={field.max} step={field.step} disabled={arcface} value={form.advancedSettings[field.key]} aria-describedby={`advanced-${field.key}-hint`} onChange={(event) => update("advancedSettings", { ...form.advancedSettings, [field.key]: event.target.value })} /> : <Select disabled={arcface} value={ADVANCED_OPTIONS[field.key].find((option) => Number(option.value) === Number(form.advancedSettings[field.key]))?.value || form.advancedSettings[field.key]} aria-describedby={`advanced-${field.key}-hint`} onChange={(event) => update("advancedSettings", { ...form.advancedSettings, [field.key]: event.target.value })}>
                             {!ADVANCED_OPTIONS[field.key].some((option) => Number(option.value) === Number(form.advancedSettings[field.key])) && <option value={form.advancedSettings[field.key]}>Nilai khusus ({form.advancedSettings[field.key]})</option>}
                             {ADVANCED_OPTIONS[field.key].map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
                           </Select>}
-                          <span id={`advanced-${field.key}-hint`} className="text-xs leading-relaxed text-neutral-600">{field.hint}{manualAdvanced && ` Nilai bawaan: ${ADVANCED_DEFAULTS[field.key]}.`}</span>
-                        </Field>)}
+                          <FieldHint id={`advanced-${field.key}-hint`}>{arcface
+                            ? `Tidak dipakai saat ini: pengenalan wajah memakai ArcFace dengan ambang ${faceModel?.threshold != null ? faceModel.threshold.toLocaleString("id-ID", { minimumFractionDigits: 2 }) : "dari paket model"} yang ditetapkan paket modelnya. Pengaturan ini berlaku bila aplikasi kembali memakai FaceNet.`
+                            : <>{field.hint}{manualAdvanced && ` Nilai bawaan: ${ADVANCED_DEFAULTS[field.key]}.`}</>}</FieldHint>
+                        </Field>;
+                        })}
                       </div>
                       <div className="mt-4 flex flex-wrap gap-2">
+                        <Button type="button" variant="outline" onClick={() => update("advancedSettings", { ...form.advancedSettings, detect_every_n_frames: "1", target_ai_fps: "20", detect_width: "640" })}>Preset gerbang ramai</Button>
                         <Button type="button" variant="outline" onClick={() => { update("advancedSettings", { ...ADVANCED_DEFAULTS }); setManualAdvanced(false); }}>Restore Default</Button>
                         <Button type="button" onClick={() => setManualAdvanced((previous) => !previous)}>{manualAdvanced ? "Gunakan Pilihan Sederhana" : "Atur Angka Secara Manual"}</Button>
                       </div>
@@ -900,20 +928,21 @@ export default function EventsManager({ editEventId, onClose, onSaved }: {
                         {cameras.map((camera) => {
                           const selected = form.cameraIds.includes(camera.id);
                           return (
-                            <label key={camera.id} className={cx("flex min-h-14 cursor-pointer items-center gap-3 rounded-lg border px-3 py-3 transition-colors", selected ? "border-navy bg-[#f0f4f8]" : "border-neutral-300 bg-white hover:border-neutral-500")}>
-                              <input type="checkbox" className="size-4 shrink-0 accent-navy" checked={selected} onChange={(e) => {
+                            <ChoiceCard
+                              key={camera.id}
+                              variant="compact"
+                              title={camera.name}
+                              description={/^\d+$/.test(camera.rtsp_url || camera.camera_source || "") ? "Kamera lokal" : "Kamera jaringan"}
+                              checked={selected}
+                              onChange={(e) => {
                                 const ids = e.target.checked ? [...form.cameraIds, camera.id] : form.cameraIds.filter((id) => id !== camera.id);
                                 const newSettings = { ...form.cameraSettings };
                                 if (e.target.checked && !newSettings[camera.id]) {
                                   newSettings[camera.id] = { countingDirection: "in", linePosition: 50, lineOrientation: "horizontal", lineAngle: 0, reverseDirection: false, mirror: false };
                                 }
                                 setForm({ ...form, cameraIds: ids, cameraSettings: newSettings });
-                              }} />
-                              <span className="min-w-0">
-                                <span className="block break-words font-medium text-neutral-800">{camera.name}</span>
-                                <span className="mt-0.5 block text-xs text-neutral-600">{/^\d+$/.test(camera.rtsp_url || camera.camera_source || "") ? "Kamera lokal" : "Kamera jaringan"}</span>
-                              </span>
-                            </label>
+                              }}
+                            />
                           );
                         })}
                       </div>
@@ -936,10 +965,13 @@ export default function EventsManager({ editEventId, onClose, onSaved }: {
                         const source = camera.rtsp_url || camera.camera_source || "";
                         const camSetting = form.cameraSettings[cameraId];
                         const cfg = {
+                          countingMode: camSetting?.countingMode ?? "line",
+                          occupancyZone: camSetting?.occupancyZone ?? [0.1, 0.1, 0.9, 0.9] as [number, number, number, number],
                           linePosition: camSetting?.linePosition ?? 50,
                           lineOrientation: camSetting?.lineOrientation ?? "horizontal",
                           lineAngle: camSetting?.lineAngle ?? 0,
                           countingDirection: camSetting?.countingDirection ?? "in",
+                          genderAssignment: camSetting?.genderAssignment ?? "auto",
                           reverseDirection: camSetting?.reverseDirection ?? false,
                           mirror: camSetting?.mirror ?? false,
                           twoLineCounting: camSetting?.twoLineCounting ?? true,
@@ -964,13 +996,30 @@ export default function EventsManager({ editEventId, onClose, onSaved }: {
                             <summary className="flex min-h-14 cursor-pointer list-none items-center gap-3 rounded-xl px-4 py-4 [&::-webkit-details-marker]:hidden">
                               <Camera size={18} className="shrink-0 text-neutral-600" aria-hidden="true" />
                               <span className="min-w-0 flex-1 break-words font-semibold text-neutral-800">{camera.name}</span>
-                              <span className="rounded bg-[#f0f4f8] px-2 py-1 text-xs font-medium text-navy">{cfg.countingDirection === "in" ? "Masuk" : cfg.countingDirection === "out" ? "Keluar" : "Otomatis"}</span>
+                              <span className="rounded bg-[#f0f4f8] px-2 py-1 text-xs font-medium text-navy">{cfg.countingMode === "zone" ? "Keramaian" : cfg.countingDirection === "in" ? "Masuk" : cfg.countingDirection === "out" ? "Keluar" : "Otomatis"}</span>
                               <ChevronDown size={18} className="shrink-0 text-neutral-600 transition-transform group-open:rotate-180" aria-hidden="true" />
                             </summary>
                             <div className="grid min-w-0 items-start gap-6 border-t border-neutral-200 p-4 min-[800px]:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
                             <div className="min-w-0 space-y-4">
-                              <Field>
-                                Peran kamera
+                              <Field label="Metode pengukuran" hint="Keramaian menghitung orang yang terlihat di area kamera saat ini, terpisah dari total masuk/keluar dan tanpa identitas atau gender. Atur zona 0–100% untuk seluruh gambar.">
+                                <Select value={cfg.countingMode} onChange={e => updateCam("countingMode", e.target.value as "line" | "zone")}>
+                                  <option value="line">Akumulasi keluar/masuk</option>
+                                  <option value="zone">Keramaian</option>
+                                </Select>
+                              </Field>
+                              {cfg.countingMode === "zone" && <div className="grid grid-cols-2 gap-3">
+                                {(["Kiri", "Atas", "Kanan", "Bawah"] as const).map((label, coordinate) => <Field key={label} label={`${label} zona (%)`}>
+                                  <Input type="number" min={0} max={100} step={1} value={Math.round(cfg.occupancyZone[coordinate] * 100)} onChange={e => {
+                                    const number = e.target.valueAsNumber;
+                                    if (!Number.isFinite(number)) return;
+                                    const zone = [...cfg.occupancyZone] as [number, number, number, number];
+                                    zone[coordinate] = Math.max(0, Math.min(100, number)) / 100;
+                                    if (zone[2] - zone[0] >= 0.02 && zone[3] - zone[1] >= 0.02) updateCam("occupancyZone", zone);
+                                  }} />
+                                </Field>)}
+                              </div>}
+                              <fieldset disabled={cfg.countingMode === "zone"} className={cfg.countingMode === "zone" ? "space-y-4 opacity-50" : "space-y-4"}>
+                              <Field label="Peran kamera">
                                 <Select
                                   value={cfg.countingDirection}
                                   onChange={(e) => updateCam("countingDirection", e.target.value as CameraSetting["countingDirection"])}
@@ -980,8 +1029,19 @@ export default function EventsManager({ editEventId, onClose, onSaved }: {
                                   <option value="auto">Otomatis sesuai arah lintasan</option>
                                 </Select>
                               </Field>
-                              <Field>
-                                Orientasi Garis
+                              {form.genderEnabled && (
+                                <Field label="Gender kamera" hint={cfg.genderAssignment && cfg.genderAssignment !== "auto" ? "Semua orang yang dihitung kamera ini dicatat dengan gender tersebut, tanpa model AI. Cocok untuk pintu atau area khusus pria/wanita." : "Gender diperkirakan AI dari wajah atau tubuh."}>
+                                  <Select
+                                    value={cfg.genderAssignment || "auto"}
+                                    onChange={(e) => updateCam("genderAssignment", e.target.value as NonNullable<CameraSetting["genderAssignment"]>)}
+                                  >
+                                    <option value="auto">Otomatis (AI)</option>
+                                    <option value="male">Laki-laki</option>
+                                    <option value="female">Perempuan</option>
+                                  </Select>
+                                </Field>
+                              )}
+                              <Field label="Orientasi Garis">
                                 <Select
                                   value={cfg.lineOrientation}
                                   onChange={(e) => updateCam("lineOrientation", e.target.value)}
@@ -990,22 +1050,16 @@ export default function EventsManager({ editEventId, onClose, onSaved }: {
                                   <option value="vertical">Vertikal</option>
                                 </Select>
                               </Field>
-                              <Field>
-                                Posisi Garis ({cfg.linePosition}%)
-                                <input
-                                  type="range"
-                                  className="min-h-11 w-full cursor-pointer accent-navy"
+                              <Field label={`Posisi Garis (${cfg.linePosition}%)`}>
+                                <Range
                                   min="10"
                                   max="90"
                                   value={cfg.linePosition}
                                   onChange={(e) => updateCam("linePosition", Number(e.target.value))}
                                 />
                               </Field>
-                              <Field>
-                                Kemiringan Garis ({cfg.lineAngle}°)
-                                <input
-                                  type="range"
-                                  className="min-h-11 w-full cursor-pointer accent-navy"
+                              <Field label={`Kemiringan Garis (${cfg.lineAngle}°)`} hint="0° mengikuti orientasi; nilai positif memutar searah jarum jam.">
+                                <Range
                                   min="-89"
                                   max="89"
                                   step="1"
@@ -1024,43 +1078,33 @@ export default function EventsManager({ editEventId, onClose, onSaved }: {
                                     if (Number.isFinite(angle)) updateCam("lineAngle", Math.max(-89, Math.min(89, angle)));
                                   }}
                                 />
-                                <span className="text-xs text-neutral-600">0° mengikuti orientasi; nilai positif memutar searah jarum jam.</span>
                               </Field>
                               <div className="space-y-2 pt-1">
-                                <label className="flex min-h-11 cursor-pointer items-center gap-3 text-sm text-neutral-700">
-                                  <input
-                                    type="checkbox"
-                                    checked={Boolean(cfg.twoLineCounting)}
-                                    onChange={(e) => updateCam("twoLineCounting", e.target.checked)}
-                                    className="size-4 rounded border-neutral-300 text-navy focus:ring-navy"
-                                  />
-                                  Gunakan 2 Garis & Crossing Zone (A & B)
-                                </label>
-                                <label className="flex min-h-11 cursor-pointer items-center gap-3 text-sm text-neutral-700">
-                                  <input
-                                    type="checkbox"
-                                    checked={Boolean(cfg.reverseDirection)}
-                                    onChange={(e) => updateCam("reverseDirection", e.target.checked)}
-                                    className="size-4 rounded border-neutral-300 text-navy focus:ring-navy"
-                                  />
-                                  Balik arah perlintasan
-                                </label>
-                                <label className="flex min-h-11 cursor-pointer items-center gap-3 text-sm text-neutral-700">
-                                  <input
-                                    type="checkbox"
-                                    checked={Boolean(cfg.mirror)}
-                                    onChange={(e) => updateCam("mirror", e.target.checked)}
-                                    className="size-4 rounded border-neutral-300 text-navy focus:ring-navy"
-                                  />
-                                  Mirror kamera (balik horizontal)
-                                </label>
+                                <Checkbox
+                                  label="Gunakan 2 Garis & Crossing Zone (A & B)"
+                                  checked={Boolean(cfg.twoLineCounting)}
+                                  onChange={(e) => updateCam("twoLineCounting", e.target.checked)}
+                                />
+                                <Checkbox
+                                  label="Balik arah perlintasan"
+                                  checked={Boolean(cfg.reverseDirection)}
+                                  onChange={(e) => updateCam("reverseDirection", e.target.checked)}
+                                />
                               </div>
+                              </fieldset>
+                              <Checkbox
+                                label="Mirror kamera (balik horizontal)"
+                                checked={Boolean(cfg.mirror)}
+                                onChange={(e) => updateCam("mirror", e.target.checked)}
+                              />
                             </div>
                             <div className="min-w-0">
-                              <p className="mb-2 text-sm font-medium text-neutral-700">Preview garis</p>
+                              <p className="mb-2 text-sm font-medium text-neutral-700">{cfg.countingMode === "zone" ? "Preview zona" : "Preview garis"}</p>
                               <CameraTestPreview
                                 compact
                                 source={source}
+                                countingMode={cfg.countingMode}
+                                occupancyZone={cfg.occupancyZone}
                                 position={cfg.linePosition}
                                 orientation={cfg.lineOrientation}
                                 angle={cfg.lineAngle}
@@ -1106,6 +1150,7 @@ export default function EventsManager({ editEventId, onClose, onSaved }: {
           onClose={() => setSummaryEvents(null)}
         />
       )}
+      {confirmation}
     </>
   );
 }

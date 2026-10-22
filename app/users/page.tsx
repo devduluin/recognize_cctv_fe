@@ -6,7 +6,7 @@ import { visitorFetch } from "../../components/auth/visitor-fetch";
 import type { AuthUser } from "../../components/auth/auth-api";
 import Modal from "../../components/ui-modal";
 import { Button } from "../../components/ui/button";
-import { Field, Input, Select } from "../../components/ui/field";
+import { Checkbox, Field, Input, Select } from "../../components/ui/field";
 import { Page, PageHeading, Panel } from "../../components/ui/layout";
 import { ui } from "../../components/ui/styles";
 
@@ -132,27 +132,22 @@ export default function UsersPage() {
       <form onSubmit={save} className="mt-4 space-y-5">
         <fieldset disabled={busy} className="grid gap-4 md:grid-cols-2">
           <legend className="sr-only">Identitas dan akses pengguna</legend>
-          <Field>Nama lengkap<Input required maxLength={255} value={draft.full_name} onChange={event => setDraft({ ...draft, full_name: event.target.value })} /></Field>
-          <Field>Email<Input type="email" autoComplete="off" required maxLength={255} value={draft.email} onChange={event => setDraft({ ...draft, email: event.target.value })} /></Field>
-          <Field>{editor.user ? "Password baru (kosongkan jika tetap)" : "Password awal"}
+          <Field label="Nama lengkap"><Input required maxLength={255} value={draft.full_name} onChange={event => setDraft({ ...draft, full_name: event.target.value })} /></Field>
+          <Field label="Email"><Input type="email" autoComplete="off" required maxLength={255} value={draft.email} onChange={event => setDraft({ ...draft, email: event.target.value })} /></Field>
+          <Field label={editor.user ? "Password baru (kosongkan jika tetap)" : "Password awal"}>
             <Input type="password" autoComplete="new-password" required={!editor.user} minLength={10} maxLength={128} value={draft.password} onChange={event => setDraft({ ...draft, password: event.target.value })} />
           </Field>
-          <Field>Peran<Select value={draft.role} onChange={event => changeRole(event.target.value as Role)}>
+          <Field label="Peran"><Select value={draft.role} onChange={event => changeRole(event.target.value as Role)}>
             {(Object.keys(roleLabels) as Role[]).map(role => <option key={role} value={role} disabled={role === "admin" && current?.role !== "admin"}>{roleLabels[role]}</option>)}
           </Select></Field>
-          {editor.user && <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={draft.is_active} onChange={event => setDraft({ ...draft, is_active: event.target.checked })} />Akun aktif</label>}
+          {editor.user && <Checkbox label="Akun aktif" checked={draft.is_active} onChange={event => setDraft({ ...draft, is_active: event.target.checked })} />}
         </fieldset>
         <fieldset disabled={busy} className="space-y-3">
           <legend className="font-semibold">Izin pengguna</legend>
-          {draft.role === "admin" ? <p className="text-sm text-muted">Admin memiliki seluruh izin. Setidaknya satu Admin aktif harus tetap tersedia.</p> : <label className="flex items-center gap-2 text-sm">
-            <input type="checkbox" checked={draft.custom} onChange={event => setDraft({ ...draft, custom: event.target.checked, permissions: [...selected] })} />Sesuaikan izin per fitur
-          </label>}
+          {draft.role === "admin" ? <p className="text-sm text-muted">Admin memiliki seluruh izin. Setidaknya satu Admin aktif harus tetap tersedia.</p> : <Checkbox label="Sesuaikan izin per fitur" checked={draft.custom} onChange={event => setDraft({ ...draft, custom: event.target.checked, permissions: [...selected] })} />}
           <div className="grid gap-3 md:grid-cols-2">
-            {catalog?.permissions.map(permission => <label key={permission.key} className="flex items-start gap-2 text-sm">
-              <input type="checkbox" className="mt-1" checked={selected.includes(permission.key)} disabled={draft.role === "admin" || !draft.custom || (current?.role !== "admin" && !can(permission.key))}
-                onChange={event => setDraft({ ...draft, permissions: event.target.checked ? [...draft.permissions, permission.key] : draft.permissions.filter(key => key !== permission.key) })} />
-              {permission.label}
-            </label>)}
+            {catalog?.permissions.map(permission => <Checkbox key={permission.key} label={permission.label} checked={selected.includes(permission.key)} disabled={draft.role === "admin" || !draft.custom || (current?.role !== "admin" && !can(permission.key))}
+              onChange={event => setDraft({ ...draft, permissions: event.target.checked ? [...draft.permissions, permission.key] : draft.permissions.filter(key => key !== permission.key) })} />)}
           </div>
         </fieldset>
         <div className="flex flex-wrap gap-3">

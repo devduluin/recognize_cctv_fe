@@ -10,9 +10,9 @@ Dari root repository frontend, setelah `npm ci`, jalankan:
 npm run docs:generate
 ```
 
-Perintah ini membangun UI dengan konfigurasi API contoh, mengambil sembilan screenshot asli melalui Electron, membuat PDF, lalu otomatis memasang gambar ke `public/manual/screenshots/`. Server lokal dan sesi Electron sementara ditutup setelah capture. Tidak ada login ke server produksi atau kamera sungguhan.
+Perintah ini membangun UI dengan konfigurasi API contoh, mengambil sembilan screenshot asli melalui Chrome/Edge/Chromium headless, membuat PDF, lalu otomatis memasang gambar ke `public/manual/screenshots/`. Server lokal dan sesi browser sementara ditutup setelah capture. Tidak ada login ke server produksi atau kamera sungguhan.
 
-Buka kembali **Manual Guide** setelah menjalankan aplikasi. Jika memakai server development yang sudah aktif, mulai ulang agar perubahan folder public terbaca. Untuk server production atau installer, lakukan build ulang seperti biasa setelah gambar terpasang. Capture membutuhkan lingkungan yang mengizinkan server localhost dan Electron berjalan.
+Buka kembali **Manual Guide** setelah menjalankan aplikasi. Jika memakai server development yang sudah aktif, mulai ulang agar perubahan folder public terbaca. Untuk server production atau installer, lakukan build ulang seperti biasa setelah gambar terpasang. Capture membutuhkan lingkungan yang mengizinkan server localhost dan browser headless berjalan.
 
 ## GitHub Actions
 
@@ -27,7 +27,7 @@ Screenshot meliputi login, dashboard, kamera, daftar Event, form Event, daftar p
 
 ## Lokal
 
-Gunakan Node sesuai `desktop.config.json` dan sesi desktop Windows/macOS yang dapat menjalankan Electron. Jalankan dari root repository frontend setelah dependensi terpasang (`npm ci`).
+Gunakan Node sesuai `desktop.config.json` dan sesi desktop Windows/macOS yang dapat menjalankan browser headless. Jalankan dari root repository frontend setelah dependensi terpasang (`npm ci`).
 
 ```sh
 npm run docs:check
@@ -75,4 +75,9 @@ npm run build
 
 Untuk paket desktop, jalankan build desktop seperti biasa setelah `docs:assets`. Script menyalin sembilan PNG ke `public/manual/screenshots/`; folder public ikut dibundel oleh proses packaging yang ada. Aset hasil capture diabaikan Git. Teks tetap dapat dibaca jika deployment belum menyertakan screenshot.
 
-Ekspor PDF memakai server lokal yang sama dengan capture UI; akses file HTML melalui `file://` tidak diperlukan. Manifest baru ditandai `complete` setelah sembilan screenshot dan PDF berhasil dibuat. Proses induk dan pemasangan aset memvalidasi kelengkapan tersebut, sehingga kegagalan ekspor atau penghentian Electron tidak dapat dilaporkan sebagai capture sukses. Paket lama tanpa tanda kelengkapan harus dibuat ulang dengan `npm run docs:capture`.
+Ekspor PDF memakai server lokal yang sama dengan capture UI; akses file HTML melalui `file://` tidak diperlukan. Manifest baru ditandai `complete` setelah sembilan screenshot dan PDF berhasil dibuat. Proses induk dan pemasangan aset memvalidasi kelengkapan tersebut, sehingga kegagalan ekspor atau penghentian browser headless tidak dapat dilaporkan sebagai capture sukses. Paket lama tanpa tanda kelengkapan harus dibuat ulang dengan `npm run docs:capture`.
+
+Capture memerlukan Chrome, Edge, atau Chromium terpasang pada mesin dokumentasi.
+Jika lokasi browser tidak standar, set `DOCS_BROWSER_PATH` ke executable browser.
+Ini hanya prasyarat generator dokumentasi, bukan dependensi aplikasi desktop.
+Tidak diperlukan perubahan atau penonaktifan sandbox browser.

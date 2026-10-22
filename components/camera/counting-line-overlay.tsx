@@ -3,6 +3,8 @@
 import { countingLineGeometry, countingLineGuidance } from "./counting-line-geometry";
 
 export interface LineConfig {
+  countingMode?: "line" | "zone";
+  occupancyZone?: [number, number, number, number];
   linePosition?: number;
   lineOrientation?: "horizontal" | "vertical" | string;
   lineAngle?: number;
@@ -27,6 +29,15 @@ export default function CountingLineOverlay({ config, mediaWidth = 1280, mediaHe
   if (!config || mediaWidth <= 0 || mediaHeight <= 0) return null;
   const width = config.frameSize?.width || mediaWidth;
   const height = config.frameSize?.height || mediaHeight;
+  if (config.countingMode === "zone") {
+    const [left, top, right, bottom] = config.occupancyZone || [0.1, 0.1, 0.9, 0.9];
+    const x = config.mirror ? 1 - right : left;
+    return <div className={`pointer-events-none absolute inset-0 ${className}`} aria-hidden="true">
+      <div className="absolute border-2 border-cyan-300 bg-cyan-300/10" style={{ left: `${x * 100}%`, top: `${top * 100}%`, width: `${(right - left) * 100}%`, height: `${(bottom - top) * 100}%` }}>
+        {showLabels && <span className="bg-slate-950/90 px-2 py-1 text-xs text-white">Zona okupansi</span>}
+      </div>
+    </div>;
+  }
   const { lines, entryArrow, exitArrow } = countingLineGeometry(width, height, config);
   const twoLines = lines.length === 2;
   const unit = width / Math.max(1, displayWidth);

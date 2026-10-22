@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src 'self'; style-src 'unsafe-inline'; script-src 'unsafe-inline'">
+<title>Visitor Counter</title>
+<style>
+:root{color-scheme:light;--navy:#0c2e73;--navy-deep:#081f52;--cyan:#22b8d8;--ink:#141c31;--muted:#5f7190;--line:#e1e8f1;--danger:#c2412d;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:var(--ink);background:#f3f6fb}
+*{box-sizing:border-box}
+body{margin:0;min-height:100vh;display:grid;place-items:center;padding:28px;overflow:hidden;background:radial-gradient(circle at 12% 8%,#dbe8fb 0,transparent 42%),radial-gradient(circle at 92% 96%,#d4f1f8 0,transparent 40%),#f3f6fb}
+main{width:min(100%,440px);display:flex;flex-direction:column;align-items:center;text-align:center}
+.logo{position:relative;width:96px;height:96px;display:grid;place-items:center;margin-bottom:18px}
+.logo img{width:72px;height:72px;object-fit:contain;border-radius:18px;box-shadow:0 10px 26px #0c2e7333}
+.logo::before{content:"";position:absolute;inset:0;border-radius:50%;background:conic-gradient(from 0deg,transparent 0 62%,var(--cyan) 82%,var(--navy) 100%);-webkit-mask:radial-gradient(farthest-side,transparent calc(100% - 3px),#000 calc(100% - 2px));mask:radial-gradient(farthest-side,transparent calc(100% - 3px),#000 calc(100% - 2px));animation:spin 1.6s linear infinite}
+h1{font-size:24px;letter-spacing:-.4px;margin:0 0 4px;font-weight:700;color:var(--navy-deep)}
+.subtitle{margin:0 0 22px;color:var(--muted);font-size:13px}
+.card{width:100%;background:#fff;border:1px solid var(--line);border-radius:16px;padding:20px 22px 18px;box-shadow:0 1px 2px #14264114,0 12px 32px #0c2e7314;text-align:left}
+.status{display:flex;align-items:center;gap:10px;margin-bottom:6px}
+.spinner{flex:none;width:16px;height:16px;border-radius:50%;border:2px solid #d5e0ef;border-top-color:var(--navy);animation:spin .8s linear infinite}
+h2{font-size:16px;font-weight:650;margin:0;color:var(--ink)}
+.description{font-size:13px;color:var(--muted);line-height:1.55;margin:0 0 0 26px;min-height:40px}
+.track{position:relative;height:6px;background:#e8eef6;margin:16px 0 18px;overflow:hidden;border-radius:999px}
+.track span{position:absolute;inset:0 auto 0 0;width:8%;border-radius:inherit;background:linear-gradient(90deg,var(--navy),var(--cyan));transition:width .6s cubic-bezier(.2,.8,.2,1);overflow:hidden}
+.track span::after{content:"";position:absolute;inset:0;background:linear-gradient(90deg,transparent,#ffffff8c,transparent);transform:translateX(-100%);animation:shimmer 1.4s ease-in-out infinite}
+[data-stage=media] .track span{width:22%}[data-stage=backend] .track span{width:40%}[data-stage=frontend] .track span{width:58%}[data-stage=session] .track span{width:78%}[data-stage=interface] .track span{width:94%}
+.steps{display:flex;padding:0;margin:0;list-style:none;font-size:12px;color:#7a8aa3}
+.steps li{position:relative;flex:1;display:flex;flex-direction:column;align-items:center;gap:6px;text-align:center}
+.steps li:not(:first-child)::before{content:"";position:absolute;top:10px;right:calc(50% + 14px);left:calc(-50% + 14px);height:2px;border-radius:2px;background:#e1e8f1;transition:background .4s}
+.steps li.active::before,.steps li.done::before{background:var(--navy)}
+.dot{position:relative;width:22px;height:22px;border-radius:50%;border:2px solid #cfd8e3;background:#fff;transition:border-color .3s,background .3s,box-shadow .3s}
+.active{color:var(--navy);font-weight:600}
+.active .dot{border-color:var(--navy);box-shadow:0 0 0 4px #0c2e7317}
+.active .dot::after{content:"";position:absolute;inset:4px;border-radius:50%;background:var(--navy);animation:pulse 1.2s ease-in-out infinite}
+.done{color:var(--ink)}
+.done .dot{border-color:var(--navy);background:var(--navy)}
+.done .dot::after{content:"";position:absolute;left:6px;top:2px;width:5px;height:10px;border:solid #fff;border-width:0 2px 2px 0;transform:rotate(45deg)}
+.footer{width:100%;margin-top:14px;padding:0 4px;font-size:12px;color:var(--muted);display:flex;justify-content:space-between;gap:16px}
+#elapsed{font-variant-numeric:tabular-nums}
+.failed .logo::before{animation:none;background:var(--danger);opacity:.85}
+.failed .spinner{animation:none;border-color:var(--danger);background:var(--danger)}
+.failed .spinner::after{content:"!";display:block;color:#fff;font:700 11px/12px sans-serif;text-align:center}
+.failed h2{color:var(--danger)}
+.failed .card{border-color:#f1c9c1}
+.failed .track,.failed .steps{display:none}
+.failed .description{margin-bottom:2px}
+@keyframes spin{to{transform:rotate(360deg)}}
+@keyframes shimmer{to{transform:translateX(100%)}}
+@keyframes pulse{50%{transform:scale(.6);opacity:.6}}
+@media(prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important}}
+@media(max-width:440px){body{padding:18px}.card{padding:16px}.steps{font-size:11px}}
+</style>
+</head>
+<body>
+<main id="startup" aria-busy="true" data-stage="initial">
+<div class="logo"><img src="icon.png" alt="" width="72" height="72"></div>
+<h1>Visitor Counter</h1>
+<p class="subtitle">Computer vision untuk setiap kunjungan.</p>
+<div class="card">
+<section aria-live="polite" aria-atomic="true"><div class="status"><span class="spinner" aria-hidden="true"></span><h2 id="status">Menyiapkan aplikasi</h2></div><p class="description" id="description">Memeriksa penyimpanan dan menyiapkan layanan di perangkat Anda.</p></section>
+<div class="track" role="progressbar" aria-label="Menyiapkan Visitor Counter"><span></span></div>
+<ul class="steps" aria-label="Tahap penyiapan"><li id="step-services" class="active"><span class="dot"></span>Layanan lokal</li><li id="step-session"><span class="dot"></span>Sesi pengguna</li><li id="step-interface"><span class="dot"></span>Ruang kerja</li></ul>
+</div>
+<div class="footer"><span id="hint">Data Anda tetap tersimpan di perangkat.</span><span id="elapsed">0 detik</span></div>
+</main>
+<script>
+(() => {
+  const stages = {
+    initial:['Menyiapkan aplikasi','Memeriksa penyimpanan dan menyiapkan layanan di perangkat Anda.',0],
+    media:['Menyiapkan layanan kamera','Mengaktifkan layanan video untuk kamera Anda.',0],
+    backend:['Menyiapkan data lokal','Menunggu layanan data dan pemrosesan siap digunakan.',0],
+    frontend:['Menyiapkan ruang kerja','Memuat tampilan dan memeriksa kesiapan aplikasi.',0],
+    session:['Memeriksa sesi pengguna','Memulihkan sesi masuk yang tersimpan dengan aman.',1],
+    interface:['Membuka Visitor Counter','Layanan sudah siap. Menghubungkan ke ruang kerja Anda.',2],
+    failed:['Aplikasi belum dapat dimulai','Tutup aplikasi lalu buka kembali. Jika masalah berulang, periksa log aplikasi di folder data Visitor Counter.',-1]
+  };
+  const started=Date.now();let failed=false;
+  window.setStartupStage = stage => {
+    const state=stages[stage];if(!state)return;
+    failed=stage==='failed';
+    const startup=document.getElementById('startup');
+    startup.classList.toggle('failed',failed);
+    startup.setAttribute('aria-busy',String(!failed));
+    // Drives the determinate progress width in CSS.
+    startup.setAttribute('data-stage',stage);
+    document.getElementById('status').textContent=state[0];
+    document.getElementById('description').textContent=state[1];
+    ['services','session','interface'].forEach((name,index)=>{document.getElementById('step-'+name).className=index===state[2]?'active':index<state[2]?'done':'';});
+    if(failed)document.getElementById('hint').textContent='Data lokal Anda tetap tersimpan.';
+  };
+  setInterval(()=>{if(failed)return;const seconds=Math.floor((Date.now()-started)/1000);document.getElementById('elapsed').textContent=seconds+' detik';if(seconds>=30)document.getElementById('hint').textContent='Masih menyiapkan layanan. Mohon tunggu.';},1000);
+})();
+</script>
+</body>
+</html>

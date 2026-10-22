@@ -1,7 +1,7 @@
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const { EventEmitter } = require('node:events');
-const { cameraTarget, checkCameraNetwork } = require('../electron/camera-network.cjs');
+const { cameraTarget, checkCameraNetwork } = require('../desktop/camera-network.cjs');
 const source = 'rtsp://user:private-password@192.168.1.64:554/Streaming/Channels/101';
 const runtime = { backendOrigin: 'http://127.0.0.1:40000', serviceToken: 'private-service-token' };
 const authorized = async () => Response.json({ result: { user: { permissions: ['cameras.read'] } } });

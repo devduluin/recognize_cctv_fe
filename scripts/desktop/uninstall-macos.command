@@ -1,5 +1,5 @@
 #!/bin/zsh
-# Visitor Counter only. Source repositories and other Electron apps are untouched.
+# Visitor Counter only. Source repositories and other desktop apps are untouched.
 set -eu
 
 mode=''
@@ -89,4 +89,4 @@ if [[ "$mode" == '--keep-data' ]]; then
 else
   print 'Data lokal aktif sudah dibersihkan. Salinan di Trash masih bisa dipulihkan sampai Anda mengosongkannya.'
 fi
-print 'Source code, artifact build, aplikasi Electron lain, entri Local Network, dan item Keychain tidak diubah.'
+print 'Source code, artifact build, aplikasi lain, entri Local Network, dan item Keychain tidak diubah.'
