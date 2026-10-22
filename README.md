@@ -68,6 +68,39 @@ Data pengguna disimpan di luar folder aplikasi dan tidak terhapus saat update:
 `~/Library/Application Support/Visitor Counter` (macOS) atau
 `%APPDATA%\Visitor Counter` (Windows).
 
+### Hapus cache atau reset data
+
+Tutup aplikasi dulu, termasuk dari menu tray (**Keluar**).
+
+**Hapus cache.** Database, foto, dan pengaturan tetap aman. Salinan frontend dibuat
+ulang saat aplikasi dibuka, dan mungkin kamu perlu login lagi.
+
+```bash
+# macOS
+rm -rf ~/Library/Caches/com.duluin.visitorcounter ~/Library/WebKit/com.duluin.visitorcounter
+find ~/Library/"Application Support/Visitor Counter" -mindepth 1 -maxdepth 1 ! -name data -exec rm -rf {} +
+```
+
+```powershell
+# Windows (PowerShell)
+Remove-Item -Recurse -Force "$env:LOCALAPPDATA\com.duluin.visitorcounter" -ErrorAction SilentlyContinue
+Get-ChildItem "$env:APPDATA\Visitor Counter" -Exclude data | Remove-Item -Recurse -Force
+```
+
+**Reset total.** Semua event, hitungan, foto, embedding wajah, rekaman, akun, dan
+koneksi sinkronisasi **hilang permanen**. Data yang sudah tersinkron ke server tetap ada.
+Salin dulu folder `data` kalau mungkin masih diperlukan.
+
+```bash
+# macOS: jalankan perintah hapus cache di atas, lalu
+rm -rf ~/Library/"Application Support/Visitor Counter"
+```
+
+```powershell
+# Windows: jalankan perintah hapus cache di atas, lalu
+Remove-Item -Recurse -Force "$env:APPDATA\Visitor Counter"
+```
+
 Detail setup, struktur, dan status validasi: [tauri/README.md](tauri/README.md).
 
 ## Rilis dan pembaruan otomatis
