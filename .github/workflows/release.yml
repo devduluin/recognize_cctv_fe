@@ -1,0 +1,186 @@
+name: Desktop release
+# Builds signed installers and updater packages, then opens a DRAFT GitHub Release.
+# Installed apps only see an update after a person reviews and publishes the draft.
+on:
+  push:
+    tags: ['v*.*.*']
+  workflow_dispatch:
+    inputs:
+      backend_ref:
+        description: Backend commit SHA (empty uses desktop.config.json)
+        required: false
+        type: string
+permissions:
+  contents: read
+concurrency:
+  group: desktop-release-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  build:
+    strategy:
+      fail-fast: true
+      matrix:
+        include:
+          - {os: windows-2025, arch: x64, platform: windows-x86_64}
+          - {os: macos-15, arch: arm64, platform: darwin-aarch64}
+          - {os: macos-15-intel, arch: x64, platform: darwin-x86_64}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 180
+    defaults:
+      run:
+        shell: bash
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          path: frontend
+          persist-credentials: false
+      - id: config
+        name: Read pinned configuration and version
+        env:
+          BACKEND_REF_INPUT: ${{ inputs.backend_ref }}
+          TAG: ${{ github.ref_type == 'tag' && github.ref_name || '' }}
+        run: |
+          node - <<'JS'
+          const fs = require('node:fs');
+          const config = require('./desktop.config.json');
+          const version = require('./package.json').version;
+          const ref = process.env.BACKEND_REF_INPUT || config.backendRef;
+          if (!/^[0-9a-f]{40}$/.test(ref)) throw new Error('Full backend commit SHA required');
+          if (!/^\d+\.\d+\.\d+$/.test(version)) throw new Error(`package.json version ${version} is not MAJOR.MINOR.PATCH`);
+          if (process.env.TAG && process.env.TAG !== `v${version}`) throw new Error(`Tag ${process.env.TAG} does not match package.json v${version}`);
+          fs.appendFileSync(process.env.GITHUB_OUTPUT, `backend_repo=${config.backendRepository}\nbackend_ref=${ref}\nnode=${config.nodeVersion}\npython=${config.pythonVersion}\nversion=${version}\n`);
+          JS
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          repository: ${{ steps.config.outputs.backend_repo }}
+          ref: ${{ steps.config.outputs.backend_ref }}
+          path: recognize_cctv
+          token: ${{ secrets.DESKTOP_SOURCE_TOKEN || github.token }}
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version: ${{ steps.config.outputs.node }}
+          architecture: ${{ matrix.arch }}
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - uses: actions/setup-python@v7
+        with:
+          python-version: ${{ steps.config.outputs.python }}
+          architecture: ${{ matrix.arch }}
+      - name: Install locked frontend dependencies
+        run: npm ci
+      - name: Prepare locked Python environment
+        working-directory: recognize_cctv
+        run: |
+          python -m pip install uv==0.9.5
+          uv sync --project desktop --locked
+      - name: Install Rust CLI
+        run: |
+          rustup update stable
+          rustup default stable
+          cargo install tauri-cli --version '^2' --locked
+      - name: Validate web and desktop host
+        run: |
+          npm test
+          npm run desktop:test
+          npm run docs:check
+      - name: Prepare bundled runtimes
+        run: npm run desktop:assets
+      - name: Build signed installer and update package
+        env:
+          DESKTOP_UPDATER_PUBKEY: ${{ vars.DESKTOP_UPDATER_PUBKEY }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          # macOS code signing and notarization; Tauri skips notarization when these are absent.
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          CI: 'true'
+        run: |
+          if [ -z "$DESKTOP_UPDATER_PUBKEY" ] || [ -z "$TAURI_SIGNING_PRIVATE_KEY" ]; then
+            echo 'Set repository variable DESKTOP_UPDATER_PUBKEY and secret TAURI_SIGNING_PRIVATE_KEY before releasing.' >&2
+            exit 1
+          fi
+          npm run desktop:build
+      - name: Collect and verify release files
+        env:
+          VERSION: ${{ steps.config.outputs.version }}
+          PLATFORM: ${{ matrix.platform }}
+        run: |
+          set -euo pipefail
+          bundle=src-tauri/target/release/bundle
+          mkdir -p ../release
+          if [ "$PLATFORM" = windows-x86_64 ]; then
+            installer=$(ls "$bundle"/nsis/*-setup.exe)
+            cp "$installer" "../release/VisitorCounter_${VERSION}_${PLATFORM}-setup.exe"
+            cp "$installer.sig" "../release/VisitorCounter_${VERSION}_${PLATFORM}-setup.exe.sig"
+            update="VisitorCounter_${VERSION}_${PLATFORM}-setup.exe"
+          else
+            cp "$bundle"/macos/*.app.tar.gz "../release/VisitorCounter_${VERSION}_${PLATFORM}.app.tar.gz"
+            cp "$bundle"/macos/*.app.tar.gz.sig "../release/VisitorCounter_${VERSION}_${PLATFORM}.app.tar.gz.sig"
+            cp "$bundle"/dmg/*.dmg "../release/VisitorCounter_${VERSION}_${PLATFORM}.dmg"
+            update="VisitorCounter_${VERSION}_${PLATFORM}.app.tar.gz"
+          fi
+          test -s "../release/$update.sig"
+          # GitHub release assets are limited to 2 GiB each.
+          for file in ../release/*; do
+            size=$(wc -c < "$file")
+            if [ "$size" -ge 2147483648 ]; then echo "$file exceeds the 2 GiB release asset limit" >&2; exit 1; fi
+          done
+          echo "{\"platform\":\"$PLATFORM\",\"file\":\"$update\"}" > "../release/$PLATFORM.update.json"
+          ls -la ../release
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-${{ matrix.platform }}
+          path: release/
+          if-no-files-found: error
+          retention-days: 7
+
+  publish-draft:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@v4
+        with:
+          path: release
+          merge-multiple: true
+      - name: Write updater manifest and create draft release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          version=$(node -p "require('./package.json').version")
+          node - "$version" <<'JS'
+          const fs = require('node:fs');
+          const version = process.argv[2];
+          const repository = process.env.REPOSITORY;
+          const changelog = fs.readFileSync('CHANGELOG.md', 'utf8');
+          const section = changelog.split(/^## /m).find((part) => part.startsWith(version));
+          if (!section) throw new Error(`CHANGELOG.md has no "## ${version}" section; add release notes first.`);
+          const notes = section.split('\n').slice(1).join('\n').trim();
+          const platforms = {};
+          for (const name of fs.readdirSync('release').filter((file) => file.endsWith('.update.json'))) {
+            const { platform, file } = JSON.parse(fs.readFileSync(`release/${name}`, 'utf8'));
+            const signature = fs.readFileSync(`release/${file}.sig`, 'utf8').trim();
+            if (!signature) throw new Error(`Missing signature for ${file}`);
+            platforms[platform] = { signature, url: `https://github.com/${repository}/releases/download/v${version}/${file}` };
+          }
+          for (const platform of ['windows-x86_64', 'darwin-aarch64', 'darwin-x86_64']) {
+            if (!platforms[platform]) throw new Error(`Missing ${platform} update package`);
+          }
+          fs.writeFileSync('release/latest.json', JSON.stringify({ version, notes, pub_date: new Date().toISOString(), platforms }, null, 2));
+          fs.writeFileSync('release-notes.md', notes);
+          JS
+          rm release/*.update.json
+          gh release create "v$version" release/* --repo "$REPOSITORY" --draft \
+            --title "Visitor Counter v$version" --notes-file release-notes.md
