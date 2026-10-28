@@ -3,7 +3,7 @@ import { test } from "node:test";
 import { validateVideo, videoTime, videoUploadUrl } from "../components/video-analysis-api.ts";
 
 test("upload encodes filenames and sends explicit line and gender options", () => {
-  const url = new URL(videoUploadUrl("https://api.test/api/v1/event_visitor", { name: "gate & in.mp4" }, { line_position: 0.4, line_orientation: "vertical", reverse_direction: true, gender_enabled: false }));
+  const url = new URL(videoUploadUrl("https://api.test/api/v1/event_visitor", { name: "gate & in.mp4" }, { line_position: 0.4, line_orientation: "vertical", reverse_direction: true, gender_enabled: false, counting_mode: "line", occupancy_zone: [0.1, 0.1, 0.9, 0.9] }));
   assert.equal(url.searchParams.get("filename"), "gate & in.mp4");
   assert.equal(url.searchParams.get("line_position"), "0.4");
   assert.equal(url.searchParams.get("reverse_direction"), "true");
@@ -24,7 +24,14 @@ test("crossings display source video offsets", () => {
 });
 
 test("event upload includes target event and the recording timestamp", () => {
-  const url = new URL(videoUploadUrl("https://api.test/api/v1/event_visitor", { name: "gate.mp4" }, { line_position: 0.5, line_orientation: "horizontal", reverse_direction: false, gender_enabled: false }, "event-123", "2026-10-01T03:00:00.000Z"));
+  const url = new URL(videoUploadUrl("https://api.test/api/v1/event_visitor", { name: "gate.mp4" }, { line_position: 0.5, line_orientation: "horizontal", reverse_direction: false, gender_enabled: false, counting_mode: "line", occupancy_zone: [0.1, 0.1, 0.9, 0.9] }, "event-123", "2026-10-01T03:00:00.000Z"));
   assert.equal(url.searchParams.get("event_id"), "event-123");
   assert.equal(url.searchParams.get("recording_started_at"), "2026-10-01T03:00:00.000Z");
+});
+
+test("crowd upload sends the zone as one parameter and never asks for gender", () => {
+  const url = new URL(videoUploadUrl("https://api.test/api/v1/event_visitor", { name: "hall.mp4" }, { line_position: 0.5, line_orientation: "horizontal", reverse_direction: false, gender_enabled: true, counting_mode: "zone", occupancy_zone: [0.2, 0.3, 0.8, 0.9] }));
+  assert.equal(url.searchParams.get("counting_mode"), "zone");
+  assert.equal(url.searchParams.get("occupancy_zone"), "0.2,0.3,0.8,0.9");
+  assert.equal(url.searchParams.get("gender_enabled"), "false");
 });

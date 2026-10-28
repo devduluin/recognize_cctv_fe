@@ -2,7 +2,7 @@
 import { visitorFetch } from "./auth/visitor-api";
 import { getAuthHeaders } from "./auth/auth-api";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Flame, RefreshCw, Repeat } from "lucide-react";
+import { Flame, RefreshCw, Repeat, Users } from "lucide-react";
 import { Button } from "./ui/button";
 import { Field, Select } from "./ui/field";
 import { Panel } from "./ui/layout";
@@ -11,7 +11,9 @@ import {
   Bar,
   BarChart,
   CartesianGrid,
+  ComposedChart,
   Legend,
+  Line,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -34,6 +36,22 @@ type CameraHeatmap = {
   total_seconds: number;
   has_snapshot: boolean;
 };
+
+type CameraOccupancy = {
+  camera_key: string;
+  camera_name: string | null;
+  peak_count: number;
+  peak_at: string;
+  average_count: number;
+  minutes_observed: number;
+  hourly: { hour_start: string; peak_count: number; average_count: number }[];
+};
+
+// Backend timestamps already carry the workspace offset; show that wall-clock time as is.
+function localStamp(value: string, withDate = true) {
+  const [day, time] = value.slice(0, 16).split("T");
+  return withDate ? `${dayLabel(day)} ${time}` : time;
+}
 
 function durationLabel(seconds: number) {
   const minutes = Math.round(seconds / 60);
@@ -124,6 +142,8 @@ export default function EventVisitorInsights({ companyId, eventId }: { companyId
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [refresh, setRefresh] = useState(0);
+  const [crowd, setCrowd] = useState<CameraOccupancy[]>([]);
+  const [crowdKey, setCrowdKey] = useState("");
 
   useEffect(() => {
     if (!companyId || !eventId) return;
@@ -150,6 +170,22 @@ export default function EventVisitorInsights({ companyId, eventId }: { companyId
       .finally(() => { if (!controller.signal.aborted) setLoading(false); });
     return () => controller.abort();
   }, [eventId, date, refresh]);
+
+  useEffect(() => {
+    if (!eventId) return;
+    const controller = new AbortController();
+    loadJson<{ cameras: CameraOccupancy[] }>(`${EVENTS_API}/${encodeURIComponent(eventId)}/occupancy`, controller.signal)
+      .then((result) => {
+        const list = Array.isArray(result?.cameras) ? result.cameras : [];
+        setCrowd(list);
+        setCrowdKey((current) => (list.some((item) => item.camera_key === current) ? current : list[0]?.camera_key || ""));
+      })
+      .catch((reason) => { if (!controller.signal.aborted) setError(reason.message); });
+    return () => controller.abort();
+  }, [eventId, refresh]);
+
+  const crowdCamera = crowd.find((item) => item.camera_key === crowdKey);
+  const crowdDays = new Set(crowdCamera?.hourly.map((hour) => hour.hour_start.slice(0, 10))).size;
 
   const camera = useMemo(() => cameras.find((item) => item.camera_key === cameraKey), [cameras, cameraKey]);
 
@@ -239,6 +275,47 @@ export default function EventVisitorInsights({ companyId, eventId }: { companyId
           <p className={ui.emptyState}>{loading ? "Memuat heatmap…" : "Belum ada data heatmap untuk pilihan ini."}</p>
         )}
       </Panel>
+      {crowdCamera && (
+        <Panel className="min-[1200px]:col-span-2">
+          <div className={ui.panelHeading}>
+            <div>
+              <h2 className="flex items-center gap-2"><Users size={18} /> Riwayat Keramaian</h2>
+              <p className={ui.panelDescription}>Jumlah orang yang terlihat di zona keramaian, disimpan setiap menit dari kamera dan video.</p>
+            </div>
+          </div>
+          <div className="mb-3 flex flex-wrap gap-2 [&_select]:min-w-[160px]">
+            <Field label="Kamera">
+              <Select value={crowdKey} onChange={(event) => setCrowdKey(event.target.value)}>
+                {crowd.map((item) => <option key={item.camera_key} value={item.camera_key}>{item.camera_name || "Kamera"}</option>)}
+              </Select>
+            </Field>
+          </div>
+          <dl className="mb-4 grid gap-3 sm:grid-cols-3">
+            {[["Puncak", `${crowdCamera.peak_count} orang`, localStamp(crowdCamera.peak_at)],
+              ["Rata-rata", `${crowdCamera.average_count} orang`, "dari semua frame yang diperiksa"],
+              ["Durasi terekam", durationLabel(crowdCamera.minutes_observed * 60), `${crowdCamera.hourly.length} jam berisi data`]].map(([label, value, note]) => (
+              <div key={label} className="rounded-lg border border-line p-3">
+                <dt className="text-xs text-muted">{label}</dt>
+                <dd className="mt-1 text-2xl font-semibold">{value}</dd>
+                <dd className="text-xs text-muted">{note}</dd>
+              </div>
+            ))}
+          </dl>
+          <div className="h-[260px]">
+            <ResponsiveContainer width="100%" height="100%">
+              <ComposedChart data={crowdCamera.hourly.map((hour) => ({ ...hour, label: localStamp(hour.hour_start, crowdDays > 1) }))}>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                <XAxis dataKey="label" tick={{ fontSize: 11 }} />
+                <YAxis allowDecimals={false} tick={{ fontSize: 11 }} />
+                <Tooltip />
+                <Legend wrapperStyle={{ fontSize: 12 }} />
+                <Bar dataKey="peak_count" name="Puncak" fill="#4f46e5" />
+                <Line dataKey="average_count" name="Rata-rata" stroke="#10b981" strokeWidth={2} dot={false} />
+              </ComposedChart>
+            </ResponsiveContainer>
+          </div>
+        </Panel>
+      )}
     </div>
   );
 }
