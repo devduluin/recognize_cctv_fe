@@ -31,6 +31,8 @@ type Analysis = {
   stats?: { in_count: number; out_count: number; unique_visitor_count: number; male_count: number; female_count: number; unknown_gender_count: number };
   unresolved_crossings?: { in: number; out: number };
   records?: { id: string; visitor_label: string; direction: string; gender: string; video_seconds: number }[];
+  counting_mode?: "line" | "zone";
+  occupancy?: { peak_count: number | null; peak_at_seconds: number | null; average_count: number | null; current_count?: number | null };
 };
 
 async function readResult(response: Response) {
@@ -51,7 +53,8 @@ export default function EventVideoDetection({ eventId, onSaved }: { eventId: str
   const [sourceUrl, setSourceUrl] = useState("");
   const [previewUrl, setPreviewUrl] = useState("");
   const [dimensions, setDimensions] = useState({ width: 1280, height: 720 });
-  const [options, setOptions] = useState<VideoOptions>({ line_position: 0.5, line_orientation: "horizontal", reverse_direction: false, gender_enabled: false });
+  const [options, setOptions] = useState<VideoOptions>({ line_position: 0.5, line_orientation: "horizontal", reverse_direction: false, gender_enabled: false, counting_mode: "line", occupancy_zone: [0.1, 0.1, 0.9, 0.9] });
+  const zoneMode = options.counting_mode === "zone";
   const [maxBytes, setMaxBytes] = useState(500 * 1024 * 1024);
   const [limitsReady, setLimitsReady] = useState(false);
   const [jobId, setJobId] = useState<string | null>(null);
@@ -190,8 +193,22 @@ export default function EventVideoDetection({ eventId, onSaved }: { eventId: str
           <Field label="File video"><Input type="file" accept=".mp4,.mov,.mkv,.avi,.webm" disabled={active || !limitsReady} onChange={(event) => chooseFile(event.target.files?.[0] || null)} /></Field>
           {sourceUrl ? <div className="relative overflow-hidden rounded-lg bg-black" style={{ aspectRatio: `${dimensions.width} / ${dimensions.height}` }}>
             <video src={sourceUrl} controls preload="metadata" className="h-full w-full" onLoadedMetadata={(event) => setDimensions({ width: event.currentTarget.videoWidth, height: event.currentTarget.videoHeight })} />
-            <CountingLineOverlay config={{ linePosition: options.line_position, lineOrientation: options.line_orientation, reverseDirection: options.reverse_direction, twoLineCounting: true, zoneWidthRatio: 0.20 }} mediaWidth={dimensions.width} mediaHeight={dimensions.height} showLabels={false} />
+            <CountingLineOverlay config={{ countingMode: options.counting_mode, occupancyZone: options.occupancy_zone, linePosition: options.line_position, lineOrientation: options.line_orientation, reverseDirection: options.reverse_direction, twoLineCounting: true, zoneWidthRatio: 0.20 }} mediaWidth={dimensions.width} mediaHeight={dimensions.height} showLabels={false} />
           </div> : <div className="grid aspect-video place-content-center gap-2 rounded-lg bg-slate-50 text-center text-muted"><Video size={32} className="mx-auto" /><p className="text-sm">Pilih video untuk melihat pratinjau.</p></div>}
+          <Field label="Metode pengukuran" hint="Keramaian menghitung orang yang terlihat di dalam zona pada setiap detik video, tanpa identitas, arah, atau gender.">
+            <Select disabled={active} value={options.counting_mode} onChange={(event) => setOptions({ ...options, counting_mode: event.target.value as VideoOptions["counting_mode"] })}><option value="line">Akumulasi keluar/masuk</option><option value="zone">Keramaian</option></Select>
+          </Field>
+          {zoneMode ? <div className="grid grid-cols-2 gap-3">
+            {(["Kiri", "Atas", "Kanan", "Bawah"] as const).map((label, coordinate) => <Field key={label} label={`${label} zona (%)`}>
+              <Input type="number" min={0} max={100} step={1} disabled={active} value={Math.round(options.occupancy_zone[coordinate] * 100)} onChange={(event) => {
+                const number = event.target.valueAsNumber;
+                if (!Number.isFinite(number)) return;
+                const zone = [...options.occupancy_zone] as VideoOptions["occupancy_zone"];
+                zone[coordinate] = Math.max(0, Math.min(100, Math.round(number))) / 100;
+                if (zone[2] - zone[0] >= 0.02 && zone[3] - zone[1] >= 0.02) setOptions({ ...options, occupancy_zone: zone });
+              }} />
+            </Field>)}
+          </div> : <>
           <div className="grid gap-4 sm:grid-cols-2">
             <Field label="Orientasi garis"><Select disabled={active} value={options.line_orientation} onChange={(event) => setOptions({ ...options, line_orientation: event.target.value as VideoOptions["line_orientation"] })}><option value="horizontal">Horizontal</option><option value="vertical">Vertikal</option></Select></Field>
             <Field label={`Posisi garis: ${Math.round(options.line_position * 100)}%`}><Range min="10" max="90" step="1" disabled={active} value={Math.round(options.line_position * 100)} onChange={(event) => setOptions({ ...options, line_position: Number(event.target.value) / 100 })} /></Field>
@@ -199,6 +216,7 @@ export default function EventVideoDetection({ eventId, onSaved }: { eventId: str
           <p className="text-sm text-muted">Arah masuk: {options.line_orientation === "horizontal" ? (options.reverse_direction ? "bawah ke atas" : "atas ke bawah") : (options.reverse_direction ? "kanan ke kiri" : "kiri ke kanan")}. Orang dihitung setelah melewati kedua batas garis.</p>
           <SwitchField label="Balik arah masuk" checked={options.reverse_direction} disabled={active} onChange={(event) => setOptions({ ...options, reverse_direction: event.target.checked })} />
           <SwitchField label="Deteksi gender" checked={options.gender_enabled} disabled={active} onChange={(event) => setOptions({ ...options, gender_enabled: event.target.checked })} />
+          </>}
           <div className="flex flex-wrap gap-2"><Button variant="primary" disabled={!file || active || !limitsReady} onClick={() => void upload()}>{uploading ? <Loader2 size={16} className="animate-spin" /> : <Upload size={16} />}{uploading ? "Mengupload…" : "Upload dan deteksi"}</Button>{uploading && <Button onClick={() => { uploadController.current?.abort(); setUploading(false); }}>Batalkan upload</Button>}</div>
           <p className="text-xs leading-relaxed text-muted">Setelah deteksi selesai, seluruh lintasan terkonfirmasi dan foto tersimpan permanen di laporan event. File video sumber dihapus setelah proses berakhir; pratinjau analisis tersedia sementara. Upload ulang rekaman yang sama akan menambah hitungan lagi. Identitas video terpisah dari kamera langsung dan video lain.</p>
         </div>
@@ -215,12 +233,15 @@ export default function EventVideoDetection({ eventId, onSaved }: { eventId: str
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src={previewUrl} alt="Frame video dengan garis hitung dan hasil deteksi pengunjung" className="w-full" />
           </div>}
-          {job.stats && <dl className="grid grid-cols-3 gap-3">{[["Masuk", job.stats.in_count], ["Keluar", job.stats.out_count], ["Pengunjung unik", job.stats.unique_visitor_count]].map(([label, value]) => <div key={label} className="rounded-lg border border-line p-3"><dt className="text-xs text-muted">{label}</dt><dd className="mt-1 text-2xl font-semibold">{value}</dd></div>)}</dl>}
-          {job.stats && <p className="text-sm text-muted">Pria: {job.stats.male_count} · Wanita: {job.stats.female_count} · Gender belum diketahui: {job.stats.unknown_gender_count}</p>}
+          {job.counting_mode === "zone" && job.occupancy && <dl className="grid grid-cols-3 gap-3">{[["Puncak keramaian", job.occupancy.peak_count, job.occupancy.peak_at_seconds != null ? `pada ${videoTime(job.occupancy.peak_at_seconds)}` : ""], ["Rata-rata per detik", job.occupancy.average_count, ""], ...(job.status === "completed" ? [] : [["Saat ini", job.occupancy.current_count, ""]])].map(([label, value, note]) => <div key={label} className="rounded-lg border border-line p-3"><dt className="text-xs text-muted">{label}</dt><dd className="mt-1 text-2xl font-semibold">{value ?? "–"}</dd>{note && <dd className="text-xs text-muted">{note}</dd>}</div>)}</dl>}
+          {job.counting_mode === "zone" && <p className="text-sm text-muted">Keramaian dihitung dari orang yang terlihat di dalam zona, tanpa menambah hitungan masuk/keluar event.</p>}
+          {job.counting_mode === "zone" && job.saved_to_event && <p role="status" className="text-sm text-emerald-700">Riwayat keramaian tersimpan di laporan event.</p>}
+          {job.counting_mode !== "zone" && job.stats && <dl className="grid grid-cols-3 gap-3">{[["Masuk", job.stats.in_count], ["Keluar", job.stats.out_count], ["Pengunjung unik", job.stats.unique_visitor_count]].map(([label, value]) => <div key={label} className="rounded-lg border border-line p-3"><dt className="text-xs text-muted">{label}</dt><dd className="mt-1 text-2xl font-semibold">{value}</dd></div>)}</dl>}
+          {job.counting_mode !== "zone" && job.stats && <p className="text-sm text-muted">Pria: {job.stats.male_count} · Wanita: {job.stats.female_count} · Gender belum diketahui: {job.stats.unknown_gender_count}</p>}
           {!!job.unresolved_crossings && (job.unresolved_crossings.in > 0 || job.unresolved_crossings.out > 0) && <p className="text-sm text-amber-800">Lintasan yang identitasnya belum terkonfirmasi: {job.unresolved_crossings.in} masuk, {job.unresolved_crossings.out} keluar.</p>}
           {active && !uploading && <Button variant="stop" disabled={cancelling} onClick={() => void cancel()}>{cancelling ? "Menghentikan…" : "Hentikan deteksi"}</Button>}
-          {job.saved_to_event && <p role="status" className="text-sm text-emerald-700">{job.saved_records || 0} lintasan tersimpan di laporan event.</p>}
-          {job.records && <div className="overflow-x-auto"><table className="w-full text-left text-sm"><caption className="mb-2 text-left text-muted">Lintasan tercatat · maksimal 500 baris terakhir</caption><thead><tr className="border-b border-line"><th className="py-2">Waktu video</th><th>Pengunjung</th><th>Arah</th><th>Gender</th></tr></thead><tbody>{job.records.map((row) => <tr key={row.id} className="border-b border-line"><td className="py-2">{videoTime(row.video_seconds)}</td><td>{row.visitor_label}</td><td>{row.direction === "in" ? "Masuk" : "Keluar"}</td><td>{row.gender === "male" ? "Pria" : row.gender === "female" ? "Wanita" : "Belum diketahui"}</td></tr>)}</tbody></table>{!job.records.length && <p className="mt-3 text-sm text-muted">Belum ada lintasan yang terkonfirmasi. Periksa posisi garis dan arah pergerakan dalam video.</p>}</div>}
+          {job.saved_to_event && job.counting_mode !== "zone" && <p role="status" className="text-sm text-emerald-700">{job.saved_records || 0} lintasan tersimpan di laporan event.</p>}
+          {job.counting_mode !== "zone" && job.records && <div className="overflow-x-auto"><table className="w-full text-left text-sm"><caption className="mb-2 text-left text-muted">Lintasan tercatat · maksimal 500 baris terakhir</caption><thead><tr className="border-b border-line"><th className="py-2">Waktu video</th><th>Pengunjung</th><th>Arah</th><th>Gender</th></tr></thead><tbody>{job.records.map((row) => <tr key={row.id} className="border-b border-line"><td className="py-2">{videoTime(row.video_seconds)}</td><td>{row.visitor_label}</td><td>{row.direction === "in" ? "Masuk" : "Keluar"}</td><td>{row.gender === "male" ? "Pria" : row.gender === "female" ? "Wanita" : "Belum diketahui"}</td></tr>)}</tbody></table>{!job.records.length && <p className="mt-3 text-sm text-muted">Belum ada lintasan yang terkonfirmasi. Periksa posisi garis dan arah pergerakan dalam video.</p>}</div>}
         </div> : <p className="py-12 text-center text-sm text-muted">{uploading ? "Video sedang diupload. Deteksi dimulai setelah upload selesai." : "Hasil akan tampil setelah video diproses."}</p>}
       </Panel>
     </div>

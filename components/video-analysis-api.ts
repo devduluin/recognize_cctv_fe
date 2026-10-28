@@ -3,13 +3,16 @@ export type VideoOptions = {
   line_orientation: "horizontal" | "vertical";
   reverse_direction: boolean;
   gender_enabled: boolean;
+  counting_mode: "line" | "zone";
+  occupancy_zone: [number, number, number, number];
 };
 
 export function videoUploadUrl(base: string, file: { name: string }, options: VideoOptions, eventId?: string, recordingStartedAt?: string) {
   const query = new URLSearchParams({ filename: file.name });
   if (eventId) query.set("event_id", eventId);
   if (recordingStartedAt) query.set("recording_started_at", recordingStartedAt);
-  for (const [key, value] of Object.entries(options)) query.set(key, String(value));
+  // A crowd zone has no direction or gender; the zone travels as "left,top,right,bottom".
+  for (const [key, value] of Object.entries({ ...options, gender_enabled: options.counting_mode === "line" && options.gender_enabled })) query.set(key, Array.isArray(value) ? value.join(",") : String(value));
   return `${base}/video-analyses?${query}`;
 }
 
