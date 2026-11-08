@@ -14,10 +14,11 @@ Panduan: [setup Tauri, perintah dan status validasi](../tauri/README.md).
 - Kemas ulang hasil release yang sudah ada: `npm run desktop:package`.
 - Tes host: `npm run desktop:test` dan `npm run tauri:check`.
 
-Build memilih APP/DMG di macOS dan NSIS di Windows. Output berada di
-`src-tauri/target/release/bundle/` (`macos/Visitor Counter.app`, `dmg/`, atau `nsis/`).
+Build memilih APP/DMG di macOS dan MSI WiX di Windows. Output berada di
+`src-tauri/target/release/bundle/` (`macos/Visitor Counter.app`, `dmg/`, atau `msi/`).
 `desktop:package` memakai executable dan resource yang sudah ada; gunakan full
-build setelah perubahan backend/frontend. Signing/notarization distribusi,
+build setelah perubahan backend/frontend. Tutup Visitor Counter lewat menu tray
+sebelum build/package agar proses lokal tidak mengunci executable. Signing/notarization distribusi,
 instalasi di mesin bersih serta updater masih perlu diuji sebelum rilis produksi.
 
 Profil lokal tetap berada di `~/Library/Application Support/Visitor Counter`

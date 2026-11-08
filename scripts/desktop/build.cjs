@@ -56,6 +56,21 @@ fs.cpSync(path.join(root, '.next/standalone'), path.join(resources, 'next'), { r
 fs.cpSync(path.join(root, '.next/static'), path.join(resources, 'next/.next/static'), { recursive: true });
 fs.rmSync(path.join(resources, 'next/public'), { recursive: true, force: true });
 fs.cpSync(path.join(root, 'public'), path.join(resources, 'next/public'), { recursive: true, dereference: true });
+// Git may check out the public/samples symlink as a regular text file on Windows
+// when core.symlinks is disabled. Materialize the linked backend samples before
+// optimizing them so the packaged public directory contains the actual files.
+const sourceSamples = path.join(root, 'public', 'samples');
+const packagedSamples = path.join(resources, 'next', 'public', 'samples');
+if (fs.existsSync(packagedSamples) && fs.lstatSync(packagedSamples).isFile()) {
+  const linkTarget = fs.readFileSync(sourceSamples, 'utf8').trim();
+  const resolvedTarget = path.resolve(path.dirname(sourceSamples), linkTarget);
+  const backendSamples = path.resolve(backend, 'samples');
+  if (resolvedTarget !== backendSamples || !fs.statSync(backendSamples).isDirectory()) {
+    throw new Error(`Cannot resolve public/samples to the backend sample directory: ${backendSamples}`);
+  }
+  fs.rmSync(packagedSamples);
+  fs.cpSync(backendSamples, packagedSamples, { recursive: true, dereference: true });
+}
 compressSamples(resources);
 // Next's standalone output may contain the developer's .env. Desktop secrets
 // are created under the desktop application data directory and injected at runtime instead.
@@ -67,7 +82,16 @@ function removeEnvironmentFiles(directory) {
   }
 }
 removeEnvironmentFiles(path.join(resources, 'next'));
+function gitRevision(directory) {
+  try {
+    return execFileSync('git', ['rev-parse', 'HEAD'], {
+      cwd: directory, encoding: 'utf8', windowsHide: true, stdio: ['ignore', 'pipe', 'ignore'],
+    }).trim();
+  } catch {
+    return null;
+  }
+}
 fs.writeFileSync(path.join(resources, 'build-manifest.json'), JSON.stringify({ version, buildNumber, platform: process.platform, arch: process.arch,
   inferenceRuntime,
-  backendRevision: execFileSync('git', ['rev-parse', 'HEAD'], { cwd: backend, encoding: 'utf8' }).trim(),
-  frontendRevision: execFileSync('git', ['rev-parse', 'HEAD'], { cwd: root, encoding: 'utf8' }).trim() }, null, 2));
+  backendRevision: gitRevision(backend),
+  frontendRevision: gitRevision(root) }, null, 2));

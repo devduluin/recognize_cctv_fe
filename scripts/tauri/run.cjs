@@ -17,7 +17,8 @@ if (mode === 'build') {
   const result = spawnSync(process.execPath, ['scripts/desktop/build.cjs'], { cwd: root, stdio: 'inherit' });
   if (result.status !== 0) process.exit(result.status || 1);
 }
-const bundles = process.platform === 'darwin' ? 'app,dmg' : 'nsis';
+// NSIS cannot package the Windows ML payload at its current size; WiX MSI can.
+const bundles = process.platform === 'darwin' ? 'app,dmg' : 'msi';
 const config = updaterConfig();
 const extra = config ? ['--config', JSON.stringify(config)] : [];
 const args = mode === 'dev' ? ['tauri', 'dev', ...extra]

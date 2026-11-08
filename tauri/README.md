@@ -48,11 +48,14 @@ npm run tauri:build
 ```
 
 Build menggunakan pipeline `scripts/desktop/build.cjs` untuk PyInstaller,
-Next.js standalone, model, dan Node. Setelah itu `cargo tauri build --bundles app,dmg -- --locked`
-di macOS atau `cargo tauri build --bundles nsis -- --locked` di Windows mengompilasi dan mengemas aplikasi.
+Next.js standalone, model, dan Node. Jalankan `npm run desktop:build` untuk menjalankan
+pipeline dan mengemas aplikasi dalam satu perintah. Target macOS adalah APP/DMG;
+target Windows adalah MSI WiX karena payload ML melebihi batas NSIS.
 Dependensi Cargo harus sudah tersedia atau dapat diunduh.
 Hasil berada di `src-tauri/target/release/bundle/macos/Visitor Counter.app`,
-`bundle/dmg/`, atau `bundle/nsis/`.
+`bundle/dmg/`, atau `bundle/msi/`.
+Keluar dari aplikasi lewat menu tray sebelum build atau packaging; menutup jendela
+hanya menyembunyikan aplikasi dan proses lokalnya tetap mengunci file.
 
 Untuk build harian tanpa jendela Finder dan tanpa risiko "Resource busy" saat membuat DMG,
 jalankan dengan `CI=true` (tata letak jendela DMG memakai tampilan default).
@@ -145,7 +148,7 @@ Cadangkan folder profil sebelum pengujian terhadap data operasional.
 - Gateway meneruskan WebSocket development Next.js (`/_next/hmr` dan `/_next/webpack-hmr`) hanya untuk sesi desktop yang sah dan origin lokal yang sama. Target selalu server frontend lokal; koneksi ini dinonaktifkan dalam production. Ini juga menjaga kanal debug development agar hydration tidak tertahan. Validasi HMR di WebView native masih perlu dilakukan di macOS/Windows.
 - Implementasikan Tauri updater dengan verifikasi tanda
   tangan, metadata GitHub Releases, aksi manual dan UI progres. Belum tersedia.
-- Siapkan signing semua binary pendamping, notarization macOS dan installer NSIS;
+- Siapkan signing semua binary pendamping, notarization macOS dan installer MSI;
   tidak menonaktifkan pemeriksaan signature untuk melewati kegagalan build.
 - Tambahkan CI native ketiga target dan uji installer/upgrade bersih. Workflow
   validasi native tidak memublikasikan release sampai seluruh gerbang ini lulus.

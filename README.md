@@ -55,14 +55,17 @@ dan environment Python backend (`uv sync --project desktop --locked` di `../reco
 ```bash
 npm run desktop:assets     # unduh Node.js dan MediaMTX yang dikunci
 npm run desktop:dev        # jalankan desktop dalam mode development
-npm run desktop:build      # build backend + Next.js + installer
+npm run desktop:build      # build backend + Next.js + installer (.msi on Windows)
 npm run desktop:package    # kemas ulang build yang sudah ada tanpa rebuild
 npm run desktop:test       # tes host layanan lokal dan Tauri
 ```
 
 Hasil build ada di `src-tauri/target/release/bundle/`: `macos/` dan `dmg/` di macOS,
-`nsis/` di Windows. Build harus dilakukan di OS tujuan, karena backend PyInstaller
-tidak bisa di-cross-compile. Tambahkan `CI=true` agar Finder tidak membuka DMG saat build.
+`msi/` di Windows. Windows memakai MSI karena payload ML tidak muat dalam batas
+installer NSIS. Keluar sepenuhnya dari Visitor Counter lewat menu tray sebelum build
+atau packaging agar Windows tidak mengunci executable dan resource. Build harus
+dilakukan di OS tujuan, karena backend PyInstaller tidak bisa di-cross-compile.
+Tambahkan `CI=true` agar Finder tidak membuka DMG saat build.
 
 Data pengguna disimpan di luar folder aplikasi dan tidak terhapus saat update:
 `~/Library/Application Support/Visitor Counter` (macOS) atau
