@@ -1,5 +1,5 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
-use std::{io::{BufRead, BufReader, Write}, path::PathBuf, process::{Child, Command, Stdio}, sync::{atomic::{AtomicBool, Ordering}, Arc, Mutex}, time::{Duration, Instant}};
+use std::{fs::{self, OpenOptions}, io::{BufRead, BufReader, Write}, path::PathBuf, process::{Child, Command, Stdio}, sync::{atomic::{AtomicBool, Ordering}, Arc, Mutex}, time::{Duration, Instant, SystemTime}};
 use rand::RngCore;
 use tauri::{menu::{IsMenuItem, Menu, MenuItem}, tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent}, Manager, WebviewUrl, WebviewWindowBuilder};
 mod updates;
@@ -24,10 +24,13 @@ fn start(app: &tauri::AppHandle) -> Result<(Arc<Services>, BufReader<std::proces
     // Reuse the existing OS-appropriate profile so the SQLite DB and photos remain.
     let user_data = data_root.parent().ok_or("Invalid application data path")?.join("Visitor Counter");
     let node = root.join("resources/node").join(if cfg!(windows) { "node.exe" } else { "node" });
+    let host = root.join("tauri/host.cjs");
+    if !node.is_file() { return Err(format!("Bundled Node.js executable is missing: {}", node.display()).into()); }
+    if !host.is_file() { return Err(format!("Tauri host script is missing: {}", host.display()).into()); }
     let mut command = Command::new(node);
-    command.arg(root.join("tauri/host.cjs")).current_dir(&root)
+    command.arg("tauri/host.cjs").current_dir(&root)
         .env("VISITOR_TAURI_DATA", user_data).env("VISITOR_TAURI_KEY", credential_key()?)
-        .stdin(Stdio::piped()).stdout(Stdio::piped()).stderr(Stdio::inherit());
+        .stdin(Stdio::piped()).stdout(Stdio::piped()).stderr(Stdio::piped());
     if cfg!(debug_assertions) { command.arg("--development"); }
     #[cfg(windows)] {
         use std::os::windows::process::CommandExt;
@@ -35,6 +38,25 @@ fn start(app: &tauri::AppHandle) -> Result<(Arc<Services>, BufReader<std::proces
     }
     if app.state::<Startup>().cancelled.load(Ordering::SeqCst) { return Err("Startup cancelled".into()); }
     let mut child = command.spawn()?;
+    if let Some(stderr) = child.stderr.take() {
+        let stderr_log = data_root.parent().unwrap().join("Visitor Counter/data/logs/tauri-host-stderr.log");
+        std::thread::spawn(move || {
+            let mut reader = BufReader::new(stderr);
+            let mut line = String::new();
+            loop {
+                match reader.read_line(&mut line) {
+                    Ok(0) | Err(_) => break,
+                    Ok(_) => {
+                        if let Some(parent) = stderr_log.parent() { let _ = fs::create_dir_all(parent); }
+                        if let Ok(mut output) = OpenOptions::new().create(true).append(true).open(&stderr_log) {
+                            let _ = output.write_all(line.as_bytes());
+                        }
+                        line.clear();
+                    }
+                }
+            }
+        });
+    }
     let stdout = child.stdout.take().ok_or("Host output unavailable")?;
     let services = Arc::new(Services { child: Mutex::new(child), stopping: AtomicBool::new(false) });
     app.manage(services.clone());
@@ -86,6 +108,23 @@ fn shutdown(services: &Services) {
             std::thread::sleep(Duration::from_millis(100));
         }
         let _ = child.kill(); let _ = child.wait();
+    }
+}
+fn log_startup_error(app: &tauri::AppHandle, error: &dyn std::fmt::Display) {
+    let mut directories = Vec::new();
+    if let Ok(app_data) = app.path().app_data_dir() {
+        if let Some(parent) = app_data.parent() {
+            directories.push(parent.join("Visitor Counter").join("data").join("logs"));
+        }
+    }
+    directories.push(std::env::temp_dir().join("Visitor Counter").join("logs"));
+    for directory in directories {
+        if fs::create_dir_all(&directory).is_err() { continue; }
+        let file = directory.join("tauri-launch.log");
+        if let Ok(mut output) = OpenOptions::new().create(true).append(true).open(file) {
+            let _ = writeln!(output, "{:?} {error}", SystemTime::now());
+            return;
+        }
     }
 }
 /// Stop the local services, e.g. before an installer replaces their files.
@@ -190,7 +229,7 @@ fn main() {
                         while output.read_line(&mut line).is_ok_and(|n| n > 0) { line.clear(); }
                         if !services.stopping.load(Ordering::SeqCst) { handle.exit(1); }
                     },
-                    Err(_) => startup_status(&handle, "failed"),
+                    Err(error) => { log_startup_error(&handle, &error); startup_status(&handle, "failed"); },
                 }
             });
             Ok(())

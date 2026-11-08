@@ -19,7 +19,7 @@ function run(mode, platform, env = {}) {
   return calls;
 }
 test('build forwards lockfile flag to Cargo after the Tauri argument separator on both platforms', () => {
-  for (const [platform, bundles] of [['darwin', 'app,dmg'], ['win32', 'nsis']]) {
+  for (const [platform, bundles] of [['darwin', 'app,dmg'], ['win32', 'msi']]) {
     const calls = run('build', platform);
     assert.equal(calls.at(-2).command, '/node');
     assert.deepEqual(calls.at(-1).args, ['tauri', 'build', '--bundles', bundles, '--', '--locked']);
@@ -33,7 +33,7 @@ test('package reuses an existing build without rerunning backend or frontend', (
 test('updates are opt-in and signed release builds point at the GitHub release feed', () => {
   const env = { DESKTOP_UPDATER_PUBKEY: 'public-key', TAURI_SIGNING_PRIVATE_KEY: 'private-key' };
   const args = run('build', 'win32', env).at(-1).args;
-  assert.deepEqual(args.slice(0, 4), ['tauri', 'build', '--bundles', 'nsis']);
+  assert.deepEqual(args.slice(0, 4), ['tauri', 'build', '--bundles', 'msi']);
   assert.equal(args[4], '--config');
   const config = JSON.parse(args[5]);
   assert.equal(config.bundle.createUpdaterArtifacts, true);
