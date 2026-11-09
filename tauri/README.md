@@ -62,8 +62,10 @@ jalankan dengan `CI=true` (tata letak jendela DMG memakai tampilan default).
 
 ## Pembaruan otomatis
 
-Updater bersifat opt-in. Tanpa variabel di bawah, aplikasi dibangun tanpa updater dan
-tidak membutuhkan kunci penandatanganan.
+Updater bersifat opt-in dan hanya untuk macOS. Tanpa variabel di bawah, aplikasi dibangun
+tanpa updater dan tidak membutuhkan kunci penandatanganan. Build Windows selalu tanpa
+updater: MSI-nya membutuhkan file `app*.cab` eksternal, sedangkan updater Tauri hanya
+mengunduh dan memasang satu file. Lihat [keputusan dan alternatifnya](../docs/windows-exe-build.md#updates-on-windows).
 
 | Variabel | Keterangan |
 | --- | --- |
@@ -87,7 +89,8 @@ memori (sekitar ukuran installer), jadi sediakan RAM yang cukup.
 
 Rilis: naikkan `version` di `package.json`, tulis bagian `## <versi>` di `CHANGELOG.md`, lalu
 push tag `v<versi>`. Workflow **Desktop release** membangun ketiga platform, memverifikasi
-tanda tangan, menyusun `latest.json`, dan membuat **draft** GitHub Release. Pembaruan baru
+tanda tangan, menyusun `latest.json` (macOS saja), memeriksa MSI Windows beserta CAB dan
+`SHA256SUMS`-nya (`scripts/tauri/release.cjs`), dan membuat **draft** GitHub Release. Pembaruan baru
 diterima aplikasi setelah draft dipublikasikan. Butuh repository variable
 `DESKTOP_UPDATER_PUBKEY` dan secret `TAURI_SIGNING_PRIVATE_KEY`; secret Apple
 (`APPLE_CERTIFICATE`, `APPLE_SIGNING_IDENTITY`, `APPLE_ID`, `APPLE_PASSWORD`, `APPLE_TEAM_ID`)

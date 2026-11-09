@@ -1,6 +1,8 @@
 name: Desktop release
 # Builds signed installers and updater packages, then opens a DRAFT GitHub Release.
 # Installed apps only see an update after a person reviews and publishes the draft.
+# Windows ships an MSI plus external app*.cab files and is updated manually (no updater
+# entry in latest.json); see docs/windows-exe-build.md.
 on:
   push:
     tags: ['v*.*.*']
@@ -110,28 +112,11 @@ jobs:
         env:
           VERSION: ${{ steps.config.outputs.version }}
           PLATFORM: ${{ matrix.platform }}
+        # Windows: renamed MSI + every app*.cab it references (checked against the MSI Media
+        # table) + SHA256SUMS. macOS: signed .app.tar.gz updater package + .sig + DMG.
+        # Every file is checked against the 2 GiB GitHub release asset limit.
         run: |
-          set -euo pipefail
-          bundle=src-tauri/target/release/bundle
-          mkdir -p ../release
-          if [ "$PLATFORM" = windows-x86_64 ]; then
-            installer=$(ls "$bundle"/nsis/*-setup.exe)
-            cp "$installer" "../release/VisitorCounter_${VERSION}_${PLATFORM}-setup.exe"
-            cp "$installer.sig" "../release/VisitorCounter_${VERSION}_${PLATFORM}-setup.exe.sig"
-            update="VisitorCounter_${VERSION}_${PLATFORM}-setup.exe"
-          else
-            cp "$bundle"/macos/*.app.tar.gz "../release/VisitorCounter_${VERSION}_${PLATFORM}.app.tar.gz"
-            cp "$bundle"/macos/*.app.tar.gz.sig "../release/VisitorCounter_${VERSION}_${PLATFORM}.app.tar.gz.sig"
-            cp "$bundle"/dmg/*.dmg "../release/VisitorCounter_${VERSION}_${PLATFORM}.dmg"
-            update="VisitorCounter_${VERSION}_${PLATFORM}.app.tar.gz"
-          fi
-          test -s "../release/$update.sig"
-          # GitHub release assets are limited to 2 GiB each.
-          for file in ../release/*; do
-            size=$(wc -c < "$file")
-            if [ "$size" -ge 2147483648 ]; then echo "$file exceeds the 2 GiB release asset limit" >&2; exit 1; fi
-          done
-          echo "{\"platform\":\"$PLATFORM\",\"file\":\"$update\"}" > "../release/$PLATFORM.update.json"
+          node scripts/tauri/release.cjs collect "$VERSION" "$PLATFORM" ../release
           ls -la ../release
       - uses: actions/upload-artifact@v4
         with:
@@ -139,6 +124,8 @@ jobs:
           path: release/
           if-no-files-found: error
           retention-days: 7
+          # Installers and cabinets are already compressed.
+          compression-level: 0
 
   publish-draft:
     needs: build
@@ -157,30 +144,12 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           REPOSITORY: ${{ github.repository }}
+        # latest.json lists only the macOS updater packages: the Windows MSI needs its external
+        # cabinets and the Tauri updater installs a single file. Windows is updated manually;
+        # see docs/windows-exe-build.md. The Windows files are re-hashed against SHA256SUMS.
         run: |
           set -euo pipefail
           version=$(node -p "require('./package.json').version")
-          node - "$version" <<'JS'
-          const fs = require('node:fs');
-          const version = process.argv[2];
-          const repository = process.env.REPOSITORY;
-          const changelog = fs.readFileSync('CHANGELOG.md', 'utf8');
-          const section = changelog.split(/^## /m).find((part) => part.startsWith(version));
-          if (!section) throw new Error(`CHANGELOG.md has no "## ${version}" section; add release notes first.`);
-          const notes = section.split('\n').slice(1).join('\n').trim();
-          const platforms = {};
-          for (const name of fs.readdirSync('release').filter((file) => file.endsWith('.update.json'))) {
-            const { platform, file } = JSON.parse(fs.readFileSync(`release/${name}`, 'utf8'));
-            const signature = fs.readFileSync(`release/${file}.sig`, 'utf8').trim();
-            if (!signature) throw new Error(`Missing signature for ${file}`);
-            platforms[platform] = { signature, url: `https://github.com/${repository}/releases/download/v${version}/${file}` };
-          }
-          for (const platform of ['windows-x86_64', 'darwin-aarch64', 'darwin-x86_64']) {
-            if (!platforms[platform]) throw new Error(`Missing ${platform} update package`);
-          }
-          fs.writeFileSync('release/latest.json', JSON.stringify({ version, notes, pub_date: new Date().toISOString(), platforms }, null, 2));
-          fs.writeFileSync('release-notes.md', notes);
-          JS
-          rm release/*.update.json
+          node scripts/tauri/release.cjs publish "$version" release
           gh release create "v$version" release/* --repo "$REPOSITORY" --draft \
             --title "Visitor Counter v$version" --notes-file release-notes.md

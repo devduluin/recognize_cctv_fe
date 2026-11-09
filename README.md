@@ -62,7 +62,11 @@ npm run desktop:test       # tes host layanan lokal dan Tauri
 
 Hasil build ada di `src-tauri/target/release/bundle/`: `macos/` dan `dmg/` di macOS,
 `msi/` di Windows. Windows memakai MSI karena payload ML tidak muat dalam batas
-installer NSIS. Keluar sepenuhnya dari Visitor Counter lewat menu tray sebelum build
+installer NSIS. Karena payload Windows (PyTorch CUDA) melebihi batas ~2 GB satu cabinet,
+isi MSI dipecah ke file `app1.cab`, `app2.cab`, dan seterusnya di folder `msi/` yang sama.
+Bagikan file `.msi` **bersama semua file `app*.cab`** dalam satu folder. MSI tanpa CAB
+tidak bisa dipasang. Karena itu Windows tidak memakai pembaruan otomatis; detailnya di
+[docs/windows-exe-build.md](docs/windows-exe-build.md#updates-on-windows). Keluar sepenuhnya dari Visitor Counter lewat menu tray sebelum build
 atau packaging agar Windows tidak mengunci executable dan resource. Build harus
 dilakukan di OS tujuan, karena backend PyInstaller tidak bisa di-cross-compile.
 Tambahkan `CI=true` agar Finder tidak membuka DMG saat build.
@@ -115,11 +119,14 @@ Versi aplikasi hanya ditentukan di `package.json`.
    sebagai catatan rilis di dialog update.
 3. Commit, buat tag `v<versi>`, lalu push tag-nya.
 4. Workflow **Desktop release** membangun Windows x64, macOS arm64, dan macOS Intel,
-   lalu membuat **draft** GitHub Release beserta `latest.json`.
-5. Uji installer dari draft. Setelah draft dipublikasikan, aplikasi yang terpasang
-   akan menawarkan update.
+   lalu membuat **draft** GitHub Release beserta `latest.json`. Aset Windows berupa
+   `VisitorCounter_<versi>_windows-x86_64.msi`, semua `app*.cab`, dan file
+   `SHA256SUMS`; catatan rilis menjelaskan cara mengunduhnya ke satu folder.
+5. Uji installer dari draft. Setelah draft dipublikasikan, aplikasi macOS yang terpasang
+   akan menawarkan update. Windows diperbarui manual dengan memasang MSI baru (beserta
+   CAB-nya) di atas versi lama.
 
-Update ditandatangani dan hanya aktif kalau `DESKTOP_UPDATER_PUBKEY` (repository
+Update (macOS) ditandatangani dan hanya aktif kalau `DESKTOP_UPDATER_PUBKEY` (repository
 variable) dan `TAURI_SIGNING_PRIVATE_KEY` (secret) diisi. Signing macOS memakai secret
 `APPLE_*`. Cara membuat kunci dan daftar lengkap variabelnya ada di
 [tauri/README.md](tauri/README.md#pembaruan-otomatis).

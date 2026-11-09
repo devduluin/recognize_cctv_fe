@@ -26,11 +26,34 @@ const args = mode === 'dev' ? ['tauri', 'dev', ...extra]
     : ['tauri', 'build', '--bundles', bundles, ...extra, '--', '--locked'];
 const result = spawnSync('cargo', args, { cwd: root, stdio: 'inherit' });
 process.exitCode = result.status || (result.error ? 1 : 0);
+if (process.exitCode === 0 && mode !== 'dev' && process.platform === 'win32') collectMsiCabinets();
+
+// src-tauri/wix/main.wxs splits the payload into external cabinets because the ML
+// payload exceeds the ~2 GiB single-cabinet/MSI limit. Tauri moves only the .msi out of
+// the WiX work directory, so copy the cabinets next to it; the MSI cannot install without them.
+function collectMsiCabinets() {
+  const release = path.join(root, 'src-tauri/target/release');
+  const work = path.join(release, 'wix/x64');
+  const output = path.join(release, 'bundle/msi');
+  const isCabinet = name => /^app\d+\.cab$/i.test(name);
+  const cabinets = fs.existsSync(work) ? fs.readdirSync(work).filter(isCabinet) : [];
+  if (!cabinets.length) throw new Error(`MSI cabinets not found in ${work}; check src-tauri/wix/main.wxs.`);
+  for (const name of fs.readdirSync(output).filter(isCabinet)) fs.rmSync(path.join(output, name));
+  for (const name of cabinets) fs.renameSync(path.join(work, name), path.join(output, name));
+  console.log(`MSI cabinets (${cabinets.length}) copied to ${output}. Distribute the .msi together with every app*.cab file in the same folder.`);
+}
 
 // Updates are opt-in: without a public key the app has no updater and needs no signing key.
 function updaterConfig() {
   const pubkey = (process.env.DESKTOP_UPDATER_PUBKEY || '').trim();
   if (!pubkey) return null;
+  // The Tauri updater downloads and installs one file, but the Windows MSI needs its external
+  // cabinets, and an MSI+CAB ZIP exceeds the 2 GiB GitHub asset limit. Windows builds therefore
+  // ship without the updater and are updated by installing the new MSI (docs/windows-exe-build.md).
+  if (process.platform === 'win32') {
+    console.log('DESKTOP_UPDATER_PUBKEY ignored on Windows: the split-cabinet MSI is updated manually.');
+    return null;
+  }
   if (mode !== 'dev' && !process.env.TAURI_SIGNING_PRIVATE_KEY) {
     throw new Error('DESKTOP_UPDATER_PUBKEY membutuhkan TAURI_SIGNING_PRIVATE_KEY untuk menandatangani paket pembaruan.');
   }

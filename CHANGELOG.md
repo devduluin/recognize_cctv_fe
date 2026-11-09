@@ -3,6 +3,7 @@
 ## Unreleased
 - Signed automatic updates through the Tauri updater: tray "Periksa pembaruan", release notes, download progress, postpone and install. Opt-in with `DESKTOP_UPDATER_PUBKEY`.
 - Draft GitHub Release workflow for Windows x64, macOS arm64 and macOS Intel with `latest.json`.
+- Windows release ships the MSI with its external `app*.cab` cabinets and a SHA256SUMS file. Windows is updated manually by installing the new MSI; `latest.json` and the in-app updater cover macOS only.
 - Desktop runtime for the existing FastAPI and Next.js applications.
 - Local persistent storage, platform-specific runtime packaging and native build workflow.
 
