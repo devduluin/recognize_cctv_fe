@@ -518,7 +518,16 @@ export default function EventsManager({ editEventId, onClose, onSaved }: {
         `${API_BASE}/${encodeURIComponent(id)}?company_id=${encodeURIComponent(companyId())}`,
         { method: "DELETE", headers: getAuthHeaders() },
       );
-      if (!response.ok) throw new Error("Event belum dapat dihapus.");
+      if (!response.ok) {
+        const result = await response.json().catch(() => null);
+        throw new Error(
+          typeof result?.detail === "string"
+            ? result.detail
+            : typeof result?.message === "string"
+              ? result.message
+              : "Event belum dapat dihapus.",
+        );
+      }
       toast.success("Event dan data pengunjung berhasil dihapus.");
       setSelected((previous) => previous.filter((value) => value !== id));
       await load();
