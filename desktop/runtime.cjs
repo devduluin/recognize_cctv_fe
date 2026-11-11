@@ -132,7 +132,9 @@ class DesktopRuntime extends EventEmitter {
       FFMPEG_PATH: path.join(this.resources, 'media', process.platform === 'win32' ? 'ffmpeg.exe' : 'ffmpeg'),
       DESKTOP_RESOURCE_ROOT: this.resources,
     });
-    await waitForService(`${this.backendOrigin}/desktop-health`, { 'X-Desktop-Service-Token': this.serviceToken }, () => backend.exitCode === null && !this.stopping);
+    // The backend loads native ML libraries before listening; a first launch
+    // after install can be slow while antivirus scans the CUDA DLLs.
+    await waitForService(`${this.backendOrigin}/desktop-health`, { 'X-Desktop-Service-Token': this.serviceToken }, () => backend.exitCode === null && !this.stopping, 300000);
     this.emit('startup-stage', 'frontend');
     const nextDirectory = this.development ? this.frontendRoot : path.join(this.userData, 'next-runtime', this.version);
     if (!this.development) {

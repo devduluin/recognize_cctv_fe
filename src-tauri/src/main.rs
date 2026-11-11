@@ -83,7 +83,8 @@ fn start(app: &tauri::AppHandle) -> Result<(Arc<Services>, BufReader<std::proces
         };
         let _ = tx.send((reader, result));
     });
-    let result = rx.recv_timeout(Duration::from_secs(240));
+    // Must exceed the backend (300 s) plus frontend start waits in desktop/runtime.cjs.
+    let result = rx.recv_timeout(Duration::from_secs(480));
     match result {
         Ok((reader, Ok(line))) => {
             let validated = (|| -> Result<String, Box<dyn std::error::Error>> {
